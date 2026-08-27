@@ -132,4 +132,53 @@ describe("store CRUD", () => {
     expect(file).toContain("hi");
     expect(await gitCommitCount()).toBeGreaterThanOrEqual(1);
   });
+
+  it("createCharter throws for a project without mvp", async () => {
+    const { createCharter } = await import("../store");
+    await expect(
+      createCharter({ type: "project", name: "No Mvp", why: "oops" }),
+    ).rejects.toThrow();
+    const file = path.join(tmp, "projects", "no-mvp.md");
+    await expect(fs.readFile(file, "utf8")).rejects.toThrow();
+  });
+
+  it("updateCharter throws when removing mvp from a project", async () => {
+    const { createCharter, updateCharter } = await import("../store");
+    await createCharter({ type: "project", name: "Has Mvp", why: "y", mvp: "ship" });
+    await expect(
+      updateCharter("project", "has-mvp", { mvp: undefined }),
+    ).rejects.toThrow();
+  });
+
+  it("updateTask with complete:false reopens into backlog with created restored and doneDate gone", async () => {
+    const { createCharter, addTask, updateTask, listTasks } = await import("../store");
+    await createCharter({ type: "area", name: "Reopen", why: "test" });
+    const t = await addTask("area", "reopen", { title: "Do it", size: "M" });
+    await updateTask("area", "reopen", t.id, { complete: true });
+    const reopened = await updateTask("area", "reopen", t.id, { complete: false });
+    expect(reopened.done).toBe(false);
+    expect(reopened.section).toBe("backlog");
+    expect(reopened.created).toBe(localDate());
+    expect(reopened.doneDate).toBeUndefined();
+    const tasks = await listTasks("area", "reopen");
+    const stored = tasks.find((x) => x.id === t.id)!;
+    expect(stored.section).toBe("backlog");
+    expect(stored.created).toBe(localDate());
+    expect(stored.doneDate).toBeUndefined();
+  });
+
+  it("addTask subtask under a done parent lands in backlog", async () => {
+    const { createCharter, addTask, updateTask, listTasks } = await import("../store");
+    await createCharter({ type: "area", name: "Parent", why: "test" });
+    const parent = await addTask("area", "parent", { title: "Done parent", size: "M" });
+    await updateTask("area", "parent", parent.id, { complete: true });
+    const child = await addTask("area", "parent", {
+      title: "Child",
+      size: "S",
+      parentId: parent.id,
+    });
+    expect(child.section).toBe("backlog");
+    const tasks = await listTasks("area", "parent");
+    expect(tasks.find((x) => x.id === child.id)!.section).toBe("backlog");
+  });
 });

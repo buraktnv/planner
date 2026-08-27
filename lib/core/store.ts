@@ -69,6 +69,9 @@ export async function createCharter(input: {
   mvp?: string;
   priority?: number;
 }): Promise<Charter> {
+  if (input.type === "project" && !input.mvp) {
+    throw new Error("Project charter requires an mvp");
+  }
   const date = today();
   const slug = slugify(input.name);
   const c: Charter = {
@@ -98,6 +101,9 @@ export async function updateCharter(
 ): Promise<Charter> {
   const c = await getCharter(type, slug);
   const next: Charter = { ...c, ...patch, updated: today() };
+  if (next.type === "project" && next.mvp === undefined) {
+    throw new Error("Project charter requires an mvp");
+  }
   const newSlug = slugify(next.name);
   if (newSlug !== slug) {
     await fs.rm(charterPath(type, slug));
@@ -129,16 +135,27 @@ export async function addTask(
     const parent = tasks.find((t) => t.id === input.parentId);
     if (!parent) throw new Error(`Parent task not found: ${input.parentId}`);
     const children = tasks.filter((t) => t.parentId === input.parentId).length;
+    const parentSection = parent.section === "done" ? "backlog" : parent.section;
+    if (parent.section === "done") {
+      const pIdx = tasks.findIndex((t) => t.id === parent.id);
+      tasks[pIdx] = {
+        ...tasks[pIdx],
+        done: false,
+        section: "backlog",
+        doneDate: undefined,
+        created: today(),
+      };
+    }
     task = {
       id: `${input.parentId}.${children + 1}`,
       title: input.title,
       size: input.size,
       done: false,
-      section: parent.section,
       created: today(),
       est: input.est,
       due: input.due,
       parentId: input.parentId,
+      section: parentSection,
     };
     const parentIdx = tasks.findIndex((t) => t.id === input.parentId);
     tasks.splice(parentIdx + 1, 0, task);
@@ -182,6 +199,11 @@ export async function updateTask(
     t.section = "done";
     t.doneDate = today();
     t.created = undefined;
+  } else if (patch.complete === false) {
+    t.done = false;
+    t.section = "backlog";
+    t.doneDate = undefined;
+    t.created = today();
   } else if (patch.section !== undefined) {
     t.section = patch.section as TaskSection;
   }
