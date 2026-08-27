@@ -9,10 +9,12 @@ const STATUS_STYLES: Record<ProjectStatus, string> = {
 };
 
 export default function CharterCard({
+  type,
   charter,
   done,
   total,
 }: {
+  type: "project" | "area";
   charter: Charter;
   done: number;
   total: number;
@@ -20,7 +22,7 @@ export default function CharterCard({
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
   return (
     <Link
-      href={`/projects/${charter.id}`}
+      href={`/${type}/${charter.id}`}
       className="block rounded-lg border border-neutral-800 bg-neutral-900 p-4 transition-colors hover:border-neutral-700"
     >
       <div className="flex items-start justify-between gap-2">

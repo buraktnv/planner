@@ -10,11 +10,19 @@ const COLUMNS: { key: Task["section"]; label: string }[] = [
   { key: "done", label: "Done" },
 ];
 
-export default function TaskBoard({ slug, tasks }: { slug: string; tasks: Task[] }) {
+export default function TaskBoard({
+  type,
+  slug,
+  tasks,
+}: {
+  type: "project" | "area";
+  slug: string;
+  tasks: Task[];
+}) {
   const router = useRouter();
 
   async function toggle(task: Task) {
-    await fetch(`/api/projects/${slug}/tasks`, {
+    await fetch(`/api/${type}/${slug}/tasks`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: task.id, complete: !task.done }),
@@ -29,7 +37,7 @@ export default function TaskBoard({ slug, tasks }: { slug: string; tasks: Task[]
     const title = String(data.get("title") ?? "").trim();
     const size = (data.get("size") as TaskSize) ?? "M";
     if (!title) return;
-    await fetch(`/api/projects/${slug}/tasks`, {
+    await fetch(`/api/${type}/${slug}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, size }),

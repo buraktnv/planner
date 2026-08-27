@@ -24,7 +24,7 @@ export default async function ProjectsPage() {
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map(({ charter, total, done }) => (
-            <CharterCard key={charter.id} charter={charter} total={total} done={done} />
+            <CharterCard key={charter.id} type="project" charter={charter} total={total} done={done} />
           ))}
         </div>
       )}

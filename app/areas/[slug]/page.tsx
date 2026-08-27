@@ -13,20 +13,20 @@ const STATUS_STYLES: Record<ProjectStatus, string> = {
   abandoned: "bg-rose-500/15 text-rose-400",
 };
 
-export default async function ProjectDetailPage({
+export default async function AreaDetailPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const charter = await getCharter("project", slug).catch(() => null);
+  const charter = await getCharter("area", slug).catch(() => null);
   if (!charter) notFound();
-  const tasks = await listTasks("project", slug);
+  const tasks = await listTasks("area", slug);
 
   return (
     <div>
-      <Link href="/projects" className="text-sm text-neutral-400 hover:text-neutral-100">
-        ← Projects
+      <Link href="/areas" className="text-sm text-neutral-400 hover:text-neutral-100">
+        ← Areas
       </Link>
 
       <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-900 p-5">
@@ -44,21 +44,23 @@ export default async function ProjectDetailPage({
           </blockquote>
         </section>
 
-        <section className="mt-4">
-          <h2 className="text-sm font-semibold text-neutral-300">MVP scope</h2>
-          {charter.mvpScope.length === 0 ? (
-            <p className="mt-1 text-sm text-neutral-500">None defined.</p>
-          ) : (
-            <ul className="mt-1 space-y-1">
-              {charter.mvpScope.map((item, i) => (
-                <li key={i} className="flex items-center gap-2 text-sm text-neutral-400">
-                  <input type="checkbox" checked readOnly className="accent-emerald-500" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {charter.mvp && (
+          <section className="mt-4">
+            <h2 className="text-sm font-semibold text-neutral-300">MVP scope</h2>
+            {charter.mvpScope.length === 0 ? (
+              <p className="mt-1 text-sm text-neutral-500">None defined.</p>
+            ) : (
+              <ul className="mt-1 space-y-1">
+                {charter.mvpScope.map((item, i) => (
+                  <li key={i} className="flex items-center gap-2 text-sm text-neutral-400">
+                    <input type="checkbox" checked readOnly className="accent-emerald-500" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         <section className="mt-4">
           <h2 className="text-sm font-semibold text-neutral-300">Parking lot</h2>
@@ -74,7 +76,7 @@ export default async function ProjectDetailPage({
         </section>
       </div>
 
-      <TaskBoard type="project" slug={slug} tasks={tasks} />
+      <TaskBoard type="area" slug={slug} tasks={tasks} />
     </div>
   );
 }
