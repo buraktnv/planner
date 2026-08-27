@@ -11,6 +11,100 @@ import { toolShapes, toolDescriptions, toolImplMap, toolNames, type ToolName } f
 export interface ClaudeSdkChatOptions {
   messages: UIMessage[];
   focus?: { type: "project" | "area"; slug: string };
+  model?: string;
+}
+
+type StreamPart =
+  | { type: "text-start"; id: string }
+  | { type: "text-delta"; id: string; delta: string }
+  | { type: "text-end"; id: string }
+  | { type: "tool-input-available"; toolCallId: string; toolName: string; input: unknown }
+  | { type: "tool-output-available"; toolCallId: string; output: unknown }
+  | { type: "tool-output-error"; toolCallId: string; errorText: string };
+
+interface TextBlock {
+  type: "text";
+  text: string;
+}
+interface ToolUseBlock {
+  type: "tool_use" | "mcp_tool_use";
+  id: string;
+  name: string;
+  input: unknown;
+}
+interface ToolResultBlock {
+  type: "tool_result";
+  tool_use_id: string;
+  content: string | Array<{ text: string }>;
+  is_error?: boolean;
+}
+
+function blockText(content: string | Array<{ text: string }> | undefined): string {
+  if (content == null) return "";
+  if (typeof content === "string") return content;
+  return content.map((c) => c.text).join("\n");
+}
+
+function mapAssistantBlocks(blocks: unknown[]): StreamPart[] {
+  const parts: StreamPart[] = [];
+  let textId = 0;
+  for (const block of blocks) {
+    if ((block as TextBlock).type === "text") {
+      const id = `t${textId++}`;
+      parts.push({ type: "text-start", id });
+      parts.push({ type: "text-delta", id, delta: (block as TextBlock).text });
+      parts.push({ type: "text-end", id });
+    } else if ((block as ToolUseBlock).type === "tool_use" || (block as ToolUseBlock).type === "mcp_tool_use") {
+      const b = block as ToolUseBlock;
+      parts.push({
+        type: "tool-input-available",
+        toolCallId: b.id,
+        toolName: b.name,
+        input: b.input,
+      });
+    } else if ((block as { type: string }).type === "mcp_tool_result") {
+      const b = block as unknown as ToolResultBlock;
+      const output = blockText(b.content);
+      parts.push(
+        b.is_error
+          ? { type: "tool-output-error", toolCallId: b.tool_use_id, errorText: output }
+          : { type: "tool-output-available", toolCallId: b.tool_use_id, output },
+      );
+    }
+  }
+  return parts;
+}
+
+function mapUserBlocks(blocks: unknown[]): StreamPart[] {
+  const parts: StreamPart[] = [];
+  for (const block of blocks) {
+    if ((block as ToolResultBlock).type === "tool_result") {
+      const b = block as ToolResultBlock;
+      const output = blockText(b.content);
+      parts.push(
+        b.is_error
+          ? { type: "tool-output-error", toolCallId: b.tool_use_id, errorText: output }
+          : { type: "tool-output-available", toolCallId: b.tool_use_id, output },
+      );
+    }
+  }
+  return parts;
+}
+
+export function mapSdkMessages(messages: unknown[]): StreamPart[] {
+  const parts: StreamPart[] = [];
+  for (const msg of messages) {
+    const m = msg as { type: string; message?: { content?: unknown | unknown[] } };
+    if (m.type === "assistant" && m.message) {
+      const content = m.message.content;
+      parts.push(...mapAssistantBlocks(Array.isArray(content) ? (content as unknown[]) : []));
+    } else if (m.type === "user" && m.message) {
+      const content = m.message.content;
+      const blocks = typeof content === "string" ? [] : Array.isArray(content) ? content : [];
+      parts.push(...mapUserBlocks(blocks as unknown[]));
+    }
+  }
+  return parts;
 }
 
 function formatTranscript(messages: UIMessage[]): string {
@@ -53,7 +147,7 @@ function buildMcpServer() {
 }
 
 export async function claudeSdkChat(opts: ClaudeSdkChatOptions): Promise<Response> {
-  const { messages, focus } = opts;
+  const { messages, focus, model = "sonnet" } = opts;
   const system = await buildSystemContext(focus);
   const prompt = formatTranscript(messages) || "Hello";
 
@@ -69,47 +163,15 @@ export async function claudeSdkChat(opts: ClaudeSdkChatOptions): Promise<Respons
             systemPrompt: system,
             mcpServers: { planner: server },
             allowedTools,
-            model: "sonnet",
+            model,
             maxTurns: 12,
             tools: [],
           },
         });
 
-        let textId = 0;
         for await (const msg of q) {
-          if (msg.type !== "assistant") continue;
-          for (const block of msg.message.content) {
-            if (block.type === "text") {
-              const id = `t${textId++}`;
-              writer.write({ type: "text-start", id });
-              writer.write({ type: "text-delta", id, delta: block.text });
-              writer.write({ type: "text-end", id });
-            } else if (block.type === "mcp_tool_use" || block.type === "tool_use") {
-              writer.write({
-                type: "tool-input-available",
-                toolCallId: block.id,
-                toolName: block.name,
-                input: block.input,
-              });
-            } else if (block.type === "mcp_tool_result") {
-              const output =
-                typeof block.content === "string"
-                  ? block.content
-                  : block.content.map((c) => c.text).join("\n");
-              if (block.is_error) {
-                writer.write({
-                  type: "tool-output-error",
-                  toolCallId: block.tool_use_id,
-                  errorText: output,
-                });
-              } else {
-                writer.write({
-                  type: "tool-output-available",
-                  toolCallId: block.tool_use_id,
-                  output,
-                });
-              }
-            }
+          for (const part of mapSdkMessages([msg])) {
+            writer.write(part as Parameters<typeof writer.write>[0]);
           }
         }
       } catch (err) {

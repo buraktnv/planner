@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (profile.type === "claude-subscription") {
-    return claudeSdkChat({ messages: body.messages, focus: body.focus });
+    return claudeSdkChat({ messages: body.messages, focus: body.focus, model: profile.model });
   }
 
   const system = await buildSystemContext(body.focus);
