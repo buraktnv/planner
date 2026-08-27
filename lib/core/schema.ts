@@ -1,11 +1,204 @@
 import matter from "gray-matter";
-import type { Charter, ProjectStatus, ProjectType } from "./types";
+import type { Charter, ProjectStatus, ProjectType, Task, TaskSection, TaskSize } from "./types";
 
 export class CharterParseError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "CharterParseError";
   }
+}
+
+export class TaskParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TaskParseError";
+  }
+}
+
+function toLF(raw: string): string {
+  return raw.replace(/\r\n/g, "\n");
+}
+
+const TASK_SECTIONS: Record<string, TaskSection> = {
+  Backlog: "backlog",
+  "In progress": "in-progress",
+  Done: "done",
+};
+const TASK_SECTION_ORDER: TaskSection[] = ["backlog", "in-progress", "done"];
+const TASK_SECTION_HEADER: Record<TaskSection, string> = {
+  backlog: "## Backlog",
+  "in-progress": "## In progress",
+  done: "## Done",
+};
+const TASK_FIELD_KEYS = new Set(["created", "done", "est", "due"]);
+const TASK_SIZE_VALUES: TaskSize[] = ["S", "M", "L"];
+
+const TASK_PREFIX_RE = /^( *)- \[( |x)\] (.*)$/;
+
+function depthOf(id: string): number {
+  return id.split(".").length - 1;
+}
+
+export function parseTasks(raw: string): Task[] {
+  const text = toLF(raw);
+  const lines = text.split("\n");
+  const tasks: Task[] = [];
+  const seenIds = new Set<string>();
+  let currentSection: TaskSection | null = null;
+  let sectionIndex = -1;
+  const parentStack: string[] = [];
+
+  lines.forEach((rawLine, idx) => {
+    const lineNo = idx + 1;
+    const line = rawLine;
+
+    if (line.trim() === "") return;
+
+    if (line.startsWith("## ")) {
+      const heading = line.slice(3).trim();
+      const sec = TASK_SECTIONS[heading];
+      if (!sec) {
+        throw new TaskParseError(`Line ${lineNo}: unknown task section "${heading}"`);
+      }
+      const newIndex = TASK_SECTION_ORDER.indexOf(sec);
+      if (newIndex < sectionIndex) {
+        throw new TaskParseError(`Line ${lineNo}: section "${heading}" is out of order`);
+      }
+      sectionIndex = newIndex;
+      currentSection = sec;
+      parentStack.length = 0;
+      return;
+    }
+
+    if (currentSection === null) {
+      throw new TaskParseError(`Line ${lineNo}: task line before any section: ${line}`);
+    }
+
+    const prefix = TASK_PREFIX_RE.exec(line);
+    if (!prefix) {
+      throw new TaskParseError(`Line ${lineNo}: malformed task line: ${line}`);
+    }
+
+    const indent = prefix[1];
+    const checked = prefix[2];
+    const rest = prefix[3];
+
+    if (indent.length % 2 !== 0) {
+      throw new TaskParseError(`Line ${lineNo}: odd indent (${indent.length} spaces): ${line}`);
+    }
+    const depth = indent.length / 2;
+
+    const parts = rest.split(" | ");
+    const id = parts[0].trim();
+    const sizeRaw = (parts[1] ?? "").trim();
+    const title = (parts[2] ?? "").trim();
+
+    if (id === "") {
+      throw new TaskParseError(`Line ${lineNo}: missing task id: ${line}`);
+    }
+    if (!TASK_SIZE_VALUES.includes(sizeRaw as TaskSize)) {
+      throw new TaskParseError(`Line ${lineNo}: task ${id} has invalid size "${sizeRaw}"`);
+    }
+    if (title === "") {
+      throw new TaskParseError(`Line ${lineNo}: task ${id} is missing a title: ${line}`);
+    }
+    if (seenIds.has(id)) {
+      throw new TaskParseError(`Line ${lineNo}: duplicate task id "${id}"`);
+    }
+
+    if (depth > parentStack.length) {
+      throw new TaskParseError(`Line ${lineNo}: depth jump > 1 (no parent at depth ${depth - 1}): ${line}`);
+    }
+    const parentId = depth === 0 ? null : parentStack[depth - 1];
+    if (depth > 0 && !id.startsWith(`${parentId}.`)) {
+      throw new TaskParseError(
+        `Line ${lineNo}: subtask id "${id}" must start with parent "${parentId}.": ${line}`,
+      );
+    }
+    parentStack.length = depth;
+    parentStack[depth] = id;
+    seenIds.add(id);
+
+    let created: string | undefined;
+    let doneDate: string | undefined;
+    let est: string | undefined;
+    let due: string | undefined;
+    for (const field of parts.slice(3)) {
+      const colon = field.indexOf(":");
+      if (colon < 0) {
+        throw new TaskParseError(`Line ${lineNo}: malformed field "${field}" in: ${line}`);
+      }
+      const key = field.slice(0, colon).trim();
+      const value = field.slice(colon + 1).trim();
+      if (!TASK_FIELD_KEYS.has(key)) {
+        throw new TaskParseError(`Line ${lineNo}: unknown field key "${key}" in: ${line}`);
+      }
+      if (key === "created") created = value;
+      else if (key === "done") doneDate = value;
+      else if (key === "est") est = value;
+      else if (key === "due") due = value;
+    }
+
+    const isDone = checked === "x";
+    if (isDone !== (currentSection === "done")) {
+      throw new TaskParseError(
+        `Line ${lineNo}: checkbox [${isDone ? "x" : " "}] is inconsistent with section "${currentSection}" for ${id}: ${line}`,
+      );
+    }
+    if (isDone && !doneDate) {
+      throw new TaskParseError(`Line ${lineNo}: done task ${id} is missing a done: date: ${line}`);
+    }
+    if (!isDone && doneDate) {
+      throw new TaskParseError(`Line ${lineNo}: non-done task ${id} has a done: date: ${line}`);
+    }
+
+    tasks.push({
+      id,
+      title,
+      size: sizeRaw as TaskSize,
+      done: isDone,
+      section: currentSection,
+      created,
+      doneDate,
+      est,
+      due,
+      parentId,
+    });
+  });
+
+  return tasks;
+}
+
+export function serializeTasks(tasks: Task[]): string {
+  const blocks = TASK_SECTION_ORDER.map((sec) => {
+    const lines: string[] = [TASK_SECTION_HEADER[sec]];
+    for (const t of tasks) {
+      if (t.section !== sec) continue;
+      const indent = "  ".repeat(depthOf(t.id));
+      const box = t.done ? "[x]" : "[ ]";
+      const fields: string[] = [];
+      if (t.created) fields.push(`created:${t.created}`);
+      if (t.est) fields.push(`est:${t.est}`);
+      if (t.due) fields.push(`due:${t.due}`);
+      if (t.doneDate) fields.push(`done:${t.doneDate}`);
+      const fieldStr = fields.length ? ` | ${fields.join(" | ")}` : "";
+      lines.push(`${indent}- ${box} ${t.id} | ${t.size} | ${t.title}${fieldStr}`);
+    }
+    return lines.join("\n");
+  });
+  return `${blocks.join("\n\n")}\n`;
+}
+
+export function nextTaskId(tasks: Task[]): string {
+  let max = 0;
+  for (const t of tasks) {
+    const m = /^T-(\d+)$/.exec(t.id);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    if (n > max) max = n;
+  }
+  const next = max + 1;
+  return `T-${String(next).padStart(3, "0")}`;
 }
 
 const PROJECT_TYPES: ProjectType[] = ["project", "area"];
