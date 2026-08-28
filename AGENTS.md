@@ -17,6 +17,7 @@ npm run build        # production build
 npm run lint         # next lint
 npm run typecheck    # tsc --noEmit
 npm test             # vitest run (all tests)
+npm run mcp          # stdio MCP server for coding agents (see docs/mcp.md)
 npx vitest run lib/core/schema.test.ts   # single test file
 ```
 
@@ -57,7 +58,7 @@ All of `lint`, `typecheck`, `test` must pass before considering any change done.
 - Tailwind for all styling; no CSS files, no CSS-in-JS
 - No code comments unless explicitly requested
 - Before adding any dependency, check `package.json` and prefer what is already there
-- Approved libraries: `ai` (Vercel AI SDK), `@ai-sdk/anthropic`, `@ai-sdk/openai-compatible`, `@anthropic-ai/claude-agent-sdk`, `recharts`, `gray-matter`, `simple-git`, `vitest`
+- Approved libraries: `ai` (Vercel AI SDK), `@ai-sdk/anthropic`, `@ai-sdk/openai-compatible`, `@anthropic-ai/claude-agent-sdk`, `recharts`, `gray-matter`, `simple-git`, `vitest`, `@modelcontextprotocol/sdk`, `tsx`
 - Components: small, one purpose per file; page-specific components colocated under `app/<route>/`
 
 ## Testing

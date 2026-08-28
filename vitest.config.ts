@@ -7,5 +7,10 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./", import.meta.url)),
     },
   },
-  test: { environment: "node", include: ["lib/**/__tests__/**/*.test.ts"] },
+  test: {
+    environment: "node",
+    include: ["lib/**/__tests__/**/*.test.ts", "mcp/__tests__/**/*.test.ts"],
+    testTimeout: 30000,
+    hookTimeout: 30000,
+  },
 });

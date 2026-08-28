@@ -41,7 +41,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   delete process.env.PLANNER_DATA_DIR;
-  await fs.rm(tmp, { recursive: true, force: true });
+  await fs.rm(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 120 });
 });
 
 async function writeCharter(c: Charter): Promise<void> {
