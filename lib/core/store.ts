@@ -16,7 +16,7 @@ function today(): string {
   return new Date().toLocaleDateString("sv").slice(0, 10);
 }
 
-function slugify(name: string): string {
+export function slugify(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -84,6 +84,16 @@ export async function createCharter(input: {
   }
   const date = today();
   const slug = slugify(input.name);
+  if (!slug) {
+    throw new Error(`Charter name does not produce a usable slug: ${input.name}`);
+  }
+  const existing = await listCharters();
+  const clash = existing.find((c) => c.id === slug);
+  if (clash) {
+    throw new Error(
+      `A ${clash.type} charter named "${clash.name}" already uses the slug ${slug}; refusing to overwrite it`,
+    );
+  }
   const c: Charter = {
     id: slug,
     name: input.name,

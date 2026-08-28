@@ -6,6 +6,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { buildSystemContext } from "./context";
+import { recallQuery } from "./recall";
 import type { ChatMode } from "./modes";
 import type { ProviderEffort } from "../core/types";
 import { toolShapes, toolDescriptions, toolNames, type ToolName } from "./schemas";
@@ -166,7 +167,7 @@ function buildMcpServer() {
 
 export async function claudeSdkChat(opts: ClaudeSdkChatOptions): Promise<Response> {
   const { messages, focus, mode, model = "sonnet", effort } = opts;
-  const system = await buildSystemContext(focus, mode);
+  const system = await buildSystemContext(focus, mode, recallQuery(messages));
   const prompt = formatTranscript(messages) || "Hello";
 
   const server = buildMcpServer();

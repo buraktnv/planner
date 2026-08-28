@@ -21,7 +21,8 @@ import type {
   ProposalInput,
   ProposalPreviewRow,
 } from "./schemas";
-import { addNote, readNote, searchNotes, updateNote } from "../core/knowledge";
+import { deriveTitle, readNote, searchNotes, updateNote } from "../core/knowledge";
+import { fileNote, type FileNoteResult } from "./file-note";
 import type { KnowledgeHit, KnowledgeNote } from "../core/types";
 import { getInsights, type Insights } from "../core/insights";
 import { getAbout } from "../core/store";
@@ -147,7 +148,7 @@ async function previewRow(
     return {
       kind: action.kind,
       id: "NOTE",
-      title: action.title,
+      title: action.title?.trim() || deriveTitle(action.summary),
       lane: null,
       note: "note",
       detail: action.summary,
@@ -426,16 +427,15 @@ export const toolImpls = {
   },
 
   async addNote(input: {
-    title: string;
+    title?: string;
     summary: string;
     body?: string;
     scope?: string[];
     tags?: string[];
     source?: string;
-  }): Promise<KnowledgeNote> {
-    if (!input.title) throw new Error("addNote requires a title");
+  }): Promise<FileNoteResult> {
     if (!input.summary) throw new Error("addNote requires a summary");
-    return addNote(input);
+    return fileNote(input);
   },
 
   async updateNote(input: {

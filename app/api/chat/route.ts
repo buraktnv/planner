@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { streamText, tool as aiTool, stepCountIs, convertToModelMessages, type UIMessage, type Tool } from "ai";
 import { getProviders } from "@/lib/core/providers";
 import { buildSystemContext } from "@/lib/ai/context";
+import { recallQuery } from "@/lib/ai/recall";
 import { resolveModel } from "@/lib/ai/providers";
 import { claudeSdkChat } from "@/lib/ai/claude-sdk";
 import { toolSchemas, toolDescriptions, type ToolName } from "@/lib/ai/schemas";
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const system = await buildSystemContext(body.focus, mode);
+  const system = await buildSystemContext(body.focus, mode, recallQuery(body.messages));
   const resolved = resolveModel(profile, effort);
 
   const result = streamText({

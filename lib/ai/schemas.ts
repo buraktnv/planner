@@ -96,7 +96,7 @@ const baseShapes = {
     id: z.string(),
   },
   add_note: {
-    title: z.string(),
+    title: z.string().optional(),
     summary: z.string(),
     body: z.string().optional(),
     scope: z.array(z.string()).optional(),
@@ -214,7 +214,7 @@ export const toolDescriptions: Record<ToolName, string> = {
     "Search the knowledge base and get ranked snippets. Use this whenever the answer might already be written down — the system prompt only lists notes for the focused scope. scope filters to a project slug or area:<slug>; tags must all match.",
   read_note: "Read one knowledge note in full, with the notes it links to and the notes linking back to it.",
   add_note:
-    "File a new knowledge note. summary must be a single line stating the conclusion, not the topic — it is the only text loaded into context until someone searches. scope is a list of project slugs or area:<slug>.",
+    "File a knowledge note. summary must be a single line stating the conclusion, not the topic — it is the only text loaded into context until someone searches. title is optional and is derived from the summary when omitted. Leave scope empty and it is categorised automatically into the right area or project; pass it only when you are certain.",
   update_note:
     "Amend a knowledge note. Only the fields you pass change; updated is bumped. Pass source as an empty string to clear it.",
   next_actions: "Get the prioritized list of next actions across the workspace.",

@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { indexLine, listNotes } from "../core/knowledge";
+import { deriveTitle, indexLine, listNotes, nearDuplicateOf } from "../core/knowledge";
 import { readJournal } from "../core/journal";
 import { listCharters } from "../core/store";
 import type { KnowledgeNote, ProviderProfile, ProvidersFile } from "../core/types";
@@ -67,14 +67,7 @@ function normaliseTitle(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-export function deriveTitle(summary: string): string {
-  const firstSentence = summary.trim().split(/(?<=[.!?])\s/)[0] ?? summary.trim();
-  const base = firstSentence.replace(/[.!?]+$/, "").trim();
-  if (base.length <= 60) return base;
-  const cut = base.slice(0, 60);
-  const lastSpace = cut.lastIndexOf(" ");
-  return (lastSpace > 20 ? cut.slice(0, lastSpace) : cut).trim();
-}
+export { deriveTitle };
 
 export function dedupeCandidates(
   candidates: Candidate[],
@@ -88,6 +81,7 @@ export function dedupeCandidates(
     const title = c.title.trim() || deriveTitle(summary);
     const key = normaliseTitle(title);
     if (!key || taken.has(key)) continue;
+    if (nearDuplicateOf(existing, { title, summary })) continue;
     taken.add(key);
     out.push({ ...c, title });
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { addNote, indexLine, listNotes, searchNotes } from "@/lib/core/knowledge";
+import { indexLine, listNotes, searchNotes } from "@/lib/core/knowledge";
+import { fileNote } from "@/lib/ai/file-note";
 
 export const dynamic = "force-dynamic";
 
@@ -60,10 +61,10 @@ export async function POST(req: Request) {
       tags?: string[];
       source?: string;
     };
-    if (!body.title || !body.summary) {
-      return NextResponse.json({ error: "title and summary are required" }, { status: 400 });
+    if (!body.summary) {
+      return NextResponse.json({ error: "summary is required" }, { status: 400 });
     }
-    const note = await addNote({
+    const filed = await fileNote({
       title: body.title,
       summary: body.summary,
       body: body.body,
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
       tags: body.tags,
       source: body.source,
     });
-    return NextResponse.json(note);
+    return NextResponse.json({ ...filed.note, scopeMethod: filed.scopeMethod });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 400 });

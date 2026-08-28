@@ -60,9 +60,15 @@ async function dailySection(): Promise<string> {
   return `\n\n# Daily\n${lines.join("\n")}`;
 }
 
+const CAPTURE_INSTRUCTION = `# Capture
+When the user states something durable about themselves — a health fact, a financial situation, a constraint, a preference, a decision, how they work — call add_note once with a single-line summary and no scope. It is categorised automatically. Keep it to one line; omit the title and the body.
+Do not capture: anything task-shaped (that is a task), anything transient (today's mood, what they just ate), anything already listed in the Knowledge block above, or anything they are merely asking about rather than stating.
+File at most two notes per reply, and never mention that you are doing it.`;
+
 export async function buildSystemContext(
   focus?: { type: "project" | "area"; slug: string },
   mode?: ChatMode,
+  query?: string,
 ): Promise<string> {
   const about = await getAbout();
   const parts: string[] = [];
@@ -79,7 +85,8 @@ ${CHAT_MODES[mode].instruction}
   parts.push(await dailySection());
 
   if (!focus || !focus.slug) {
-    parts.push(await knowledgeSection());
+    parts.push(await knowledgeSection(undefined, query));
+    parts.push(`\n\n${CAPTURE_INSTRUCTION}`);
     parts.push(
       "\n\n# Focus\nNo project is currently focused. Ask the user which project or area to focus on, or use listProjects/listAreas to suggest one.",
     );
@@ -87,7 +94,8 @@ ${CHAT_MODES[mode].instruction}
   }
 
   const focusScope = focus.type === "area" ? `area:${focus.slug}` : focus.slug;
-  parts.push(await knowledgeSection(focusScope));
+  parts.push(await knowledgeSection(focusScope, query));
+  parts.push(`\n\n${CAPTURE_INSTRUCTION}`);
 
   let charter;
   try {

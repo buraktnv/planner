@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ProposalCard, { type ProposalState } from "../proposal-card";
 import { Mono } from "../primitives";
@@ -14,6 +14,33 @@ export default function DistillPanel({ status }: { status: DistillStatus }) {
   const [state, setState] = useState<ProposalState>({ status: "idle" });
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [auto, setAuto] = useState<Proposal | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    fetch("/api/knowledge/pending")
+      .then(async (res) => (await res.json()) as { proposal?: Proposal | null })
+      .then((data) => {
+        if (live && data.proposal) setAuto(data.proposal);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const shown = proposal ?? auto;
+  const isAuto = !proposal && auto !== null;
+
+  async function resolveAuto(outcome: "accepted" | "discarded", count: number) {
+    if (!isAuto) return;
+    await fetch("/api/knowledge/pending", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ outcome, count }),
+    }).catch(() => undefined);
+    setAuto(null);
+  }
 
   async function distill() {
     setRunning(true);
@@ -46,13 +73,13 @@ export default function DistillPanel({ status }: { status: DistillStatus }) {
   }
 
   async function accept() {
-    if (!proposal) return;
+    if (!shown) return;
     setState({ status: "applying" });
     try {
       const res = await fetch("/api/proposals/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actions: proposal.actions }),
+        body: JSON.stringify({ actions: shown.actions }),
       });
       const data = (await res.json()) as {
         applied?: number;
@@ -71,6 +98,7 @@ export default function DistillPanel({ status }: { status: DistillStatus }) {
         return;
       }
       setState({ status: "applied", applied: data.applied });
+      await resolveAuto("accepted", data.applied ?? shown.actions.length);
       router.refresh();
     } catch {
       setState({ status: "error", error: "Could not reach the server." });
@@ -97,12 +125,21 @@ export default function DistillPanel({ status }: { status: DistillStatus }) {
       {message ? <div className="mt-3 text-[12.5px] text-faint">{message}</div> : null}
       {error ? <div className="mt-3 text-[12.5px] text-wait-ink">{error}</div> : null}
 
-      {proposal ? (
+      {isAuto ? (
+        <Mono className="mt-3 block text-[9px] tracking-[0.14em] text-faint">
+          FOUND ON ITS OWN — NOTHING IS WRITTEN UNTIL YOU ACCEPT
+        </Mono>
+      ) : null}
+
+      {shown ? (
         <ProposalCard
-          proposal={proposal}
+          proposal={shown}
           state={state}
           onAccept={accept}
-          onDiscard={() => setState({ status: "discarded" })}
+          onDiscard={() => {
+            setState({ status: "discarded" });
+            void resolveAuto("discarded", 0);
+          }}
         />
       ) : null}
     </div>

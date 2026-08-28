@@ -19,6 +19,30 @@ function dayGap(from: string, to: string): number {
   return Math.round((b - a) / 86_400_000);
 }
 
+export const AUTO_RUN_SCOPE = "agent:distill";
+export const AUTO_RUN_MARKER = "auto distill run";
+export const AUTO_RUN_WINDOW_DAYS = 7;
+
+export function lastAutoRunFrom(journal: JournalDay[]): string | null {
+  let latest: string | null = null;
+  for (const day of journal) {
+    if (!day.entries.some((e) => e.message.includes(AUTO_RUN_MARKER))) continue;
+    if (latest === null || day.date > latest) latest = day.date;
+  }
+  return latest;
+}
+
+export function dueForDistill(
+  status: DistillStatus,
+  lastAutoRun: string | null,
+  today: string,
+  windowDays = AUTO_RUN_WINDOW_DAYS,
+): boolean {
+  if (!status.ready) return false;
+  if (lastAutoRun === null) return true;
+  return dayGap(lastAutoRun, today) >= windowDays;
+}
+
 export function latestNoteDate(notes: KnowledgeNote[]): string | null {
   let latest: string | null = null;
   for (const n of notes) {

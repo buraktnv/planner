@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDistillStatus, latestNoteDate } from "../distill";
+import { buildDistillStatus, dueForDistill, lastAutoRunFrom, latestNoteDate } from "../distill";
 import type { JournalDay } from "@/lib/core/journal";
 import type { KnowledgeNote } from "@/lib/core/types";
 
@@ -105,5 +105,52 @@ describe("buildDistillStatus", () => {
       "2026-08-28",
     );
     expect(s.journalDays).toBe(1);
+  });
+});
+
+describe("lastAutoRunFrom", () => {
+  it("is null when the marker never appears", () => {
+    expect(lastAutoRunFrom([day("2026-08-28", ["ftbot"])])).toBeNull();
+  });
+
+  it("takes the most recent day carrying the marker", () => {
+    const journal: JournalDay[] = [
+      { date: "2026-08-28", entries: [{ time: "09:00", scope: "ftbot", message: "T-1 done" }] },
+      {
+        date: "2026-08-25",
+        entries: [{ time: "09:00", scope: "agent:distill", message: "auto distill run: discarded" }],
+      },
+      {
+        date: "2026-08-20",
+        entries: [{ time: "09:00", scope: "agent:distill", message: "auto distill run: 2 notes accepted" }],
+      },
+    ];
+    expect(lastAutoRunFrom(journal)).toBe("2026-08-25");
+  });
+});
+
+describe("dueForDistill", () => {
+  const ready = buildDistillStatus([day("2026-08-28", ["a", "b", "c"])], [], "2026-08-28");
+  const notReady = buildDistillStatus([day("2026-08-28", ["a"])], [], "2026-08-28");
+
+  it("is not due when there is too little journal to work with", () => {
+    expect(dueForDistill(notReady, null, "2026-08-28")).toBe(false);
+  });
+
+  it("is due when it has never run", () => {
+    expect(dueForDistill(ready, null, "2026-08-28")).toBe(true);
+  });
+
+  it("is not due inside the window", () => {
+    expect(dueForDistill(ready, "2026-08-25", "2026-08-28")).toBe(false);
+  });
+
+  it("is due once the window has passed", () => {
+    expect(dueForDistill(ready, "2026-08-21", "2026-08-28")).toBe(true);
+  });
+
+  it("honours a custom window", () => {
+    expect(dueForDistill(ready, "2026-08-26", "2026-08-28", 2)).toBe(true);
+    expect(dueForDistill(ready, "2026-08-27", "2026-08-28", 2)).toBe(false);
   });
 });

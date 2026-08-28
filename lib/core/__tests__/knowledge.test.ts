@@ -400,8 +400,9 @@ describe("store", () => {
     expect(scoped).toContain("2 notes in the knowledge base");
 
     const unfocused = await knowledgeSection();
-    expect(unfocused).toContain("# Knowledge");
-    expect(unfocused).not.toContain("Scoped note");
+    expect(unfocused).toContain("# Knowledge (most recent)");
+    expect(unfocused).toContain("Scoped note");
+    expect(unfocused).toContain("Other note");
 
     const empty = await knowledgeSection("nothing-here");
     expect(empty).toContain("No notes scoped to nothing-here");

@@ -1,6 +1,6 @@
 # Knowledge base — a second brain with lazy, scope-aware retrieval
 
-Status: phases 1–3 implemented; embedding re-rank deliberately deferred
+Status: phases 1–4 implemented; embedding re-rank deliberately deferred
 Date: 2026-08-28
 
 ## Problem
@@ -131,5 +131,14 @@ Not built in phase 2: "file this" straight from a journal line — it belongs wi
 The `/knowledge` page carries a dashed DISTILL strip with a status line from `lib/view/distill.ts` (pure, unit-tested) and a button, which renders the returned proposal in the existing `ProposalCard`. Accept posts to `/api/proposals/apply`; nothing is written before that.
 
 **Provider constraint:** distillation needs structured output, so the `claude-subscription` path cannot serve it — that route is chat-only. `pickDistillProfile` prefers the default profile, falls back to the first API profile, and otherwise fails with a message saying exactly that. Two provider realities shaped the implementation: DeepSeek's `json_object` mode **requires the word "json" in the prompt**, and models omit fields freely, so every candidate field except `summary` is optional with a default and the prompt spells out the exact JSON shape. Failures surface the raw response, truncated, which is how both of those were diagnosed.
+
+**Phase 4 (built) — auto-categorised memory.** Filing and recall both become automatic.
+
+- **Classification on write** (`lib/ai/classify.ts`). A note filed with no scope gets one. A literal charter slug or name in the text wins immediately and costs nothing; anything else goes to a structured-output model that must choose from a closed list. `normaliseScope` repairs `Health` → `area:health` and `area:area:x`, and rejects anything not on the list — the scope regex *throws* in `cleanList`, so an invented scope would otherwise crash the write. Scoring notes against charter `## Why` prose was considered and rejected: ordinary English overlaps across charters, and a confidently wrong deterministic answer would never reach the model.
+- **Area minting is guarded, not free.** `createAreaGuarded` refuses generic dumping grounds (`NEVER_MINT`), slug collisions, near-duplicates (`fitness` vs `health`), notes too short to justify an area, and more than one mint per week (counted from the journal). `createCharter` itself now refuses to overwrite an existing slug — it was a bare `fs.writeFile`, so minting "Health" would have destroyed the real charter.
+- **Silent capture.** A `# Capture` block in the system prompt tells chat to file one-line notes when the user states something durable about themselves. `add_note`'s `title` is now optional and derived from the summary.
+- **Recall.** `buildSystemContext(focus, mode, query)` takes the latest user message, extracted server-side (`lib/ai/recall.ts`) so it does not depend on the chat rail's transport body, which is captured once at `useChat` construction. `knowledgeSection` adds a relevance block and never returns zero titles. It also caps newest-first — it previously capped after sorting by id ascending, so any scope past 40 notes would have shown only the oldest forever.
+- **Write serialisation** (`lib/core/locks.ts`). Four writers now exist and one (MCP) is a separate process. Two concurrent adds both claimed the same id, wrote two files, and left `listNotes` throwing on every subsequent read — a bricked knowledge base and a 500 on `/knowledge`. An in-process chain plus a cross-process `mkdir` lock in the OS temp dir (never in the data repo, which has no `.gitignore`).
+- **Unattended distillation.** `runDistillIfDue` is triggered by `GET /api/knowledge/pending` when `/knowledge` loads, and also by a `globalThis`-keyed timer in `instrumentation.ts`. The due-check is a pure function over the journal (`dueForDistill`, `lastAutoRunFrom`); the run marker is journalled under `agent:distill`, which the distiller already excludes from its own digest. The proposal lives in memory only, and the marker is written when it is *resolved* — so a restart regenerates rather than skipping a week.
 
 **Deferred: embedding re-rank.** Keyword + tags + scope has not yet failed to find anything. Adding embeddings means an ongoing API cost, a vector store to keep in sync with git, and retrieval that can no longer explain itself. Revisit only when a real search misses a note that is genuinely there.

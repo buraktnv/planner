@@ -5,6 +5,7 @@ import type { KnowledgeHit, KnowledgeNote } from "./types";
 import { knowledgeDir, knowledgeIndexPath } from "./paths";
 import { appendJournal } from "./journal";
 import { commitData } from "./git";
+import { withDataLock } from "./locks";
 
 export class KnowledgeParseError extends Error {
   constructor(message: string) {
@@ -30,6 +31,9 @@ const KNOWN_KEYS = new Set([
   "source",
 ]);
 const FOCUS_LINE_CAP = 40;
+const RECENT_LINE_CAP = 15;
+const RELEVANT_LINE_CAP = 6;
+const TITLE_MAX = 60;
 const SNIPPET_LEN = 160;
 const BODY_HIT_CAP = 5;
 
@@ -147,6 +151,36 @@ export function noteFileName(id: string, title: string): string {
   return `${id}-${slugifyTitle(title)}.md`;
 }
 
+const TRAILING_JOINERS = new Set([
+  "so", "and", "but", "because", "before", "after", "when", "while", "which",
+  "that", "then", "than", "with", "for", "to", "of", "in", "on", "at", "as", "a", "the",
+]);
+
+function trimJoiners(text: string): string {
+  const words = text.split(/\s+/);
+  while (words.length > 3 && TRAILING_JOINERS.has(words[words.length - 1].toLowerCase())) {
+    words.pop();
+  }
+  return words.join(" ").replace(/[,;:]$/, "").trim();
+}
+
+export function deriveTitle(summary: string): string {
+  const firstSentence = summary.trim().split(/(?<=[.!?])\s/)[0] ?? summary.trim();
+  const base = firstSentence.replace(/[.!?]+$/, "").trim();
+  if (base.length <= TITLE_MAX) return base;
+
+  const clause = base.split(/[,;]\s/)[0]?.trim() ?? "";
+  if (clause.length >= 20 && clause.length <= TITLE_MAX) return trimJoiners(clause);
+
+  const cut = base.slice(0, TITLE_MAX);
+  const lastSpace = cut.lastIndexOf(" ");
+  return trimJoiners((lastSpace > 20 ? cut.slice(0, lastSpace) : cut).trim());
+}
+
+function serializeWrite<T>(run: () => Promise<T>): Promise<T> {
+  return withDataLock(run);
+}
+
 export function nextNoteId(notes: KnowledgeNote[]): string {
   let max = 0;
   for (const n of notes) {
@@ -219,6 +253,33 @@ function countOccurrences(haystack: string[], needle: string): number {
   let n = 0;
   for (const t of haystack) if (t === needle) n++;
   return n;
+}
+
+export function similarity(
+  a: { title: string; summary: string },
+  b: { title: string; summary: string },
+): number {
+  const setOf = (v: { title: string; summary: string }) =>
+    new Set(tokenize(`${v.title} ${v.summary}`).filter((t) => t.length >= 3));
+  const x = setOf(a);
+  const y = setOf(b);
+  if (!x.size || !y.size) return 0;
+  let shared = 0;
+  for (const t of x) if (y.has(t)) shared++;
+  return shared / (x.size + y.size - shared);
+}
+
+export function nearDuplicateOf(
+  notes: KnowledgeNote[],
+  candidate: { title: string; summary: string },
+  threshold = 0.6,
+): KnowledgeNote | null {
+  let best: { note: KnowledgeNote; score: number } | null = null;
+  for (const n of notes) {
+    const score = similarity(n, candidate);
+    if (score >= threshold && (!best || score > best.score)) best = { note: n, score };
+  }
+  return best ? best.note : null;
 }
 
 export function scoreNote(note: KnowledgeNote, terms: string[]): number {
@@ -320,27 +381,42 @@ function cleanList(values: string[] | undefined, field: string, re: RegExp): str
   return out;
 }
 
-async function writeNoteFile(note: KnowledgeNote, previousTitle?: string): Promise<void> {
+async function writeNoteFile(
+  note: KnowledgeNote,
+  previousTitle?: string,
+  exclusive = false,
+): Promise<void> {
   const dir = knowledgeDir();
   await fs.mkdir(dir, { recursive: true });
   const target = noteFileName(note.id, previousTitle ?? note.title);
-  await fs.writeFile(path.join(dir, target), serializeNote(note), "utf8");
+  await fs.writeFile(
+    path.join(dir, target),
+    serializeNote(note),
+    exclusive ? { encoding: "utf8", flag: "wx" } : { encoding: "utf8" },
+  );
 }
 
-export async function addNote(input: {
-  title: string;
+export interface AddNoteInput {
+  title?: string;
   summary: string;
   body?: string;
   scope?: string[];
   tags?: string[];
   source?: string;
-}): Promise<KnowledgeNote> {
+}
+
+export function addNote(input: AddNoteInput): Promise<KnowledgeNote> {
+  return serializeWrite(() => addNoteNow(input));
+}
+
+async function addNoteNow(input: AddNoteInput): Promise<KnowledgeNote> {
   const notes = await listNotes();
   const today = isoToday();
+  const summary = cleanLine(input.summary, "summary");
   const note: KnowledgeNote = {
     id: nextNoteId(notes),
-    title: cleanLine(input.title, "title"),
-    summary: cleanLine(input.summary, "summary"),
+    title: cleanLine(input.title?.trim() ? input.title : deriveTitle(summary), "title"),
+    summary,
     scope: cleanList(input.scope, "scope", SCOPE_RE),
     tags: cleanList(input.tags, "tags", TAG_RE),
     created: today,
@@ -350,24 +426,27 @@ export async function addNote(input: {
   if (input.source && input.source.trim()) {
     note.source = cleanLine(input.source, "source");
   }
-  await writeNoteFile(note);
+  await writeNoteFile(note, undefined, true);
   await writeIndex([...notes, note]);
   await appendJournal(journalScopeOf(note.scope), `${note.id} note added: ${note.title}`);
   await commitData(`note added: ${note.id} (${note.title})`);
   return note;
 }
 
-export async function updateNote(
-  id: string,
-  patch: {
-    title?: string;
-    summary?: string;
-    body?: string;
-    scope?: string[];
-    tags?: string[];
-    source?: string;
-  },
-): Promise<KnowledgeNote> {
+export interface UpdateNotePatch {
+  title?: string;
+  summary?: string;
+  body?: string;
+  scope?: string[];
+  tags?: string[];
+  source?: string;
+}
+
+export function updateNote(id: string, patch: UpdateNotePatch): Promise<KnowledgeNote> {
+  return serializeWrite(() => updateNoteNow(id, patch));
+}
+
+async function updateNoteNow(id: string, patch: UpdateNotePatch): Promise<KnowledgeNote> {
   const notes = await listNotes();
   const current = notes.find((n) => n.id === id);
   if (!current) throw new Error(`Note not found: ${id}`);
@@ -438,7 +517,21 @@ export async function searchNotes(query: {
   }));
 }
 
-export async function knowledgeSection(focusScope?: string): Promise<string> {
+export function byRecency(notes: KnowledgeNote[]): KnowledgeNote[] {
+  return [...notes].sort((a, b) => {
+    if (a.updated !== b.updated) return a.updated < b.updated ? 1 : -1;
+    return b.id.localeCompare(a.id);
+  });
+}
+
+function block(label: string, notes: KnowledgeNote[]): string {
+  return `${label}\n${notes.map(indexLine).join("\n")}`;
+}
+
+export async function knowledgeSection(
+  focusScope?: string,
+  query?: string,
+): Promise<string> {
   let notes: KnowledgeNote[];
   try {
     notes = await listNotes();
@@ -452,16 +545,45 @@ export async function knowledgeSection(focusScope?: string): Promise<string> {
     `Use search_knowledge to find anything not listed here, and read_note to read one in full. ` +
     `${total} note${total === 1 ? "" : "s"} in the knowledge base.`;
 
-  if (!focusScope) {
-    return `\n\n# Knowledge\n${hint}`;
+  const parts: string[] = [];
+  const shownIds = new Set<string>();
+
+  if (focusScope) {
+    const scoped = byRecency(filterByScope(notes, focusScope));
+    if (scoped.length) {
+      const shown = scoped.slice(0, FOCUS_LINE_CAP);
+      for (const n of shown) shownIds.add(n.id);
+      const more =
+        scoped.length > shown.length ? `\n(${scoped.length - shown.length} more in this scope)` : "";
+      parts.push(`${block(`# Knowledge (scope ${focusScope})`, shown)}${more}`);
+    } else {
+      parts.push(`# Knowledge\nNo notes scoped to ${focusScope}.`);
+    }
   }
 
-  const scoped = filterByScope(notes, focusScope);
-  if (!scoped.length) {
-    return `\n\n# Knowledge\nNo notes scoped to ${focusScope}. ${hint}`;
+  const terms = tokenize(query ?? "");
+  if (terms.length) {
+    const relevant = notes
+      .map((n) => ({ n, score: scoreNote(n, terms) }))
+      .filter((r) => r.score > 0 && !shownIds.has(r.n.id))
+      .sort((a, b) => b.score - a.score || (a.n.updated < b.n.updated ? 1 : -1))
+      .slice(0, RELEVANT_LINE_CAP)
+      .map((r) => r.n);
+    if (relevant.length) {
+      for (const n of relevant) shownIds.add(n.id);
+      parts.push(
+        block(
+          "# Knowledge that may bear on this message",
+          relevant,
+        ),
+      );
+    }
   }
-  const shown = scoped.slice(0, FOCUS_LINE_CAP);
-  const more =
-    scoped.length > shown.length ? `\n(${scoped.length - shown.length} more in this scope)` : "";
-  return `\n\n# Knowledge (scope ${focusScope})\n${indexLines(shown).join("\n")}${more}\n${hint}`;
+
+  if (!parts.length) {
+    const recent = byRecency(notes).slice(0, RECENT_LINE_CAP);
+    parts.push(block("# Knowledge (most recent)", recent));
+  }
+
+  return `\n\n${parts.join("\n\n")}\n${hint}`;
 }
