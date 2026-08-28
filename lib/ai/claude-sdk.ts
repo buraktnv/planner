@@ -6,11 +6,14 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { buildSystemContext } from "./context";
-import { toolShapes, toolDescriptions, toolImplMap, toolNames, type ToolName } from "./schemas";
+import type { ChatMode } from "./modes";
+import { toolShapes, toolDescriptions, toolNames, type ToolName } from "./schemas";
+import { toolImplMap } from "./tool-map";
 
 export interface ClaudeSdkChatOptions {
   messages: UIMessage[];
   focus?: { type: "project" | "area"; slug: string };
+  mode?: ChatMode;
   model?: string;
 }
 
@@ -147,8 +150,8 @@ function buildMcpServer() {
 }
 
 export async function claudeSdkChat(opts: ClaudeSdkChatOptions): Promise<Response> {
-  const { messages, focus, model = "sonnet" } = opts;
-  const system = await buildSystemContext(focus);
+  const { messages, focus, mode, model = "sonnet" } = opts;
+  const system = await buildSystemContext(focus, mode);
   const prompt = formatTranscript(messages) || "Hello";
 
   const server = buildMcpServer();

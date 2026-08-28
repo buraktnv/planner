@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Mono, Rule } from "@/components/momentum/primitives";
 
 export default function AboutEditor({ initial }: { initial: string }) {
   const router = useRouter();
@@ -35,27 +36,29 @@ export default function AboutEditor({ initial }: { initial: string }) {
   }
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-medium text-neutral-100">About</h2>
-      <form onSubmit={save} className="space-y-2">
+    <section>
+      <Rule label="GENERAL CONTEXT — ALWAYS SENT TO THE ASSISTANT" />
+      <form onSubmit={save}>
         <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
           rows={8}
-          placeholder="A short bio / context for the assistant…"
-          className="w-full rounded bg-neutral-800 px-3 py-2 text-sm text-neutral-100 outline-none"
+          placeholder="Who you are, what matters, how you work best…"
+          className="w-full resize-y rounded-[13px] border border-edge bg-surf px-3.5 py-3 text-[13px] leading-[1.6] outline-none placeholder:text-faint"
         />
-        <div className="flex items-center gap-3">
+        <div className="mt-2.5 flex items-center gap-3">
           <button
             type="submit"
             disabled={saving}
-            className="rounded bg-emerald-600/20 px-3 py-1.5 text-sm text-emerald-400 hover:bg-emerald-600/30 disabled:opacity-50"
+            className="rounded-[11px] bg-quick px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>
-          {saved && <span className="text-sm text-emerald-400">Saved.</span>}
+          {saved && (
+            <Mono className="text-[9px] tracking-[0.08em] text-quick-ink">SAVED TO about.md</Mono>
+          )}
         </div>
-        {error && <p className="text-sm text-rose-400">{error}</p>}
+        {error && <p className="mt-2.5 text-[12.5px] text-clay-ink">{error}</p>}
       </form>
     </section>
   );

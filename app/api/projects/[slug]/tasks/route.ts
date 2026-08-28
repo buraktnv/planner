@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { TaskSize } from "@/lib/core/types";
 import { listTasks, addTask, updateTask } from "@/lib/core/store";
+import { isLane } from "@/lib/core/lanes";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export async function POST(req: Request, { params }: Ctx) {
       parentId?: unknown;
       est?: unknown;
       due?: unknown;
+      lane?: unknown;
     };
     const title = typeof body.title === "string" ? body.title.trim() : "";
     if (!title) return NextResponse.json({ error: "title is required" }, { status: 400 });
@@ -32,6 +34,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const task = await addTask("project", slug, {
       title,
       size: body.size as TaskSize,
+      lane: isLane(body.lane) ? body.lane : undefined,
       parentId: typeof body.parentId === "string" && body.parentId ? body.parentId : undefined,
       est: typeof body.est === "string" ? body.est : undefined,
       due: typeof body.due === "string" ? body.due : undefined,
@@ -54,6 +57,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       section?: unknown;
       est?: unknown;
       due?: unknown;
+      lane?: unknown;
     };
     const id = typeof body.id === "string" ? body.id : "";
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
@@ -64,6 +68,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (typeof body.section === "string") patch.section = body.section as never;
     if (typeof body.est === "string") patch.est = body.est;
     if (typeof body.due === "string") patch.due = body.due;
+    if (isLane(body.lane)) patch.lane = body.lane;
     const task = await updateTask("project", slug, id, patch);
     return NextResponse.json(task);
   } catch (e) {

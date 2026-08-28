@@ -1,51 +1,54 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import Nav from "@/components/nav";
+import Shell from "@/components/momentum/shell";
+import type { NavCharter } from "@/components/momentum/context";
+import { loadWorkspace } from "@/lib/view/workspace";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
   title: "Planner",
-  description: "Local-first planner: projects, areas, journal, insights.",
+  description: "Local-first planner: what to do next, and why.",
 };
 
-function todayLabel() {
-  return new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  let charters: NavCharter[] = [];
+  try {
+    const ws = await loadWorkspace();
+    charters = ws.charters.map((c) => ({
+      key: `${c.type}/${c.id}`,
+      type: c.type,
+      slug: c.id,
+      name: c.name,
+      color: c.color,
+      open: c.open,
+    }));
+  } catch {
+    charters = [];
+  }
+
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="flex h-full bg-neutral-950 text-neutral-200">
-        <Nav />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex items-center justify-between border-b border-neutral-800 px-6 py-3">
-            <span className="text-sm text-neutral-400">{todayLabel()}</span>
-            <span className="text-sm text-neutral-500" aria-hidden />
-          </header>
-          <main className="flex-1 overflow-y-auto p-6">{children}</main>
-        </div>
+      <body>
+        <Shell charters={charters}>{children}</Shell>
       </body>
     </html>
   );

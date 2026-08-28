@@ -1,77 +1,103 @@
 import { readJournal } from "@/lib/core/journal";
+import { loadWorkspace } from "@/lib/view/workspace";
+import { isoToday, shortDate, weekdayOf } from "@/lib/ui/momentum";
+import { Mono, Panel } from "@/components/momentum/primitives";
 
 export const dynamic = "force-dynamic";
 
-const MAX_DAYS = 365;
+const WEEKDAY_FULL: Record<string, string> = {
+  MON: "MONDAY",
+  TUE: "TUESDAY",
+  WED: "WEDNESDAY",
+  THU: "THURSDAY",
+  FRI: "FRIDAY",
+  SAT: "SATURDAY",
+  SUN: "SUNDAY",
+};
 
-function scopeClass(scope: string): string {
-  const s = scope.toLowerCase();
-  if (s === "chat") return "bg-emerald-600/20 text-emerald-300";
-  if (s === "life" || s === "journal") return "bg-sky-600/20 text-sky-300";
-  return "bg-neutral-800 text-neutral-300";
+function daysAgoIso(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return isoToday(d);
 }
 
-function ScopeChip({ scope }: { scope: string }) {
+export default async function ActivityPage() {
+  const [days, ws] = await Promise.all([readJournal(30), loadWorkspace()]);
+
+  const colorOf = (scope: string): string =>
+    ws.byId.get(`project/${scope}`)?.color ??
+    ws.byId.get(`area/${scope}`)?.color ??
+    "var(--color-faint)";
+
+  const since30 = daysAgoIso(30);
+  const closed30 = ws.cards.filter((c) => c.doneDate && c.doneDate >= since30).length;
+  const entries30 = days.reduce((a, d) => a + d.entries.length, 0);
+
+  const journalDates = new Set(days.map((d) => d.date));
+  let streak = 0;
+  const offset = journalDates.has(isoToday()) ? 0 : 1;
+  while (streak < 30 && journalDates.has(daysAgoIso(offset + streak))) streak++;
+
   return (
-    <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${scopeClass(scope)}`}>
-      {scope}
-    </span>
-  );
-}
+    <div className="mx-auto max-w-[720px] px-9 pt-[52px] pb-20">
+      <h1 className="m-0 mb-[26px] text-2xl font-semibold tracking-[-0.03em]">Activity</h1>
 
-function parseDays(raw: string | string[] | undefined): number {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return 30;
-  return Math.min(Math.floor(n), MAX_DAYS);
-}
-
-export default async function JournalPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ days?: string | string[] }>;
-}) {
-  const sp = await searchParams;
-  const days = parseDays(sp.days);
-  const journalDays = await readJournal(days);
-
-  return (
-    <div className="space-y-8">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-neutral-100">Journal</h1>
-          <p className="mt-1 text-sm text-neutral-400">
-            Last {days} {days === 1 ? "day" : "days"}
-            {days < MAX_DAYS && (
-              <a className="ml-2 text-emerald-400 hover:underline" href={`?days=${Math.min(days * 2, MAX_DAYS)}`}>
-                load more
-              </a>
-            )}
-          </p>
+      <Panel className="mb-7 rounded-[20px] px-6 py-[22px]">
+        <div className="flex flex-wrap gap-[26px]">
+          <div>
+            <div className="text-[26px] font-bold leading-none tracking-[-0.03em] text-quick-ink">
+              {closed30}
+            </div>
+            <Mono className="mt-1.5 block text-[9px] tracking-[0.1em] text-faint">CLOSED</Mono>
+          </div>
+          <div>
+            <div className="text-[26px] font-bold leading-none tracking-[-0.03em] text-ink">
+              {entries30}
+            </div>
+            <Mono className="mt-1.5 block text-[9px] tracking-[0.1em] text-faint">ENTRIES</Mono>
+          </div>
+          <div>
+            <div className="text-[26px] font-bold leading-none tracking-[-0.03em] text-deep-ink">
+              {streak}
+            </div>
+            <Mono className="mt-1.5 block text-[9px] tracking-[0.1em] text-faint">DAY STREAK</Mono>
+          </div>
         </div>
-      </div>
+      </Panel>
 
-      {journalDays.length === 0 ? (
-        <p className="text-sm text-neutral-500">No journal entries yet.</p>
+      {days.length === 0 ? (
+        <p className="m-0 text-[13.5px] text-faint">
+          Nothing logged in the last 30 days. Every task you add or finish lands here.
+        </p>
       ) : (
-        <div className="space-y-8">
-          {journalDays.map((day) => (
-            <section key={day.date}>
-              <h2 className="mb-3 sticky top-0 bg-neutral-950/90 py-1 text-sm font-medium uppercase tracking-wide text-neutral-500">
-                {day.date}
-              </h2>
-              <ul className="space-y-1 text-sm">
-                {day.entries.map((e, i) => (
-                  <li key={`${e.time}-${i}`} className="flex items-baseline gap-3">
-                    <span className="shrink-0 font-mono text-xs text-neutral-500">{e.time}</span>
-                    <ScopeChip scope={e.scope} />
-                    <span className="min-w-0 flex-1 text-neutral-200">{e.message}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
+        days.map((day) => (
+          <div
+            key={day.date}
+            className="grid grid-cols-[70px_1fr] gap-5 border-t border-edge2 py-[18px]"
+          >
+            <div>
+              <Mono className="block text-[11px]">{shortDate(day.date)}</Mono>
+              <Mono className="mt-1 block text-[9px] text-faint">
+                {WEEKDAY_FULL[weekdayOf(day.date)] ?? weekdayOf(day.date)}
+              </Mono>
+            </div>
+            <div className="flex flex-col gap-2.5">
+              {day.entries.map((e, i) => (
+                <div
+                  key={i}
+                  className="grid grid-cols-[38px_10px_1fr] items-baseline gap-2.5 text-[13px] leading-[1.5]"
+                >
+                  <Mono className="text-[10px] text-faint">{e.time}</Mono>
+                  <span
+                    className="h-[7px] w-[7px] -translate-y-px rounded-[2px]"
+                    style={{ background: colorOf(e.scope) }}
+                  />
+                  <span className="text-dim">{e.message}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
       )}
     </div>
   );

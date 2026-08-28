@@ -1,5 +1,4 @@
 import { z, type ZodRawShape } from "zod";
-import { toolImpls } from "./tools";
 
 export const toolShapes = {
   list_projects: {},
@@ -77,21 +76,4 @@ export const toolDescriptions: Record<ToolName, string> = {
   add_journal: "Append a journal entry for a scope.",
   next_actions: "Get the prioritized list of next actions across the workspace.",
   weekly_summary: "Get insights and the last 7 days of journal digest.",
-};
-
-type ImplFn = (input: Record<string, unknown>) => Promise<unknown>;
-
-export const toolImplMap: Record<ToolName, ImplFn> = {
-  list_projects: () => toolImpls.listProjects(),
-  list_areas: () => toolImpls.listAreas(),
-  get_context: toolImpls.getContext as ImplFn,
-  create_project: toolImpls.createProject as ImplFn,
-  create_area: toolImpls.createArea as ImplFn,
-  create_task: toolImpls.createTask as ImplFn,
-  update_task: toolImpls.updateTask as ImplFn,
-  decompose_task: toolImpls.decomposeTask as ImplFn,
-  move_to_parking_lot: toolImpls.moveToParkingLot as ImplFn,
-  add_journal: toolImpls.addJournal as ImplFn,
-  next_actions: () => toolImpls.nextActions(),
-  weekly_summary: () => toolImpls.weeklySummary(),
 };

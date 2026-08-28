@@ -36,6 +36,9 @@ All of `lint`, `typecheck`, `test` must pass before considering any change done.
 - Charter files (`projects/<slug>.md`, `areas/<slug>.md`): YAML frontmatter (`id`, `name`, `type`, `status`, `priority`, `mvp`, `repo`, `created`, `updated`) + body sections `## Why`, `## MVP scope`, `## Parking lot`
 - Task lines (fixed grammar, parsed by `lib/core/schema.ts`):
   `- [ ] T-007 | M | Title | created:2026-08-27`, subtasks indented with dotted ids (`T-007.1`), done: `- [x] ... | done:2026-08-27`; sections `## Backlog` / `## In progress` / `## Done`
+- Optional field keys after the title: `created:` / `est:` / `due:` / `done:` / `lane:`
+- `lane:` is one of `quick` | `deep` | `wait` | `some` — the Board's four columns. It is optional; when absent `laneOf()` in `lib/core/lanes.ts` derives it (size `S` → quick, otherwise deep). Dragging a card on the Board writes this field.
+- A subtask and its parent may sit in **different sections** (completing a subtask moves only that line to `## Done`). The parser resolves parents by dotted id across the whole file, not by position.
 - Journal: `journal/YYYY-MM-DD.md`, appended lines `- HH:mm [project] message`
 - Full contract: `CLAUDE.md` in the `planner-data` repo
 
@@ -58,3 +61,13 @@ All of `lint`, `typecheck`, `test` must pass before considering any change done.
 ## Definition of done
 
 `npm run lint && npm run typecheck && npm test` all green, rules above respected.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

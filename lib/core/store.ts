@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { Charter, ProjectType, Task, TaskSection, TaskSize } from "./types";
+import type { Charter, ProjectType, Task, TaskLane, TaskSection, TaskSize } from "./types";
 import {
   parseCharter,
   serializeCharter,
@@ -127,7 +127,14 @@ export async function listTasks(type: ProjectType, slug: string): Promise<Task[]
 export async function addTask(
   type: ProjectType,
   slug: string,
-  input: { title: string; size: TaskSize; parentId?: string; est?: string; due?: string },
+  input: {
+    title: string;
+    size: TaskSize;
+    lane?: TaskLane;
+    parentId?: string;
+    est?: string;
+    due?: string;
+  },
 ): Promise<Task> {
   const tasks = await listTasks(type, slug);
   let task: Task;
@@ -150,6 +157,7 @@ export async function addTask(
       id: `${input.parentId}.${children + 1}`,
       title: input.title,
       size: input.size,
+      lane: input.lane,
       done: false,
       created: today(),
       est: input.est,
@@ -164,6 +172,7 @@ export async function addTask(
       id: nextTaskId(tasks),
       title: input.title,
       size: input.size,
+      lane: input.lane,
       done: false,
       section: "backlog",
       created: today(),
@@ -184,7 +193,9 @@ export async function updateTask(
   type: ProjectType,
   slug: string,
   taskId: string,
-  patch: Partial<Pick<Task, "title" | "size" | "section" | "est" | "due">> & { complete?: boolean },
+  patch: Partial<Pick<Task, "title" | "size" | "section" | "est" | "due" | "lane">> & {
+    complete?: boolean;
+  },
 ): Promise<Task> {
   const tasks = await listTasks(type, slug);
   const idx = tasks.findIndex((t) => t.id === taskId);
@@ -194,6 +205,7 @@ export async function updateTask(
   if (patch.size !== undefined) t.size = patch.size;
   if (patch.est !== undefined) t.est = patch.est;
   if (patch.due !== undefined) t.due = patch.due;
+  if (patch.lane !== undefined) t.lane = patch.lane;
   if (patch.complete) {
     t.done = true;
     t.section = "done";

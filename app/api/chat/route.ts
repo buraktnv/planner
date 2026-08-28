@@ -4,7 +4,9 @@ import { getProviders } from "@/lib/core/providers";
 import { buildSystemContext } from "@/lib/ai/context";
 import { resolveModel } from "@/lib/ai/providers";
 import { claudeSdkChat } from "@/lib/ai/claude-sdk";
-import { toolSchemas, toolDescriptions, toolImplMap, type ToolName } from "@/lib/ai/schemas";
+import { toolSchemas, toolDescriptions, type ToolName } from "@/lib/ai/schemas";
+import { toolImplMap } from "@/lib/ai/tool-map";
+import { isChatMode, type ChatMode } from "@/lib/ai/modes";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -13,6 +15,7 @@ interface ChatBody {
   messages: UIMessage[];
   profileId?: string;
   focus?: { type: "project" | "area"; slug: string };
+  mode?: ChatMode;
 }
 
 const tools: Record<string, Tool> = {};
@@ -55,11 +58,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const mode = isChatMode(body.mode) ? body.mode : undefined;
+
   if (profile.type === "claude-subscription") {
-    return claudeSdkChat({ messages: body.messages, focus: body.focus, model: profile.model });
+    return claudeSdkChat({ messages: body.messages, focus: body.focus, mode, model: profile.model });
   }
 
-  const system = await buildSystemContext(body.focus);
+  const system = await buildSystemContext(body.focus, mode);
 
   const result = streamText({
     model: resolveModel(profile),

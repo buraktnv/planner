@@ -1,14 +1,24 @@
 import { getAbout, getCharter, listTasks } from "../core/store";
 import { readJournal } from "../core/journal";
 import type { Task } from "../core/types";
+import { CHAT_MODES, type ChatMode } from "./modes";
 
 function openTasks(tasks: Task[]): Task[] {
   return tasks.filter((t) => !t.done && t.section !== "done");
 }
 
-export async function buildSystemContext(focus?: { type: "project" | "area"; slug: string }): Promise<string> {
+export async function buildSystemContext(
+  focus?: { type: "project" | "area"; slug: string },
+  mode?: ChatMode,
+): Promise<string> {
   const about = await getAbout();
   const parts: string[] = [];
+
+  if (mode && CHAT_MODES[mode]) {
+    parts.push(`# Mode: ${CHAT_MODES[mode].label}
+${CHAT_MODES[mode].instruction}
+`);
+  }
 
   parts.push("# About\n");
   parts.push(about.trim() || "(no about.md content)");

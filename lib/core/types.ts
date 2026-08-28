@@ -2,6 +2,7 @@ export type ProjectType = "project" | "area";
 export type ProjectStatus = "active" | "paused" | "done" | "abandoned";
 export type TaskSize = "S" | "M" | "L";
 export type TaskSection = "backlog" | "in-progress" | "done";
+export type TaskLane = "quick" | "deep" | "wait" | "some";
 
 export interface Charter {
   id: string;
@@ -22,6 +23,7 @@ export interface Task {
   id: string;
   title: string;
   size: TaskSize;
+  lane?: TaskLane;
   done: boolean;
   section: TaskSection;
   created?: string;

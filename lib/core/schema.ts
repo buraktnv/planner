@@ -1,5 +1,13 @@
 import matter from "gray-matter";
-import type { Charter, ProjectStatus, ProjectType, Task, TaskSection, TaskSize } from "./types";
+import type {
+  Charter,
+  ProjectStatus,
+  ProjectType,
+  Task,
+  TaskLane,
+  TaskSection,
+  TaskSize,
+} from "./types";
 
 export class CharterParseError extends Error {
   constructor(message: string) {
@@ -30,7 +38,8 @@ const TASK_SECTION_HEADER: Record<TaskSection, string> = {
   "in-progress": "## In progress",
   done: "## Done",
 };
-const TASK_FIELD_KEYS = new Set(["created", "done", "est", "due"]);
+const TASK_FIELD_KEYS = new Set(["created", "done", "est", "due", "lane"]);
+const TASK_LANE_VALUES: TaskLane[] = ["quick", "deep", "wait", "some"];
 const TASK_SIZE_VALUES: TaskSize[] = ["S", "M", "L"];
 
 const TASK_PREFIX_RE = /^( *)- \[( |x)\] (.*)$/;
@@ -46,7 +55,7 @@ export function parseTasks(raw: string): Task[] {
   const seenIds = new Set<string>();
   let currentSection: TaskSection | null = null;
   let sectionIndex = -1;
-  const parentStack: string[] = [];
+  const pendingParents: { id: string; parentId: string; lineNo: number; line: string }[] = [];
 
   lines.forEach((rawLine, idx) => {
     const lineNo = idx + 1;
@@ -66,7 +75,6 @@ export function parseTasks(raw: string): Task[] {
       }
       sectionIndex = newIndex;
       currentSection = sec;
-      parentStack.length = 0;
       return;
     }
 
@@ -106,23 +114,23 @@ export function parseTasks(raw: string): Task[] {
       throw new TaskParseError(`Line ${lineNo}: duplicate task id "${id}"`);
     }
 
-    if (depth > parentStack.length) {
-      throw new TaskParseError(`Line ${lineNo}: depth jump > 1 (no parent at depth ${depth - 1}): ${line}`);
-    }
-    const parentId = depth === 0 ? null : parentStack[depth - 1];
-    if (depth > 0 && !id.startsWith(`${parentId}.`)) {
+    const idDepth = depthOf(id);
+    if (depth !== idDepth) {
       throw new TaskParseError(
-        `Line ${lineNo}: subtask id "${id}" must start with parent "${parentId}.": ${line}`,
+        `Line ${lineNo}: indent depth ${depth} does not match id "${id}" (no parent at depth ${depth - 1}): ${line}`,
       );
     }
-    parentStack.length = depth;
-    parentStack[depth] = id;
+    const parentId = depth === 0 ? null : id.slice(0, id.lastIndexOf("."));
     seenIds.add(id);
+    if (parentId !== null) {
+      pendingParents.push({ id, parentId, lineNo, line });
+    }
 
     let created: string | undefined;
     let doneDate: string | undefined;
     let est: string | undefined;
     let due: string | undefined;
+    let lane: TaskLane | undefined;
     for (const field of parts.slice(3)) {
       const colon = field.indexOf(":");
       if (colon < 0) {
@@ -137,6 +145,14 @@ export function parseTasks(raw: string): Task[] {
       else if (key === "done") doneDate = value;
       else if (key === "est") est = value;
       else if (key === "due") due = value;
+      else if (key === "lane") {
+        if (!TASK_LANE_VALUES.includes(value as TaskLane)) {
+          throw new TaskParseError(
+            `Line ${lineNo}: task ${id} has invalid lane "${value}"; expected one of: ${TASK_LANE_VALUES.join(", ")}`,
+          );
+        }
+        lane = value as TaskLane;
+      }
     }
 
     const isDone = checked === "x";
@@ -156,6 +172,7 @@ export function parseTasks(raw: string): Task[] {
       id,
       title,
       size: sizeRaw as TaskSize,
+      lane,
       done: isDone,
       section: currentSection,
       created,
@@ -165,6 +182,14 @@ export function parseTasks(raw: string): Task[] {
       parentId,
     });
   });
+
+  for (const pending of pendingParents) {
+    if (!seenIds.has(pending.parentId)) {
+      throw new TaskParseError(
+        `Line ${pending.lineNo}: subtask "${pending.id}" has no parent "${pending.parentId}" in this file: ${pending.line}`,
+      );
+    }
+  }
 
   return tasks;
 }
@@ -180,6 +205,7 @@ export function serializeTasks(tasks: Task[]): string {
       if (t.created) fields.push(`created:${t.created}`);
       if (t.est) fields.push(`est:${t.est}`);
       if (t.due) fields.push(`due:${t.due}`);
+      if (t.lane) fields.push(`lane:${t.lane}`);
       if (t.doneDate) fields.push(`done:${t.doneDate}`);
       const fieldStr = fields.length ? ` | ${fields.join(" | ")}` : "";
       lines.push(`${indent}- ${box} ${t.id} | ${t.size} | ${t.title}${fieldStr}`);

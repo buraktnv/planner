@@ -9,6 +9,9 @@ const TYPES: ProviderType[] = [
   "openai-compatible",
 ];
 
+const FIELD_CLASS =
+  "rounded-[11px] border border-edge bg-bg px-3 py-2 text-[13px] outline-none placeholder:text-faint disabled:opacity-50";
+
 export default function ProfileForm({
   profile,
   saving,
@@ -50,20 +53,20 @@ export default function ProfileForm({
   return (
     <form
       onSubmit={submit}
-      className="space-y-2 rounded-lg border border-neutral-800 bg-neutral-900 p-4"
+      className="flex flex-col gap-2.5 rounded-[18px] border border-edge bg-surf p-[17px]"
     >
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2.5">
         <input
           value={id}
           onChange={(e) => setId(e.target.value)}
           disabled={!!profile}
           placeholder="id"
-          className="rounded bg-neutral-800 px-2 py-1.5 text-sm text-neutral-100 outline-none disabled:opacity-50"
+          className={FIELD_CLASS}
         />
         <select
           value={type}
           onChange={(e) => setType(e.target.value as ProviderType)}
-          className="rounded bg-neutral-800 px-2 py-1.5 text-sm text-neutral-100 outline-none"
+          className={FIELD_CLASS}
         >
           {TYPES.map((t) => (
             <option key={t} value={t}>
@@ -75,13 +78,13 @@ export default function ProfileForm({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="label"
-          className="rounded bg-neutral-800 px-2 py-1.5 text-sm text-neutral-100 outline-none"
+          className={FIELD_CLASS}
         />
         <input
           value={model}
           onChange={(e) => setModel(e.target.value)}
           placeholder="model"
-          className="rounded bg-neutral-800 px-2 py-1.5 text-sm text-neutral-100 outline-none"
+          className={FIELD_CLASS}
         />
       </div>
       {type === "openai-compatible" && (
@@ -89,28 +92,28 @@ export default function ProfileForm({
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
           placeholder="baseUrl"
-          className="w-full rounded bg-neutral-800 px-2 py-1.5 text-sm text-neutral-100 outline-none"
+          className={`w-full ${FIELD_CLASS}`}
         />
       )}
       <input
         value={apiKeyEnv}
         onChange={(e) => setApiKeyEnv(e.target.value)}
         placeholder="apiKeyEnv (env var name)"
-        className="w-full rounded bg-neutral-800 px-2 py-1.5 text-sm text-neutral-100 outline-none"
+        className={`w-full ${FIELD_CLASS}`}
       />
-      {error && <p className="text-sm text-rose-400">{error}</p>}
-      <div className="flex gap-2">
+      {error && <p className="m-0 text-[12.5px] text-clay-ink">{error}</p>}
+      <div className="flex gap-2.5">
         <button
           type="submit"
           disabled={saving}
-          className="rounded bg-emerald-600/20 px-3 py-1.5 text-sm text-emerald-400 hover:bg-emerald-600/30 disabled:opacity-50"
+          className="rounded-[11px] bg-quick px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded px-3 py-1.5 text-sm text-neutral-400 hover:text-neutral-100"
+          className="rounded-[11px] border border-edge px-3.5 py-2 text-[13px] text-dim transition-colors hover:text-ink"
         >
           Cancel
         </button>

@@ -43,9 +43,33 @@ npm run typecheck  # tsc --noEmit
 npm test           # vitest run
 ```
 
+## Screens
+
+The UI implements the **Momentum v2** design: a warm light theme, a collapsible left sidebar, and an assistant rail pinned to the right of every screen.
+
+| Route | Screen | What it shows |
+| --- | --- | --- |
+| `/` | Focus | Mood strip (logged to the journal), the day's plan, the single next action with a 25-minute timer, the ranked rest, streak rings |
+| `/board` | Board | Four lanes — quick win / deep work / waiting / someday. Drag a card to move it; the lane is saved on the task line |
+| `/branches` | Branches | Trunk, Flow and Map views of a project's tasks and subtasks |
+| `/projects`, `/projects/<slug>` | Projects | Progress rings per project; detail with lane columns |
+| `/life`, `/areas/<slug>`, `/targets` | Life | Areas, their tasks, and targets (charter `## MVP scope` lines) |
+| `/calendar` | Calendar | Month grid and grouped list built from task `due:` dates |
+| `/insights` | Dashboard | Distance to MVP per project, momentum over recent weeks, open-work split |
+| `/review` | Review | Weekly numbers plus an on-demand AI read of the week |
+| `/journal` | Activity | The journal, newest first |
+| `/agents` | Agents | Provider profiles and the tools the assistant may call |
+| `/settings` | Settings | Provider profiles and the general context (`about.md`) |
+
+The assistant rail has four modes (Plan / Straight / Reflect / Target) that change the system prompt, a scope selector that follows the screen by default, and an **Inspect context** panel showing exactly what is being sent — including `about.md`, which you can edit in place.
+
 ## Architecture
 
 All data access goes through `lib/core`. `app/` pages and API routes call `lib/core` only. AI chat tools (`lib/ai/tools.ts`) also delegate to `lib/core`. This keeps the future MCP server (Phase 2) a thin wrapper.
+
+Presentation derives from two read-only view builders that sit on top of `lib/core` and hold no data access of their own: `lib/view/workspace.ts` (charters, cards, subtasks, progress) and `lib/view/focus.ts` (ranking and the reasons shown next to each task). Design tokens and shared helpers live in `lib/ui/momentum.ts`; screen-agnostic UI primitives in `components/momentum/primitives.tsx`.
+
+Client components must never import `lib/core` (or anything that reaches it, such as `lib/ai/tool-map.ts`) — it pulls `simple-git` and `node:fs` into the browser bundle. Pass data in from a server component instead.
 
 ## Coding agents
 

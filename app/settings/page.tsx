@@ -13,17 +13,16 @@ export default async function SettingsPage() {
   }
 
   return (
-    <div className="space-y-10">
-      <section>
-        <h1 className="text-2xl font-semibold text-neutral-100">Settings</h1>
-        <p className="mt-1 text-sm text-neutral-400">
-          Provider profiles (no secrets are stored here — only env var names).
-        </p>
-      </section>
+    <div className="mx-auto max-w-[800px] px-9 pt-[52px] pb-[90px]">
+      <h1 className="m-0 mb-1.5 text-2xl font-semibold tracking-[-0.03em]">Settings</h1>
+      <p className="m-0 mb-[26px] text-[13.5px] text-dim">
+        Provider profiles and context. No secrets live here — only env var names.
+      </p>
 
-      <ProvidersManager initial={providers} envPresent={envPresent} />
-
-      <AboutEditor initial={about} />
+      <div className="flex flex-col gap-[30px]">
+        <ProvidersManager initial={providers} envPresent={envPresent} />
+        <AboutEditor initial={about} />
+      </div>
     </div>
   );
 }

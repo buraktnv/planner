@@ -1,0 +1,75 @@
+"use client";
+
+import { useCallback, useMemo, useState, type ReactNode } from "react";
+import type { CardModel } from "@/lib/view/workspace";
+import CardDetail from "./card-detail";
+import ChatRail from "./chat-rail";
+import Composer from "./composer";
+import Sidebar from "./sidebar";
+import {
+  MomentumContext,
+  type ComposerKind,
+  type ComposerPrefill,
+  type NavCharter,
+} from "./context";
+
+export default function Shell({
+  charters,
+  children,
+}: {
+  charters: NavCharter[];
+  children: ReactNode;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
+  const [chatScope, setChatScope] = useState<string | null>(null);
+  const [composer, setComposer] = useState<{
+    kind: ComposerKind;
+    prefill?: ComposerPrefill;
+  } | null>(null);
+  const [card, setCard] = useState<CardModel | null>(null);
+
+  const openComposer = useCallback((kind: ComposerKind, prefill?: ComposerPrefill) => {
+    setComposer({ kind, prefill });
+  }, []);
+  const openCard = useCallback((next: CardModel) => setCard(next), []);
+
+  const api = useMemo(
+    () => ({ openComposer, openCard, charters, chatScope, setChatScope }),
+    [openComposer, openCard, charters, chatScope],
+  );
+
+  return (
+    <MomentumContext.Provider value={api}>
+      <div className="flex h-screen overflow-hidden bg-bg">
+        <Sidebar
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((v) => !v)}
+          charters={charters}
+        />
+        <main
+          className="min-w-0 flex-1 overflow-y-auto"
+          style={{ scrollbarGutter: "stable" }}
+        >
+          {children}
+        </main>
+        <ChatRail
+          open={chatOpen}
+          onToggle={() => setChatOpen((v) => !v)}
+          charters={charters}
+          scope={chatScope}
+          onScopeChange={setChatScope}
+        />
+        {composer && (
+          <Composer
+            kind={composer.kind}
+            prefill={composer.prefill}
+            charters={charters}
+            onClose={() => setComposer(null)}
+          />
+        )}
+        {card && <CardDetail card={card} onClose={() => setCard(null)} />}
+      </div>
+    </MomentumContext.Provider>
+  );
+}

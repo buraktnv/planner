@@ -1,17 +1,113 @@
 @import "tailwindcss";
 
-:root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+@theme {
+  --color-bg: #f7f5f1;
+  --color-surf: #ffffff;
+  --color-soft: #f1ede7;
+  --color-edge: #e6e0d8;
+  --color-edge2: #efeae3;
+  --color-ink: #2e2a26;
+  --color-dim: #7d766d;
+  --color-faint: #a8a199;
+
+  --color-quick: #63b894;
+  --color-quick-tint: #e2f2ec;
+  --color-quick-ink: #3f8f70;
+
+  --color-deep: #7d95dd;
+  --color-deep-tint: #e6eaf9;
+  --color-deep-ink: #4a63b0;
+
+  --color-wait: #d9a463;
+  --color-wait-tint: #f7ecdc;
+  --color-wait-ink: #a06f2c;
+
+  --color-some: #a9a3b5;
+  --color-some-tint: #eeecf1;
+  --color-some-ink: #6f6a7a;
+
+  --color-sky: #8fbfc9;
+  --color-sky-tint: #e4f0f3;
+  --color-sky-ink: #4f7d88;
+
+  --color-plum: #c48bc9;
+  --color-plum-tint: #f4e9f5;
+
+  --color-clay: #c9857a;
+  --color-clay-tint: #f7e8e5;
+  --color-clay-ink: #a4544a;
+
+  --color-ring-track: rgba(46, 42, 38, 0.07);
+
+  --font-sans: var(--font-space-grotesk), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  --animate-pop: pop 0.18s ease;
+  --animate-slidein: slidein 0.2s ease;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@keyframes pop {
+  from {
+    transform: scale(0.97);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
-body {
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+@keyframes slidein {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  input,
+  select,
+  button,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: var(--color-quick-tint);
+  }
+
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-edge);
+    border-radius: 9px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ProvidersFile, ProviderProfile } from "@/lib/core/types";
+import { Mono, Rule } from "@/components/momentum/primitives";
 import ProfileForm from "./profile-form";
 
 export default function ProvidersManager({
@@ -56,32 +57,36 @@ export default function ProvidersManager({
   }
 
   return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium text-neutral-100">Providers</h2>
-        <button
-          onClick={() => setAdding(true)}
-          className="rounded-md border border-emerald-600/40 bg-emerald-600/10 px-3 py-1.5 text-sm text-emerald-400 hover:bg-emerald-600/20"
-        >
-          + Add provider
-        </button>
-      </div>
+    <section>
+      <Rule
+        label="PROVIDERS"
+        action={
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="font-mono text-[10px] text-faint transition-colors hover:text-ink"
+          >
+            + ADD
+          </button>
+        }
+      />
 
       {providers.profiles.length === 0 ? (
-        <p className="text-sm text-neutral-400">No providers configured.</p>
+        <p className="m-0 text-[13.5px] text-faint">
+          No providers configured. Add one to start chatting.
+        </p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-[11px] sm:grid-cols-2">
           {providers.profiles.map((p) => (
-            <div
-              key={p.id}
-              className="space-y-2 rounded-lg border border-neutral-800 bg-neutral-900 p-4"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-medium text-neutral-100">{p.label}</p>
-                  <p className="text-xs text-neutral-500">{p.id}</p>
+            <div key={p.id} className="min-w-0 rounded-[18px] border border-edge bg-surf p-[17px]">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="m-0 truncate text-[15px] font-semibold tracking-[-0.02em]">
+                    {p.label}
+                  </p>
+                  <Mono className="text-[9.5px] text-faint">{p.id}</Mono>
                 </div>
-                <label className="flex items-center gap-1 text-xs text-neutral-400">
+                <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] text-dim">
                   <input
                     type="radio"
                     name="default-provider"
@@ -91,52 +96,59 @@ export default function ProvidersManager({
                   default
                 </label>
               </div>
-              <dl className="space-y-1 text-xs text-neutral-400">
-                <div className="flex justify-between">
-                  <dt>type</dt>
-                  <dd className="text-neutral-200">{p.type}</dd>
+              <dl className="m-0 flex flex-col gap-1.5">
+                <div className="flex justify-between gap-2">
+                  <dt className="text-[11px] text-faint">type</dt>
+                  <dd className="m-0 truncate font-mono text-[10.5px] text-dim">{p.type}</dd>
                 </div>
-                <div className="flex justify-between">
-                  <dt>model</dt>
-                  <dd className="text-neutral-200">{p.model}</dd>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-[11px] text-faint">model</dt>
+                  <dd className="m-0 truncate font-mono text-[10.5px] text-dim">{p.model}</dd>
                 </div>
                 {p.baseUrl && (
                   <div className="flex justify-between gap-2">
-                    <dt>baseUrl</dt>
-                    <dd className="truncate text-neutral-200">{p.baseUrl}</dd>
+                    <dt className="text-[11px] text-faint">baseUrl</dt>
+                    <dd className="m-0 truncate font-mono text-[10.5px] text-dim">{p.baseUrl}</dd>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <dt>apiKeyEnv</dt>
-                  <dd className="text-neutral-200">{p.apiKeyEnv || "—"}</dd>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-[11px] text-faint">apiKeyEnv</dt>
+                  <dd className="m-0 truncate font-mono text-[10.5px] text-dim">
+                    {p.apiKeyEnv || "—"}
+                  </dd>
                 </div>
               </dl>
-              <div className="flex items-center justify-between pt-1">
-                <span
-                  className={`inline-flex items-center gap-1 text-xs ${
-                    envPresent[p.id] ? "text-emerald-400" : "text-neutral-500"
-                  }`}
-                  title={envPresent[p.id] ? "Env var is set" : "Env var not set"}
+              <div className="mt-3 flex items-center justify-between border-t border-edge2 pt-3">
+                <Mono
+                  className="flex items-center gap-1.5 text-[9px] tracking-[0.08em]"
+                  style={{
+                    color: envPresent[p.id] ? "var(--color-quick-ink)" : "var(--color-faint)",
+                  }}
                 >
                   <span
-                    className={`h-2 w-2 rounded-full ${
-                      envPresent[p.id] ? "bg-emerald-400" : "bg-neutral-600"
-                    }`}
+                    className="h-2 w-2 rounded-full"
+                    style={{
+                      background: envPresent[p.id]
+                        ? "var(--color-quick)"
+                        : "var(--color-edge)",
+                    }}
                   />
-                  {envPresent[p.id] ? "key set" : "no key"}
-                </span>
-                <div className="flex gap-2">
+                  {envPresent[p.id] ? "KEY SET" : "NO KEY"}
+                </Mono>
+                <div className="flex gap-3">
                   <button
+                    type="button"
                     onClick={() => setEditing(p)}
-                    className="text-xs text-sky-400 hover:text-sky-300"
+                    className="font-mono text-[10px] text-faint transition-colors hover:text-ink"
                   >
-                    edit
+                    EDIT
                   </button>
                   <button
+                    type="button"
                     onClick={() => remove(p.id)}
-                    className="text-xs text-rose-400 hover:text-rose-300"
+                    className="font-mono text-[10px] text-faint transition-colors hover:text-wait-ink"
                   >
-                    delete
+                    DELETE
                   </button>
                 </div>
               </div>
@@ -145,39 +157,43 @@ export default function ProvidersManager({
         </div>
       )}
 
-      {error && <p className="text-sm text-rose-400">{error}</p>}
+      {error && <p className="mt-3 text-[12.5px] text-clay-ink">{error}</p>}
 
       {adding && (
-        <ProfileForm
-          saving={saving}
-          onCancel={() => setAdding(false)}
-          onSave={(profile) => {
-            if (providers.profiles.some((p) => p.id === profile.id)) {
-              setError("A profile with this id already exists");
-              return;
-            }
-            void save({
-              profiles: [...providers.profiles, profile],
-              default: providers.default || profile.id,
-            });
-          }}
-        />
+        <div className="mt-[11px]">
+          <ProfileForm
+            saving={saving}
+            onCancel={() => setAdding(false)}
+            onSave={(profile) => {
+              if (providers.profiles.some((p) => p.id === profile.id)) {
+                setError("A profile with this id already exists");
+                return;
+              }
+              void save({
+                profiles: [...providers.profiles, profile],
+                default: providers.default || profile.id,
+              });
+            }}
+          />
+        </div>
       )}
 
       {editing && (
-        <ProfileForm
-          saving={saving}
-          profile={editing}
-          onCancel={() => setEditing(null)}
-          onSave={(profile) => {
-            void save({
-              profiles: providers.profiles.map((p) =>
-                p.id === editing.id ? profile : p,
-              ),
-              default: providers.default === editing.id ? profile.id : providers.default,
-            });
-          }}
-        />
+        <div className="mt-[11px]">
+          <ProfileForm
+            saving={saving}
+            profile={editing}
+            onCancel={() => setEditing(null)}
+            onSave={(profile) => {
+              void save({
+                profiles: providers.profiles.map((p) =>
+                  p.id === editing.id ? profile : p,
+                ),
+                default: providers.default === editing.id ? profile.id : providers.default,
+              });
+            }}
+          />
+        </div>
       )}
     </section>
   );
