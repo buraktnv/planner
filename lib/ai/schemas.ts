@@ -123,6 +123,8 @@ export const proposalActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("move_to_parking_lot"), ...baseShapes.move_to_parking_lot }),
   z.object({ kind: z.literal("create_event"), ...baseShapes.create_event }),
   z.object({ kind: z.literal("update_event"), ...baseShapes.update_event }),
+  z.object({ kind: z.literal("add_note"), ...baseShapes.add_note }),
+  z.object({ kind: z.literal("update_note"), ...baseShapes.update_note }),
 ]);
 
 export type ProposalAction = z.infer<typeof proposalActionSchema>;
@@ -134,6 +136,7 @@ export interface ProposalPreviewRow {
   title: string;
   lane: TaskLane | null;
   note: string;
+  detail?: string;
   charterName: string;
   color: string;
 }
@@ -217,5 +220,5 @@ export const toolDescriptions: Record<ToolName, string> = {
   next_actions: "Get the prioritized list of next actions across the workspace.",
   weekly_summary: "Get insights and the last 7 days of journal digest.",
   propose_changes:
-    "Propose a batch of changes without writing anything. Returns a preview the user must Accept before it is applied. Use this for any set of writes; use the direct tools only for a single, explicitly requested change.",
+    "Propose a batch of changes without writing anything — tasks, events and knowledge notes. Returns a preview the user must Accept before it is applied. Use this for any set of writes; use the direct tools only for a single, explicitly requested change.",
 };

@@ -1,6 +1,6 @@
 # Knowledge base — a second brain with lazy, scope-aware retrieval
 
-Status: phases 1–2 implemented, phase 3 planned
+Status: phases 1–3 implemented; embedding re-rank deliberately deferred
 Date: 2026-08-28
 
 ## Problem
@@ -122,4 +122,14 @@ Notes with no scope are never auto-loaded.
 
 Not built in phase 2: "file this" straight from a journal line — it belongs with phase 3's distillation flow.
 
-**Phase 3.** Journal distillation — a weekly pass that reads the journal and *proposes* notes through the existing `propose_changes` → Accept/Discard card, so the owner reviews rather than authors. Then optional embedding re-rank if keyword recall proves insufficient.
+**Phase 3 (built).** Journal distillation, so the owner reviews rather than authors.
+
+`add_note` and `update_note` join `proposalActionSchema`, which means chat can propose notes in a batch and `applyProposal` executes them with no further wiring. `ProposalPreviewRow` gains an optional `detail` line, rendered under the row — without it a note's summary sat in the non-shrinking chip and starved the title to one letter.
+
+`POST /api/knowledge/distill` reads the journal for a window (default 7 days, agent entries excluded), passes the digest plus **every existing index line** and the valid scope keys to the model, and asks for candidates via `generateObject`. It returns a `Proposal` — the same shape the chat card renders — or `null` with a message when there is nothing worth keeping. Candidates are deduplicated against existing note titles (case- and punctuation-insensitive) and within the batch; a missing title is derived from the summary's first sentence.
+
+The `/knowledge` page carries a dashed DISTILL strip with a status line from `lib/view/distill.ts` (pure, unit-tested) and a button, which renders the returned proposal in the existing `ProposalCard`. Accept posts to `/api/proposals/apply`; nothing is written before that.
+
+**Provider constraint:** distillation needs structured output, so the `claude-subscription` path cannot serve it — that route is chat-only. `pickDistillProfile` prefers the default profile, falls back to the first API profile, and otherwise fails with a message saying exactly that. Two provider realities shaped the implementation: DeepSeek's `json_object` mode **requires the word "json" in the prompt**, and models omit fields freely, so every candidate field except `summary` is optional with a default and the prompt spells out the exact JSON shape. Failures surface the raw response, truncated, which is how both of those were diagnosed.
+
+**Deferred: embedding re-rank.** Keyword + tags + scope has not yet failed to find anything. Adding embeddings means an ongoing API cost, a vector store to keep in sync with git, and retrieval that can no longer explain itself. Revisit only when a real search misses a note that is genuinely there.

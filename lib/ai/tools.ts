@@ -142,6 +142,33 @@ async function previewRow(
       color: tone.color,
     };
   }
+  if (action.kind === "add_note") {
+    const tone = await charterTone(action.scope?.[0], cache);
+    return {
+      kind: action.kind,
+      id: "NOTE",
+      title: action.title,
+      lane: null,
+      note: "note",
+      detail: action.summary,
+      charterName: action.scope?.length ? tone.name : "knowledge",
+      color: action.scope?.length ? tone.color : NEUTRAL,
+    };
+  }
+  if (action.kind === "update_note") {
+    const scope = action.scope?.[0];
+    const tone = await charterTone(scope, cache);
+    return {
+      kind: action.kind,
+      id: action.id,
+      title: action.title ?? action.id,
+      lane: null,
+      note: "note",
+      ...(action.summary ? { detail: action.summary } : {}),
+      charterName: scope ? tone.name : "knowledge",
+      color: scope ? tone.color : NEUTRAL,
+    };
+  }
   if (action.kind === "create_event") {
     const tone = await charterTone(action.scope, cache);
     return {

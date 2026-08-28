@@ -1,16 +1,21 @@
 import { listNotes } from "@/lib/core/knowledge";
 import { listCharters } from "@/lib/core/store";
+import { readJournal } from "@/lib/core/journal";
 import { buildKnowledge, knowledgeNote } from "@/lib/view/knowledge";
+import { buildDistillStatus } from "@/lib/view/distill";
+import { isoToday } from "@/lib/ui/momentum";
 import { AssistantNote } from "@/components/momentum/primitives";
 import KnowledgeView from "@/components/momentum/knowledge/knowledge-view";
+import DistillPanel from "@/components/momentum/knowledge/distill-panel";
 
 export const dynamic = "force-dynamic";
 
 export default async function KnowledgePage() {
-  const [notes, projects, areas] = await Promise.all([
+  const [notes, projects, areas, journal] = await Promise.all([
     listNotes(),
     listCharters("project"),
     listCharters("area"),
+    readJournal(7),
   ]);
 
   const names: Record<string, string> = {};
@@ -18,10 +23,12 @@ export default async function KnowledgePage() {
   for (const a of areas) names[`area:${a.id}`] = a.name;
 
   const model = buildKnowledge(notes, names);
+  const distill = buildDistillStatus(journal, notes, isoToday());
 
   return (
     <div className="mx-auto max-w-[820px] px-[36px] pt-[52px] pb-[90px]">
       <AssistantNote className="mb-4">{knowledgeNote(model)}</AssistantNote>
+      <DistillPanel status={distill} />
       <KnowledgeView model={model} />
     </div>
   );

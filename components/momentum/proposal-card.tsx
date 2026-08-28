@@ -51,19 +51,26 @@ export default function ProposalCard({
         {proposal.preview.map((row, i) => {
           const lane = row.lane ? LANES[row.lane] : null;
           return (
-            <div key={`${row.id}-${i}`} className="flex items-center gap-[9px]">
-              <Mono className="shrink-0 text-[9px] text-faint">{row.id}</Mono>
-              <span className="min-w-0 flex-1 truncate text-[12.5px] text-dim">{row.title}</span>
-              <Mono
-                className="shrink-0 rounded-[5px] px-1.5 py-[3px] text-[8.5px] tracking-[0.08em]"
-                style={
-                  lane
-                    ? { color: lane.ink, background: lane.tint }
-                    : { color: "var(--color-faint)", background: "var(--color-soft)" }
-                }
-              >
-                {lane ? lane.label.toUpperCase() : row.note.toUpperCase() || "EVENT"}
-              </Mono>
+            <div key={`${row.id}-${i}`} className="flex flex-col gap-[3px]">
+              <div className="flex items-center gap-[9px]">
+                <Mono className="shrink-0 text-[9px] text-faint">{row.id}</Mono>
+                <span className="min-w-0 flex-1 truncate text-[12.5px] text-dim">{row.title}</span>
+                <Mono
+                  className="shrink-0 rounded-[5px] px-1.5 py-[3px] text-[8.5px] tracking-[0.08em]"
+                  style={
+                    lane
+                      ? { color: lane.ink, background: lane.tint }
+                      : { color: "var(--color-faint)", background: "var(--color-soft)" }
+                  }
+                >
+                  {lane ? lane.label.toUpperCase() : row.note.toUpperCase() || "EVENT"}
+                </Mono>
+              </div>
+              {row.detail ? (
+                <span className="pl-[30px] text-[11.5px] leading-[1.45] text-faint">
+                  {row.detail}
+                </span>
+              ) : null}
             </div>
           );
         })}
