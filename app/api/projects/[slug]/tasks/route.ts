@@ -25,6 +25,7 @@ export async function POST(req: Request, { params }: Ctx) {
       est?: unknown;
       due?: unknown;
       lane?: unknown;
+      waitsOn?: unknown;
     };
     const title = typeof body.title === "string" ? body.title.trim() : "";
     if (!title) return NextResponse.json({ error: "title is required" }, { status: 400 });
@@ -38,6 +39,7 @@ export async function POST(req: Request, { params }: Ctx) {
       parentId: typeof body.parentId === "string" && body.parentId ? body.parentId : undefined,
       est: typeof body.est === "string" ? body.est : undefined,
       due: typeof body.due === "string" ? body.due : undefined,
+      waitsOn: typeof body.waitsOn === "string" && body.waitsOn.trim() ? body.waitsOn.trim() : undefined,
     });
     return NextResponse.json(task);
   } catch (e) {
@@ -58,6 +60,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       est?: unknown;
       due?: unknown;
       lane?: unknown;
+      waitsOn?: unknown;
     };
     const id = typeof body.id === "string" ? body.id : "";
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
@@ -69,6 +72,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (typeof body.est === "string") patch.est = body.est;
     if (typeof body.due === "string") patch.due = body.due;
     if (isLane(body.lane)) patch.lane = body.lane;
+    if (typeof body.waitsOn === "string") patch.waitsOn = body.waitsOn.trim();
     const task = await updateTask("project", slug, id, patch);
     return NextResponse.json(task);
   } catch (e) {

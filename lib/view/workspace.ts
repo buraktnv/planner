@@ -1,5 +1,6 @@
 import { listCharters, listTasks } from "@/lib/core/store";
 import { laneOf } from "@/lib/core/lanes";
+import { blockerOf, isBlocked } from "@/lib/core/deps";
 import type {
   Charter,
   ProjectStatus,
@@ -35,6 +36,9 @@ export interface CardModel {
   est?: string;
   created?: string;
   doneDate?: string;
+  waitsOn?: string;
+  blocked: boolean;
+  blockedByTitle?: string;
   overdue: boolean;
   pct: number;
   subDone: number;
@@ -88,6 +92,7 @@ function buildCards(charter: Charter, tasks: Task[], today: string): CardModel[]
       .filter((s) => s.parentId === t.id)
       .map((s) => ({ id: s.id, title: s.title, done: s.done, size: s.size }));
     const subDone = subs.filter((s) => s.done).length;
+    const blocker = blockerOf(t, tasks);
     const pct = subs.length
       ? Math.round((subDone / subs.length) * 100)
       : t.done
@@ -112,6 +117,9 @@ function buildCards(charter: Charter, tasks: Task[], today: string): CardModel[]
       est: t.est,
       created: t.created,
       doneDate: t.doneDate,
+      waitsOn: t.waitsOn,
+      blocked: isBlocked(t, tasks),
+      blockedByTitle: blocker?.title,
       overdue: !!t.due && !t.done && t.due < today,
       pct,
       subDone,

@@ -20,6 +20,7 @@ function card(partial: Partial<CardModel> & { id: string }): CardModel {
     lane: "deep",
     section: "backlog",
     done: false,
+    blocked: false,
     overdue: false,
     pct: 0,
     subDone: 0,

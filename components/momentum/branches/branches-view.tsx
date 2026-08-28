@@ -110,7 +110,7 @@ function TrunkView({ cards }: { cards: CardModel[] }) {
                   <Mono className="text-[10px] text-dim">{card.pct}%</Mono>
                 </div>
 
-                {card.lane === "wait" && (
+                {(card.blocked || card.lane === "wait") && (
                   <div className="mb-3.5 flex items-center gap-2 rounded-[9px] bg-wait-tint px-[11px] py-[7px]">
                     <svg
                       width="12"
@@ -125,7 +125,9 @@ function TrunkView({ cards }: { cards: CardModel[] }) {
                       <path d="M5 12h14M14 7l5 5-5 5" />
                     </svg>
                     <span className="text-[11.5px] text-wait-ink">
-                      waiting on something outside this project
+                      {card.waitsOn
+                        ? `waits on ${card.blockedByTitle ?? card.waitsOn}`
+                        : "waiting on something outside this project"}
                     </span>
                   </div>
                 )}
@@ -202,9 +204,11 @@ function FlowView({ cards }: { cards: CardModel[] }) {
                 </Mono>
                 <Mono className="text-[9.5px] text-dim">{card.pct}%</Mono>
               </div>
-              {card.lane === "wait" && (
+              {(card.blocked || card.lane === "wait") && (
                 <Mono className="mt-[9px] block text-[9px] text-wait-ink">
-                  WAITING ON SOMETHING EXTERNAL
+                  {card.waitsOn
+                    ? `WAITS ON ${card.waitsOn.toUpperCase()}`
+                    : "WAITING ON SOMETHING EXTERNAL"}
                 </Mono>
               )}
             </div>
@@ -296,7 +300,7 @@ function MapView({ project, cards }: { project: BranchProject; cards: CardModel[
               y2={n.cy}
               stroke="var(--color-edge)"
               strokeWidth="2"
-              strokeDasharray={n.card.lane === "wait" ? "5 5" : "0"}
+              strokeDasharray={n.card.blocked || n.card.lane === "wait" ? "5 5" : "0"}
             />
           ))}
         </svg>
@@ -334,7 +338,8 @@ function MapView({ project, cards }: { project: BranchProject; cards: CardModel[
                 width: n.diameter,
                 height: n.diameter,
                 background: n.meta.tint,
-                borderColor: n.meta.color,
+                borderColor: n.card.blocked ? "#a06f2c" : n.meta.color,
+                borderStyle: n.card.blocked ? "dashed" : "solid",
               }}
             >
               <div>

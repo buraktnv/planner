@@ -18,6 +18,17 @@ function apiBase(type: "project" | "area"): string {
   return type === "project" ? "/api/projects" : "/api/areas";
 }
 
+function WaitsChip({ card }: { card: CardModel }) {
+  if (!card.waitsOn) return null;
+  return (
+    <span className="mb-2 block" title={card.blockedByTitle ?? card.waitsOn}>
+      <Mono className="text-[9px] tracking-[0.08em] text-wait-ink">
+        WAITS ON {card.waitsOn.toUpperCase()}
+      </Mono>
+    </span>
+  );
+}
+
 function LaneHeader({ lane, count }: { lane: TaskLane; count: number }) {
   return (
     <div className="mb-3.5 flex items-center gap-[9px]">
@@ -155,6 +166,7 @@ export default function BoardView({
                 <div className="mb-[11px] text-sm font-medium leading-[1.35] tracking-[-0.01em]">
                   {c.title}
                 </div>
+                <WaitsChip card={c} />
                 <Bar pct={c.pct} color={c.color} height={5} />
               </div>
             ))}
@@ -175,6 +187,7 @@ export default function BoardView({
                 <div className="mb-3.5 text-[14.5px] font-medium leading-[1.35] tracking-[-0.01em]">
                   {c.title}
                 </div>
+                <WaitsChip card={c} />
                 <Bar pct={c.pct} color={c.color} height={5} />
               </div>
             ))}
@@ -196,9 +209,10 @@ export default function BoardView({
                   className="cursor-grab rounded-[13px] border border-dashed border-edge px-[13px] py-3 transition-colors hover:bg-surf"
                   style={{ ...cardProps(c).style, borderLeft: `3px solid ${c.color}` }}
                 >
-                  <div className="text-[13.5px] font-medium leading-[1.35] text-dim">
+                  <div className="mb-1.5 text-[13.5px] font-medium leading-[1.35] text-dim">
                     {c.title}
                   </div>
+                  <WaitsChip card={c} />
                 </div>
               ))}
             </div>
@@ -222,6 +236,13 @@ export default function BoardView({
                     style={{ background: c.color }}
                   />
                   <span className="text-[13px] leading-[1.3] text-faint">{c.title}</span>
+                  {c.waitsOn && (
+                    <span className="ml-auto shrink-0" title={c.blockedByTitle ?? c.waitsOn}>
+                      <Mono className="text-[9px] tracking-[0.08em] text-wait-ink">
+                        WAITS ON {c.waitsOn.toUpperCase()}
+                      </Mono>
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

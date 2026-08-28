@@ -26,6 +26,7 @@ export default function CardDetail({
   const [subs, setSubs] = useState(card.subs);
   const [section, setSection] = useState<TaskSection>(card.section);
   const [lane, setLane] = useState<TaskLane>(card.lane);
+  const [waitsOn, setWaitsOn] = useState(card.waitsOn ?? "");
   const [busy, setBusy] = useState(false);
 
   const base = card.type === "project" ? "/api/projects" : "/api/areas";
@@ -67,6 +68,11 @@ export default function CardDetail({
   const setCardLane = async (next: TaskLane) => {
     setLane(next);
     await patch({ id: card.id, lane: next });
+  };
+
+  const saveWaitsOn = async () => {
+    if (waitsOn.trim() === (card.waitsOn ?? "")) return;
+    await patch({ id: card.id, waitsOn: waitsOn.trim() });
   };
 
   const href = card.type === "project" ? `/projects/${card.slug}` : `/areas/${card.slug}`;
@@ -174,6 +180,31 @@ export default function CardDetail({
             {card.est && <Mono className="text-[10px] text-dim">EST {card.est}</Mono>}
           </div>
         )}
+
+        <div className="mb-5">
+          <Mono className="mb-2.5 block text-[9px] tracking-[0.1em] text-faint">WAITS ON</Mono>
+          {card.blocked && (
+            <Mono className="mb-2 block text-[10px] tracking-[0.08em] text-wait-ink">
+              BLOCKED — {(card.blockedByTitle ?? card.waitsOn ?? "").toUpperCase()}
+            </Mono>
+          )}
+          <div className="flex gap-2">
+            <input
+              value={waitsOn}
+              onChange={(e) => setWaitsOn(e.target.value)}
+              placeholder="A task id in this project, or free text"
+              className="min-w-0 flex-1 rounded-[11px] border border-edge bg-bg px-3 py-2 text-[12.5px] outline-none placeholder:text-faint"
+            />
+            <button
+              type="button"
+              disabled={busy || waitsOn.trim() === (card.waitsOn ?? "")}
+              onClick={saveWaitsOn}
+              className="rounded-[11px] border border-edge px-3 py-2 font-mono text-[9.5px] tracking-[0.08em] text-dim transition-colors hover:text-ink disabled:opacity-40"
+            >
+              SAVE
+            </button>
+          </div>
+        </div>
 
         <Mono className="mb-2.5 block text-[9px] tracking-[0.1em] text-faint">
           SUBTASKS {subs.length ? `${done}/${subs.length}` : ""}

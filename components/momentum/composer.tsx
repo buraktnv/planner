@@ -51,6 +51,7 @@ export default function Composer({
   const [size, setSize] = useState<TaskSize>("M");
   const [due, setDue] = useState("");
   const [steps, setSteps] = useState("");
+  const [waitsOn, setWaitsOn] = useState("");
   const [scopeKey, setScopeKey] = useState<string>(
     prefill?.scopeKey ?? charters[0]?.key ?? "",
   );
@@ -110,6 +111,7 @@ export default function Composer({
           size,
           lane,
           ...(due ? { due } : {}),
+          ...(kind === "branch" && waitsOn.trim() ? { waitsOn: waitsOn.trim() } : {}),
         }),
       });
       if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? "Failed");
@@ -287,6 +289,13 @@ export default function Composer({
 
         {kind === "branch" && (
           <>
+            <FieldLabel>WAITS ON — OPTIONAL</FieldLabel>
+            <input
+              value={waitsOn}
+              onChange={(e) => setWaitsOn(e.target.value)}
+              placeholder="T-041, or the clinic"
+              className="mb-[18px] w-full rounded-[13px] border border-edge bg-bg px-3.5 py-[11px] text-[13px] outline-none placeholder:text-faint"
+            />
             <FieldLabel>STEPS — ONE PER LINE, EACH BECOMES A SUBTASK</FieldLabel>
             <textarea
               value={steps}

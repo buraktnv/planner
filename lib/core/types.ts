@@ -30,6 +30,7 @@ export interface Task {
   doneDate?: string;
   est?: string;
   due?: string;
+  waitsOn?: string;
   parentId?: string | null;
 }
 

@@ -32,6 +32,7 @@ export interface FocusModel {
 const EFFORT: Record<string, string> = { S: "15 min", M: "1 h", L: "2 h+" };
 
 function groupOf(card: CardModel, today: string): number {
+  if (card.blocked) return 4;
   if (card.due) return card.due < today ? 0 : 1;
   if (card.section === "in-progress") return 2;
   return 3;
@@ -62,11 +63,14 @@ export function rankCards(ws: Workspace): RankedItem[] {
     card,
     why: reasonFor(card, ws.today),
     effort: card.est ?? EFFORT[card.size] ?? "",
-    pinned: card.overdue,
+    pinned: card.overdue && !card.blocked,
   }));
 }
 
-function reasonFor(card: CardModel, today: string): string {
+export function reasonFor(card: CardModel, today: string): string {
+  if (card.blocked) {
+    return `Waits on ${card.blockedByTitle ?? card.waitsOn ?? "something else"}`;
+  }
   if (card.overdue && card.due) {
     const days = Math.max(
       1,
@@ -153,7 +157,7 @@ export function buildFocus(ws: Workspace, journal: JournalDay[]): FocusModel {
     },
   ];
 
-  const smallest = ranked.find((r) => r.card.size === "S");
+  const smallest = ranked.find((r) => r.card.size === "S" && !r.card.blocked);
   const stalest = [...ranked].sort((a, b) =>
     (a.card.created ?? "9").localeCompare(b.card.created ?? "9"),
   )[0];
@@ -196,7 +200,7 @@ export function buildFocus(ws: Workspace, journal: JournalDay[]): FocusModel {
 
   return {
     ranked,
-    oneThing: ranked[0] ?? null,
+    oneThing: ranked.find((r) => !r.card.blocked) ?? null,
     streaks,
     held: [
       { n: doneToday, label: "DONE TODAY" },

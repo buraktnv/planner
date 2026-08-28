@@ -38,7 +38,7 @@ const TASK_SECTION_HEADER: Record<TaskSection, string> = {
   "in-progress": "## In progress",
   done: "## Done",
 };
-const TASK_FIELD_KEYS = new Set(["created", "done", "est", "due", "lane"]);
+const TASK_FIELD_KEYS = new Set(["created", "done", "est", "due", "lane", "waits"]);
 const TASK_LANE_VALUES: TaskLane[] = ["quick", "deep", "wait", "some"];
 const TASK_SIZE_VALUES: TaskSize[] = ["S", "M", "L"];
 
@@ -131,6 +131,7 @@ export function parseTasks(raw: string): Task[] {
     let est: string | undefined;
     let due: string | undefined;
     let lane: TaskLane | undefined;
+    let waitsOn: string | undefined;
     for (const field of parts.slice(3)) {
       const colon = field.indexOf(":");
       if (colon < 0) {
@@ -152,6 +153,11 @@ export function parseTasks(raw: string): Task[] {
           );
         }
         lane = value as TaskLane;
+      } else if (key === "waits") {
+        if (value === "") {
+          throw new TaskParseError(`Line ${lineNo}: task ${id} has an empty waits: value: ${line}`);
+        }
+        waitsOn = value;
       }
     }
 
@@ -179,6 +185,7 @@ export function parseTasks(raw: string): Task[] {
       doneDate,
       est,
       due,
+      waitsOn,
       parentId,
     });
   });
@@ -206,6 +213,7 @@ export function serializeTasks(tasks: Task[]): string {
       if (t.est) fields.push(`est:${t.est}`);
       if (t.due) fields.push(`due:${t.due}`);
       if (t.lane) fields.push(`lane:${t.lane}`);
+      if (t.waitsOn) fields.push(`waits:${t.waitsOn}`);
       if (t.doneDate) fields.push(`done:${t.doneDate}`);
       const fieldStr = fields.length ? ` | ${fields.join(" | ")}` : "";
       lines.push(`${indent}- ${box} ${t.id} | ${t.size} | ${t.title}${fieldStr}`);

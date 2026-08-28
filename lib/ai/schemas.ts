@@ -20,6 +20,7 @@ export const toolShapes = {
     project: z.string(),
     title: z.string(),
     size: z.enum(["S", "M", "L"]),
+    waitsOn: z.string().optional(),
   },
   update_task: {
     project: z.string(),
@@ -29,6 +30,7 @@ export const toolShapes = {
     section: z.enum(["backlog", "in-progress", "done"]).optional(),
     est: z.string().optional(),
     due: z.string().optional(),
+    waitsOn: z.string().optional(),
     complete: z.boolean().optional(),
   },
   decompose_task: {
@@ -69,8 +71,10 @@ export const toolDescriptions: Record<ToolName, string> = {
     "Get charter context, open tasks, and the about text for a project or area.",
   create_project: "Create a new project charter.",
   create_area: "Create a new life area charter.",
-  create_task: "Create a task in a project or area (slug or area:<slug>).",
-  update_task: "Update a task's fields (title, size, section, est, due, done).",
+  create_task:
+    "Create a task in a project or area (slug or area:<slug>). waitsOn marks it blocked by a task id in the same file or by free text.",
+  update_task:
+    "Update a task's fields (title, size, section, est, due, waitsOn, done). Pass waitsOn as an empty string to clear it.",
   decompose_task: "Break a task into subtasks.",
   move_to_parking_lot: "Add an idea to a charter's parking lot.",
   add_journal: "Append a journal entry for a scope.",

@@ -75,12 +75,13 @@ export const toolImpls = {
     project: string;
     title: string;
     size: TaskSize;
+    waitsOn?: string;
   }): Promise<Task> {
     if (!input.project) throw new Error("createTask requires a project (slug or area:<slug>)");
     if (!input.title) throw new Error("createTask requires a title");
     const size = input.size ?? "M";
     const scope = parseScope(input.project);
-    return addTask(scope.type, scope.slug, { title: input.title, size });
+    return addTask(scope.type, scope.slug, { title: input.title, size, waitsOn: input.waitsOn });
   },
 
   async updateTask(input: {
@@ -91,13 +92,22 @@ export const toolImpls = {
     section?: Task["section"];
     est?: string;
     due?: string;
+    waitsOn?: string;
     complete?: boolean;
   }): Promise<Task> {
     if (!input.project) throw new Error("updateTask requires a project (slug or area:<slug>)");
     if (!input.id) throw new Error("updateTask requires an id");
     const scope = parseScope(input.project);
-    const { title, size, section, est, due, complete } = input;
-    return updateTask(scope.type, scope.slug, input.id, { title, size, section, est, due, complete });
+    const { title, size, section, est, due, waitsOn, complete } = input;
+    return updateTask(scope.type, scope.slug, input.id, {
+      title,
+      size,
+      section,
+      est,
+      due,
+      waitsOn,
+      complete,
+    });
   },
 
   async decomposeTask(input: {
