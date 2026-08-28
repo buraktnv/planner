@@ -1,13 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { ProviderProfile, ProviderType } from "@/lib/core/types";
+import type { ProviderEffort, ProviderProfile, ProviderType } from "@/lib/core/types";
+import { effortsFor } from "@/lib/ui/providers";
 
-const TYPES: ProviderType[] = [
-  "claude-subscription",
-  "anthropic-api",
-  "openai-compatible",
-];
+const TYPES: ProviderType[] = ["openai-compatible", "anthropic-api"];
 
 const FIELD_CLASS =
   "rounded-[11px] border border-edge bg-bg px-3 py-2 text-[13px] outline-none placeholder:text-faint disabled:opacity-50";
@@ -24,11 +21,12 @@ export default function ProfileForm({
   onCancel: () => void;
 }) {
   const [id, setId] = useState(profile?.id ?? "");
-  const [type, setType] = useState<ProviderType>(profile?.type ?? "claude-subscription");
+  const [type, setType] = useState<ProviderType>(profile?.type ?? "openai-compatible");
   const [label, setLabel] = useState(profile?.label ?? "");
   const [model, setModel] = useState(profile?.model ?? "");
   const [baseUrl, setBaseUrl] = useState(profile?.baseUrl ?? "");
   const [apiKeyEnv, setApiKeyEnv] = useState(profile?.apiKeyEnv ?? "");
+  const [effort, setEffort] = useState<string>(profile?.effort ?? "");
   const [error, setError] = useState<string | null>(null);
 
   function submit(e: React.FormEvent) {
@@ -47,6 +45,7 @@ export default function ProfileForm({
       model: model.trim(),
       ...(type === "openai-compatible" ? { baseUrl: baseUrl.trim() } : {}),
       ...(apiKeyEnv.trim() ? { apiKeyEnv: apiKeyEnv.trim() } : {}),
+      ...(effort ? { effort: effort as ProviderEffort } : {}),
     });
   }
 
@@ -95,12 +94,26 @@ export default function ProfileForm({
           className={`w-full ${FIELD_CLASS}`}
         />
       )}
-      <input
-        value={apiKeyEnv}
-        onChange={(e) => setApiKeyEnv(e.target.value)}
-        placeholder="apiKeyEnv (env var name)"
-        className={`w-full ${FIELD_CLASS}`}
-      />
+      <div className="grid grid-cols-2 gap-2.5">
+        <input
+          value={apiKeyEnv}
+          onChange={(e) => setApiKeyEnv(e.target.value)}
+          placeholder="apiKeyEnv (env var name)"
+          className={FIELD_CLASS}
+        />
+        <select
+          value={effort}
+          onChange={(e) => setEffort(e.target.value)}
+          className={FIELD_CLASS}
+        >
+          <option value="">effort: provider default</option>
+          {effortsFor(type).map((e) => (
+            <option key={e} value={e}>
+              effort: {e}
+            </option>
+          ))}
+        </select>
+      </div>
       {error && <p className="m-0 text-[12.5px] text-clay-ink">{error}</p>}
       <div className="flex gap-2.5">
         <button

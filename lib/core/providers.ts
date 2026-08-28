@@ -1,12 +1,23 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { providersPath } from "./paths";
-import type { ProvidersFile, ProviderType } from "./types";
+import type { ProvidersFile, ProviderEffort, ProviderType } from "./types";
+import {
+  EFFORT_LEVELS,
+  PROVIDER_PRESETS,
+  favouriteId,
+  isFixedProviderType,
+  slugifyModelId,
+} from "../ui/providers";
+
+export { PROVIDER_PRESETS, favouriteId, slugifyModelId };
 
 const VALID_TYPES: ProviderType[] = [
   "claude-subscription",
   "anthropic-api",
   "openai-compatible",
+  "openrouter",
+  "deepseek",
 ];
 
 const PROFILE_KEYS = new Set([
@@ -16,7 +27,23 @@ const PROFILE_KEYS = new Set([
   "label",
   "baseUrl",
   "apiKeyEnv",
+  "effort",
 ]);
+
+export function presetFor(type: ProviderType): { baseUrl: string; apiKeyEnv: string } | null {
+  return isFixedProviderType(type) ? PROVIDER_PRESETS[type] : null;
+}
+
+export function apiKeyEnvOf(profile: {
+  type: ProviderType;
+  apiKeyEnv?: string;
+}): string | null {
+  if (profile.apiKeyEnv) return profile.apiKeyEnv;
+  const preset = presetFor(profile.type);
+  if (preset) return preset.apiKeyEnv;
+  if (profile.type === "anthropic-api") return "ANTHROPIC_API_KEY";
+  return null;
+}
 
 export function defaultProviders(): ProvidersFile {
   return { profiles: [], default: "" };
@@ -86,6 +113,14 @@ export function validateProviders(p: unknown): ProvidersFile {
     if (type === "openai-compatible") {
       if (!asString(entry.baseUrl) || entry.baseUrl.trim() === "") {
         throw new Error(`openai-compatible profile ${entry.id} requires a non-empty baseUrl`);
+      }
+    }
+    if (isFixedProviderType(type) && "baseUrl" in entry) {
+      throw new Error(`Profile ${entry.id}: baseUrl is not allowed on type ${type}`);
+    }
+    if ("effort" in entry) {
+      if (!asString(entry.effort) || !EFFORT_LEVELS.includes(entry.effort as ProviderEffort)) {
+        throw new Error(`Profile ${entry.id} has an invalid effort: ${String(entry.effort)}`);
       }
     }
     if ("apiKeyEnv" in entry && !asString(entry.apiKeyEnv)) {

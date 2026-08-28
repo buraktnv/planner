@@ -25,11 +25,25 @@ Every data change auto-appends a journal line and git-commits in `planner-data`,
 
 ## AI chat providers
 
-Provider profiles live in `planner-data/providers.json`. Three types:
+Provider profiles live in `planner-data/providers.json`. A profile is also a **favourite**: the model you picked from a source, ready to use in chat.
 
-- **claude-subscription** — uses your Claude Pro/Max plan via the Agent SDK (OAuth from `claude login` / `CLAUDE_CODE_OAUTH_TOKEN`). No API key.
-- **anthropic-api** — Anthropic API key in `.env.local` (`ANTHROPIC_API_KEY`).
-- **openai-compatible** — any endpoint (DeepSeek, OpenRouter, Ollama…) via `baseUrl` + `apiKeyEnv`.
+| type | key | notes |
+| --- | --- | --- |
+| `claude-subscription` | none | your Claude Pro/Max plan via the Agent SDK (OAuth from `claude login` / `CLAUDE_CODE_OAUTH_TOKEN`); model is `opus` / `sonnet` / `haiku` |
+| `openrouter` | `OPENROUTER_API_KEY` | fixed base URL `https://openrouter.ai/api/v1`, pay-per-use, full public model list |
+| `deepseek` | `DEEPSEEK_API_KEY` | fixed base URL `https://api.deepseek.com/v1`, prepaid balance |
+| `anthropic-api` | `ANTHROPIC_API_KEY` (or `apiKeyEnv`) | direct Anthropic API |
+| `openai-compatible` | `apiKeyEnv` | any other endpoint (Ollama, a local proxy…) via `baseUrl` |
+
+`openrouter` and `deepseek` have their base URL baked in — `baseUrl` is rejected on those types. Every profile may carry an optional `effort` (`low` / `medium` / `high` / `xhigh` / `max`); absent means the provider's own default. Claude honours all five, OpenAI-style APIs get `xhigh`/`max` clamped to `high`.
+
+Settings has three panels:
+
+- **Sources** — one row per source with a connected pill (driven by whether the env var is set — never its value), the env var to set, and the model + effort for the subscription.
+- **Catalog** — the OpenRouter / DeepSeek model lists (`GET /api/models?source=…`, cached an hour) with search, filter chips and a ★ that adds or removes a favourite.
+- **Favourites** — every profile with its effort select, the default radio and delete.
+
+In the chat rail, "Inspect context" lists the favourites; the small pill next to each cycles its effort for the next message. The chosen favourite and effort are remembered in `localStorage`.
 
 Secrets go only in `.env.local` and are referenced by env-var **name** in `providers.json`, never stored in data files.
 
@@ -58,8 +72,8 @@ The UI implements the **Momentum v2** design: a warm light theme, a collapsible 
 | `/insights` | Dashboard | Distance to MVP per project, momentum over recent weeks, open-work split |
 | `/review` | Review | Weekly numbers plus an on-demand AI read of the week |
 | `/journal` | Activity | The journal, newest first |
-| `/agents` | Agents | Provider profiles and the tools the assistant may call |
-| `/settings` | Settings | Provider profiles and the general context (`about.md`) |
+| `/agents` | Agents | Sources with their connection state and the tools the assistant may call |
+| `/settings` | Settings | Sources, model catalog, favourites and the general context (`about.md`) |
 
 The assistant rail has four modes (Plan / Straight / Reflect / Target) that change the system prompt, a scope selector that follows the screen by default, and an **Inspect context** panel showing exactly what is being sent — including `about.md`, which you can edit in place.
 

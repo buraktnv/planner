@@ -99,3 +99,27 @@ daily/log.md               (append-only)
 - **API:** `GET /api/daily`, `POST /api/daily/log { id }`, `POST /api/daily/groceries { name, cat? }`, `DELETE /api/daily/groceries` (clear bought), `PATCH /api/daily/groceries/[id] { got? }`, `POST /api/daily/meals/[id]/eat`, `PATCH /api/daily/meals/[id] { servings }`, `POST /api/daily/{habits|rhythms|meals}`.
 - **Views:** `/daily` shows habits today (rings, tap to count), rhythms this week (9px square pips, rows behind by 2+ in wait-ink), then meal prep (8px round pips) and groceries by category side by side. The Focus plan card mentions `n habits left today`; the Dashboard header carries a "rhythms met" chip.
 - **AI:** `get_daily`, `log_daily { id }`, `add_grocery`, `set_grocery { id, got }`; `weekly_summary` gains a `daily` block (habit days met, rhythms met, servings eaten) and `buildSystemContext` includes a short `# Daily` block.
+
+## `providers.json`
+
+Lives at the data root. Additive over the original three-type shape — old files validate unchanged.
+
+```json
+{
+  "profiles": [
+    { "id": "claude-sub", "type": "claude-subscription", "model": "opus", "label": "Claude Opus 5", "effort": "medium" },
+    { "id": "or-openai-gpt-5-6-terra", "type": "openrouter", "model": "openai/gpt-5.6-terra", "label": "GPT-5.6 Terra", "effort": "medium" },
+    { "id": "ds-deepseek-v4-pro", "type": "deepseek", "model": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "effort": "high" },
+    { "id": "ollama", "type": "openai-compatible", "baseUrl": "http://localhost:11434/v1", "model": "llama3", "label": "Ollama" }
+  ],
+  "default": "claude-sub"
+}
+```
+
+- **Types:** `claude-subscription` | `anthropic-api` | `openai-compatible` | `openrouter` | `deepseek`.
+- `openrouter` and `deepseek` are OpenAI-compatible with a **fixed** base URL (`https://openrouter.ai/api/v1`, `https://api.deepseek.com/v1`) and a default `apiKeyEnv` (`OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`) a profile may override. `baseUrl` on either type is a validation error. `openai-compatible` still requires `baseUrl`.
+- `anthropic-api` honours `apiKeyEnv` and falls back to `ANTHROPIC_API_KEY`.
+- **`effort`** (optional, any type): `low` | `medium` | `high` | `xhigh` | `max`. Anything else is a validation error. Absent means no effort parameter is sent. Claude types take all five; OpenAI-style APIs receive `reasoningEffort` with `xhigh`/`max` clamped to `high`. The chat request may override a profile's effort for one message.
+- **Favourite ids** are derived, not typed: `or-` / `ds-` plus the model id lowercased with every run of non-alphanumeric characters collapsed to `-` (`openai/GPT-5.6 Terra` → `or-openai-gpt-5-6-terra`). `label` defaults to the catalog's display name.
+- Keys allowed on a profile: `id`, `type`, `model`, `label`, `baseUrl`, `apiKeyEnv`, `effort`. Any other key is rejected. Ids must be unique and `default` must name an existing profile whenever profiles exist.
+- No secret ever appears in this file — only env var **names**.

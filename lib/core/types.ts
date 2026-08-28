@@ -88,7 +88,14 @@ export interface DailyData {
   log: DailyLogEntry[];
 }
 
-export type ProviderType = "claude-subscription" | "anthropic-api" | "openai-compatible";
+export type ProviderType =
+  | "claude-subscription"
+  | "anthropic-api"
+  | "openai-compatible"
+  | "openrouter"
+  | "deepseek";
+
+export type ProviderEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 export interface ProviderProfile {
   id: string;
@@ -97,6 +104,17 @@ export interface ProviderProfile {
   label: string;
   baseUrl?: string;
   apiKeyEnv?: string;
+  effort?: ProviderEffort;
+}
+
+export interface CatalogModel {
+  id: string;
+  name: string;
+  source: "openrouter" | "deepseek";
+  contextLength?: number;
+  promptPrice?: number;
+  completionPrice?: number;
+  reasoning: boolean;
 }
 
 export interface ProvidersFile {

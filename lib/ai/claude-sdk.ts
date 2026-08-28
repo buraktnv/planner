@@ -7,6 +7,7 @@ import {
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { buildSystemContext } from "./context";
 import type { ChatMode } from "./modes";
+import type { ProviderEffort } from "../core/types";
 import { toolShapes, toolDescriptions, toolNames, type ToolName } from "./schemas";
 import { toolImplMap } from "./tool-map";
 
@@ -15,12 +16,16 @@ export interface ClaudeSdkChatOptions {
   focus?: { type: "project" | "area"; slug: string };
   mode?: ChatMode;
   model?: string;
+  effort?: ProviderEffort;
 }
 
 type StreamPart =
   | { type: "text-start"; id: string }
   | { type: "text-delta"; id: string; delta: string }
   | { type: "text-end"; id: string }
+  | { type: "reasoning-start"; id: string }
+  | { type: "reasoning-delta"; id: string; delta: string }
+  | { type: "reasoning-end"; id: string }
   | { type: "tool-input-available"; toolCallId: string; toolName: string; input: unknown }
   | { type: "tool-output-available"; toolCallId: string; output: unknown }
   | { type: "tool-output-error"; toolCallId: string; errorText: string };
@@ -28,6 +33,10 @@ type StreamPart =
 interface TextBlock {
   type: "text";
   text: string;
+}
+interface ThinkingBlock {
+  type: "thinking";
+  thinking: string;
 }
 interface ToolUseBlock {
   type: "tool_use" | "mcp_tool_use";
@@ -52,7 +61,13 @@ function mapAssistantBlocks(blocks: unknown[]): StreamPart[] {
   const parts: StreamPart[] = [];
   let textId = 0;
   for (const block of blocks) {
-    if ((block as TextBlock).type === "text") {
+    if ((block as ThinkingBlock).type === "thinking") {
+      const id = `r${textId++}`;
+      const thinking = (block as ThinkingBlock).thinking ?? "";
+      parts.push({ type: "reasoning-start", id });
+      parts.push({ type: "reasoning-delta", id, delta: thinking });
+      parts.push({ type: "reasoning-end", id });
+    } else if ((block as TextBlock).type === "text") {
       const id = `t${textId++}`;
       parts.push({ type: "text-start", id });
       parts.push({ type: "text-delta", id, delta: (block as TextBlock).text });
@@ -150,7 +165,7 @@ function buildMcpServer() {
 }
 
 export async function claudeSdkChat(opts: ClaudeSdkChatOptions): Promise<Response> {
-  const { messages, focus, mode, model = "sonnet" } = opts;
+  const { messages, focus, mode, model = "sonnet", effort } = opts;
   const system = await buildSystemContext(focus, mode);
   const prompt = formatTranscript(messages) || "Hello";
 
@@ -169,6 +184,7 @@ export async function claudeSdkChat(opts: ClaudeSdkChatOptions): Promise<Respons
             model,
             maxTurns: 12,
             tools: [],
+            ...(effort ? { effort } : {}),
           },
         });
 

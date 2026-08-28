@@ -1,6 +1,7 @@
-import { getProviders } from "@/lib/core/providers";
+import { apiKeyEnvOf, getProviders, PROVIDER_PRESETS } from "@/lib/core/providers";
 import { toolNames, toolDescriptions } from "@/lib/ai/schemas";
 import { Mono, Panel, Rule } from "@/components/momentum/primitives";
+import type { ProviderProfile, ProviderType } from "@/lib/core/types";
 
 export const dynamic = "force-dynamic";
 
@@ -8,86 +9,141 @@ const TYPE_LABEL: Record<string, string> = {
   "claude-subscription": "claude subscription",
   "anthropic-api": "anthropic api",
   "openai-compatible": "openai-compatible",
+  openrouter: "openrouter",
+  deepseek: "deepseek",
 };
 
-const AGENT_COLORS = ["#63b894", "#7d95dd", "#c48bc9", "#d9a463", "#8fbfc9", "#c9857a"];
+interface Source {
+  key: string;
+  name: string;
+  color: string;
+  connected: boolean;
+  detail: string;
+  envName: string | null;
+  baseUrl?: string;
+  favourites: ProviderProfile[];
+  hasDefault: boolean;
+}
+
+const SOURCE_COLORS = ["#63b894", "#7d95dd", "#c48bc9", "#d9a463", "#8fbfc9", "#c9857a"];
+
+function envSet(name: string | null): boolean {
+  if (!name) return false;
+  const value = process.env[name];
+  return value !== undefined && value !== "";
+}
 
 export default async function AgentsPage() {
   const providers = await getProviders();
+  const byType = (t: ProviderType) => providers.profiles.filter((p) => p.type === t);
+  const hasDefault = (profiles: ProviderProfile[]) =>
+    profiles.some((p) => p.id === providers.default);
 
-  const agents = providers.profiles.map((p, i) => {
-    const keySet = p.apiKeyEnv ? process.env[p.apiKeyEnv] !== undefined : false;
-    const connected = p.type === "claude-subscription" || keySet;
-    return {
-      id: p.id,
+  const sources: Source[] = [];
+
+  const subs = byType("claude-subscription");
+  sources.push({
+    key: "claude-subscription",
+    name: "Claude subscription",
+    color: SOURCE_COLORS[0],
+    connected: true,
+    detail: subs.length
+      ? subs.map((p) => `${p.model}${p.effort ? ` · ${p.effort}` : ""}`).join(", ")
+      : "no profile yet",
+    envName: null,
+    favourites: subs,
+    hasDefault: hasDefault(subs),
+  });
+
+  (["openrouter", "deepseek"] as const).forEach((type, i) => {
+    const preset = PROVIDER_PRESETS[type];
+    const profiles = byType(type);
+    sources.push({
+      key: type,
+      name: preset.label,
+      color: SOURCE_COLORS[(i + 1) % SOURCE_COLORS.length],
+      connected: envSet(preset.apiKeyEnv),
+      detail: `${profiles.length} favourite${profiles.length === 1 ? "" : "s"}`,
+      envName: preset.apiKeyEnv,
+      baseUrl: preset.baseUrl,
+      favourites: profiles,
+      hasDefault: hasDefault(profiles),
+    });
+  });
+
+  const customs = providers.profiles.filter(
+    (p) => p.type === "openai-compatible" || p.type === "anthropic-api",
+  );
+  customs.forEach((p, i) => {
+    const envName = apiKeyEnvOf(p);
+    sources.push({
+      key: p.id,
       name: p.label,
-      color: AGENT_COLORS[i % AGENT_COLORS.length],
-      host: `${TYPE_LABEL[p.type] ?? p.type} · ${p.model}`,
-      isDefault: providers.default === p.id,
-      apiKeyEnv: p.apiKeyEnv,
+      color: SOURCE_COLORS[(i + 3) % SOURCE_COLORS.length],
+      connected: envName ? envSet(envName) : true,
+      detail: `${TYPE_LABEL[p.type] ?? p.type} · ${p.model}${p.effort ? ` · ${p.effort}` : ""}`,
+      envName,
       baseUrl: p.baseUrl,
-      connected,
-    };
+      favourites: [p],
+      hasDefault: providers.default === p.id,
+    });
   });
 
   return (
     <div className="mx-auto max-w-[800px] px-9 pt-[52px] pb-[90px]">
       <h1 className="m-0 mb-1.5 text-2xl font-semibold tracking-[-0.03em]">Agents</h1>
       <Mono className="mb-[26px] block text-[10.5px] tracking-[0.06em] text-faint">
-        NO MCP SERVER YET — THESE ARE THE PROVIDER PROFILES THE WEB CHAT USES TODAY
+        NO MCP SERVER YET — THESE ARE THE SOURCES THE WEB CHAT USES TODAY
       </Mono>
 
       <div className="mb-[30px] flex flex-col gap-[11px]">
-        {agents.length === 0 ? (
-          <p className="m-0 text-[13.5px] text-faint">
-            No provider profiles configured. Add one in Settings.
-          </p>
-        ) : (
-          agents.map((a) => (
-            <Panel key={a.id} className="px-5 py-[18px]">
-              <div className="mb-3.5 flex flex-wrap items-center gap-[11px]">
-                <span
-                  className="h-2.5 w-2.5 rounded-[3px]"
-                  style={{ background: a.color }}
-                />
-                <span className="text-[15.5px] font-semibold tracking-[-0.02em]">{a.name}</span>
-                <Mono
-                  className="rounded-md px-2 py-[3px] text-[9px] tracking-[0.1em]"
-                  style={{
-                    color: a.connected ? "var(--color-quick-ink)" : "var(--color-dim)",
-                    background: a.connected ? "var(--color-quick-tint)" : "var(--color-soft)",
-                  }}
-                >
-                  {a.connected ? "CONNECTED" : "NEEDS KEY"}
+        {sources.map((s) => (
+          <Panel key={s.key} className="px-5 py-[18px]">
+            <div className="mb-3.5 flex flex-wrap items-center gap-[11px]">
+              <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color }} />
+              <span className="text-[15.5px] font-semibold tracking-[-0.02em]">{s.name}</span>
+              <Mono
+                className="rounded-md px-2 py-[3px] text-[9px] tracking-[0.1em]"
+                style={{
+                  color: s.connected ? "var(--color-quick-ink)" : "var(--color-dim)",
+                  background: s.connected ? "var(--color-quick-tint)" : "var(--color-soft)",
+                }}
+              >
+                {s.connected ? "CONNECTED" : "NEEDS KEY"}
+              </Mono>
+              {s.hasDefault && (
+                <Mono className="rounded-md border border-edge px-2 py-[3px] text-[9px] tracking-[0.1em] text-dim">
+                  DEFAULT
                 </Mono>
-                {a.isDefault && (
-                  <Mono className="rounded-md border border-edge px-2 py-[3px] text-[9px] tracking-[0.1em] text-dim">
-                    DEFAULT
-                  </Mono>
-                )}
-              </div>
-              <div className="mb-3.5 flex flex-wrap gap-[7px]">
-                {a.apiKeyEnv ? (
-                  <Mono className="rounded-[7px] bg-soft px-[9px] py-[5px] text-[9.5px] text-dim">
-                    {a.apiKeyEnv}
-                  </Mono>
-                ) : (
-                  <Mono className="rounded-[7px] bg-soft px-[9px] py-[5px] text-[9.5px] text-faint">
-                    no key needed
-                  </Mono>
-                )}
-                {a.baseUrl && (
-                  <Mono className="rounded-[7px] bg-soft px-[9px] py-[5px] text-[9.5px] text-dim">
-                    {a.baseUrl}
-                  </Mono>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-[22px]">
-                <Mono className="text-[9.5px] text-faint">{a.host}</Mono>
-              </div>
-            </Panel>
-          ))
-        )}
+              )}
+            </div>
+            <div className="mb-3.5 flex flex-wrap gap-[7px]">
+              <Mono
+                className={`rounded-[7px] bg-soft px-[9px] py-[5px] text-[9.5px] ${
+                  s.envName ? "text-dim" : "text-faint"
+                }`}
+              >
+                {s.envName ?? "no key needed"}
+              </Mono>
+              {s.baseUrl && (
+                <Mono className="rounded-[7px] bg-soft px-[9px] py-[5px] text-[9.5px] text-dim">
+                  {s.baseUrl}
+                </Mono>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-[10px]">
+              <Mono className="text-[9.5px] text-faint">{s.detail}</Mono>
+              {s.favourites.slice(0, 4).map((p) => (
+                <Mono
+                  key={p.id}
+                  className="rounded-[5px] bg-soft px-[7px] py-[3px] text-[9px] text-dim"
+                >
+                  {p.label}
+                </Mono>
+              ))}
+            </div>
+          </Panel>
+        ))}
       </div>
 
       <Rule label="EXPOSED TOOLS" />

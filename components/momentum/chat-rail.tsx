@@ -7,10 +7,23 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { CHAT_MODES, CHAT_MODE_KEYS, type ChatMode } from "@/lib/ai/modes";
 import { toolNames, type Proposal } from "@/lib/ai/schemas";
-import type { ProvidersFile } from "@/lib/core/types";
+import type { ProviderEffort, ProviderProfile, ProvidersFile } from "@/lib/core/types";
+import { isProviderEffort, nextEffort } from "@/lib/ui/providers";
 import type { NavCharter } from "./context";
 import { Mono } from "./primitives";
 import ProposalCard, { type ProposalState } from "./proposal-card";
+
+const PROFILE_KEY = "planner.chat.profile";
+const EFFORT_KEY = "planner.chat.effort";
+
+function remember(key: string, value: string | null) {
+  try {
+    if (value == null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
+  } catch {
+    void key;
+  }
+}
 
 interface Session {
   id: string;
@@ -122,6 +135,8 @@ export default function ChatRail({
   const [draft, setDraft] = useState("");
   const [providers, setProviders] = useState<ProvidersFile | null>(null);
   const [profileId, setProfileId] = useState("");
+  const [effort, setEffort] = useState<ProviderEffort | undefined>(undefined);
+  const [openReasoning, setOpenReasoning] = useState<Record<string, boolean>>({});
   const [about, setAbout] = useState("");
   const [aboutState, setAboutState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [initialSession] = useState(() => newSession(null));
@@ -151,7 +166,7 @@ export default function ChatRail({
   const { messages, sendMessage, setMessages, status } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      body: { profileId, focus, mode: mode ?? undefined },
+      body: { profileId, focus, mode: mode ?? undefined, effort },
     }),
   });
 
@@ -162,9 +177,24 @@ export default function ChatRail({
       .then((data: ProvidersFile | null) => {
         if (!alive || !data) return;
         setProviders(data);
+        let stored: string | null = null;
+        let storedEffort: string | null = null;
+        try {
+          stored = window.localStorage.getItem(PROFILE_KEY);
+          storedEffort = window.localStorage.getItem(EFFORT_KEY);
+        } catch {
+          stored = null;
+        }
         const initial =
-          data.profiles.find((p) => p.id === data.default)?.id ?? data.profiles[0]?.id ?? "";
+          (stored && data.profiles.find((p) => p.id === stored)?.id) ??
+          data.profiles.find((p) => p.id === data.default)?.id ??
+          data.profiles[0]?.id ??
+          "";
         setProfileId(initial);
+        const profile = data.profiles.find((p) => p.id === initial);
+        setEffort(
+          isProviderEffort(storedEffort) ? storedEffort : profile?.effort,
+        );
       })
       .catch(() => {});
     fetch("/api/about")
@@ -218,6 +248,24 @@ export default function ChatRail({
     setActiveId(id);
     setMessages(transcripts.current.get(id) ?? []);
     setSessionsOpen(false);
+  };
+
+  const pickProfile = (p: ProviderProfile) => {
+    setProfileId(p.id);
+    setEffort(p.effort);
+    remember(PROFILE_KEY, p.id);
+    remember(EFFORT_KEY, p.effort ?? null);
+  };
+
+  const cycleEffort = (p: ProviderProfile) => {
+    const current = p.id === profileId ? (effort ?? p.effort) : p.effort;
+    const next = nextEffort(p.type, current);
+    if (p.id !== profileId) {
+      setProfileId(p.id);
+      remember(PROFILE_KEY, p.id);
+    }
+    setEffort(next);
+    remember(EFFORT_KEY, next);
   };
 
   const submit = () => {
@@ -553,6 +601,10 @@ export default function ChatRail({
             .filter((p): p is { type: "text"; text: string } => p.type === "text")
             .map((p) => p.text)
             .join("");
+          const thoughts = m.parts
+            .filter((p): p is { type: "reasoning"; text: string } => p.type === "reasoning")
+            .map((p) => (typeof p.text === "string" ? p.text : ""))
+            .filter((t) => t.trim().length > 0);
           return (
             <div
               key={m.id}
@@ -564,6 +616,31 @@ export default function ChatRail({
                 </div>
               ) : (
                 <div>
+                  {thoughts.length > 0 && (
+                    <div className="mb-2.5 flex flex-col gap-1.5">
+                      {thoughts.map((t, i) => {
+                        const key = `${m.id}-r${i}`;
+                        const shown = openReasoning[key] === true;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() =>
+                              setOpenReasoning((prev) => ({ ...prev, [key]: !shown }))
+                            }
+                            className="rounded-[9px] border border-edge2 bg-soft px-2.5 py-1.5 text-left font-mono text-[10px] leading-[1.5] text-dim transition-colors hover:text-ink"
+                          >
+                            <span className="text-faint">{shown ? "▾" : "▸"} THOUGHT </span>
+                            {shown ? (
+                              <span className="whitespace-pre-wrap">{t}</span>
+                            ) : (
+                              <span>{t.replace(/\s+/g, " ").slice(0, 64)}…</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                   {tools.length > 0 && (
                     <div className="mb-2.5 flex flex-col items-start gap-1.5">
                       {tools.map((t, i) => {
@@ -646,22 +723,52 @@ export default function ChatRail({
             </div>
           </div>
 
-          {providers && providers.profiles.length > 1 && (
+          {providers && providers.profiles.length > 0 && (
             <div className="mb-3.5">
               <Mono className="mb-[7px] block text-[8px] tracking-[0.12em] text-faint">
                 PROVIDER
               </Mono>
-              <select
-                value={profileId}
-                onChange={(e) => setProfileId(e.target.value)}
-                className="w-full rounded-[11px] border border-edge bg-surf px-3 py-2 text-[11.5px] outline-none"
-              >
-                {providers.profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label} · {p.model}
-                  </option>
-                ))}
-              </select>
+              <div className="flex max-h-[190px] flex-col gap-[3px] overflow-y-auto">
+                {providers.profiles.map((p) => {
+                  const selected = p.id === profileId;
+                  const shown = selected ? (effort ?? p.effort) : p.effort;
+                  return (
+                    <div
+                      key={p.id}
+                      className={`flex items-center gap-2 rounded-[10px] px-2.5 py-[7px] transition-colors ${
+                        selected ? "bg-soft" : "hover:bg-soft"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => pickProfile(p)}
+                        className="flex min-w-0 flex-1 items-baseline gap-2 text-left"
+                      >
+                        <span
+                          className={`min-w-0 truncate text-[12px] ${
+                            selected ? "text-ink" : "text-dim"
+                          }`}
+                        >
+                          {p.label}
+                        </span>
+                        <Mono className="shrink-0 text-[8.5px] text-faint">{p.model}</Mono>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => cycleEffort(p)}
+                        title="Cycle reasoning effort"
+                        className="shrink-0 rounded-[5px] px-[7px] py-[3px] font-mono text-[8.5px] tracking-[0.08em] transition-colors"
+                        style={{
+                          color: shown ? "var(--color-deep-ink)" : "var(--color-faint)",
+                          background: shown ? "var(--color-deep-tint)" : "var(--color-soft)",
+                        }}
+                      >
+                        {(shown ?? "auto").toUpperCase()}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

@@ -77,8 +77,11 @@ export async function POST(_req: NextRequest) {
     journalText,
   ].join("");
 
+  const resolved = resolveModel(profile);
+
   const result = streamText({
-    model: resolveModel(profile),
+    model: resolved.model,
+    ...(resolved.providerOptions ? { providerOptions: resolved.providerOptions } : {}),
     system,
     prompt,
   });

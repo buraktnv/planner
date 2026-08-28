@@ -7,6 +7,8 @@ import { claudeSdkChat } from "@/lib/ai/claude-sdk";
 import { toolSchemas, toolDescriptions, type ToolName } from "@/lib/ai/schemas";
 import { toolImplMap } from "@/lib/ai/tool-map";
 import { isChatMode, type ChatMode } from "@/lib/ai/modes";
+import { isProviderEffort } from "@/lib/ui/providers";
+import type { ProviderEffort } from "@/lib/core/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,6 +18,7 @@ interface ChatBody {
   profileId?: string;
   focus?: { type: "project" | "area"; slug: string };
   mode?: ChatMode;
+  effort?: ProviderEffort;
 }
 
 const tools: Record<string, Tool> = {};
@@ -59,15 +62,24 @@ export async function POST(req: NextRequest) {
   }
 
   const mode = isChatMode(body.mode) ? body.mode : undefined;
+  const effort = isProviderEffort(body.effort) ? body.effort : undefined;
 
   if (profile.type === "claude-subscription") {
-    return claudeSdkChat({ messages: body.messages, focus: body.focus, mode, model: profile.model });
+    return claudeSdkChat({
+      messages: body.messages,
+      focus: body.focus,
+      mode,
+      model: profile.model,
+      effort: effort ?? profile.effort,
+    });
   }
 
   const system = await buildSystemContext(body.focus, mode);
+  const resolved = resolveModel(profile, effort);
 
   const result = streamText({
-    model: resolveModel(profile),
+    model: resolved.model,
+    ...(resolved.providerOptions ? { providerOptions: resolved.providerOptions } : {}),
     system,
     messages: await convertToModelMessages(body.messages),
     tools,
