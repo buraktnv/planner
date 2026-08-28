@@ -196,7 +196,7 @@ export default function CatalogPanel({
         </p>
       )}
 
-      <div className="max-h-[420px] overflow-y-auto rounded-[18px] border border-edge bg-surf">
+      <div className="max-h-[420px] overflow-x-hidden overflow-y-auto rounded-[18px] border border-edge bg-surf">
         {rows.length === 0 ? (
           <p className="m-0 px-[18px] py-[15px] text-[12.5px] text-faint">
             {loading ? "Loading the model list…" : "No models match."}
@@ -230,10 +230,10 @@ export default function CatalogPanel({
                 <Mono className="hidden w-[52px] shrink-0 text-right text-[9.5px] text-dim sm:block">
                   {m.contextLength ? `${Math.round(m.contextLength / 1000)}k` : "—"}
                 </Mono>
-                <Mono className="hidden w-[104px] shrink-0 text-right text-[9.5px] text-dim sm:block">
+                <Mono className="hidden w-[118px] shrink-0 whitespace-nowrap text-right text-[9.5px] text-dim sm:block">
                   {m.promptPrice == null && m.completionPrice == null
                     ? "—"
-                    : `$${price(m.promptPrice)}/$${price(m.completionPrice)} per M`}
+                    : `$${price(m.promptPrice)} / $${price(m.completionPrice)}`}
                 </Mono>
                 <span
                   className="h-2 w-2 shrink-0 rounded-full"
