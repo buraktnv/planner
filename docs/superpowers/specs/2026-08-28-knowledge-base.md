@@ -1,6 +1,6 @@
 # Knowledge base — a second brain with lazy, scope-aware retrieval
 
-Status: phase 1 implemented, phases 2–3 planned
+Status: phases 1–2 implemented, phase 3 planned
 Date: 2026-08-28
 
 ## Problem
@@ -118,6 +118,8 @@ Notes with no scope are never auto-loaded.
 
 **Phase 1 (this spec, built).** Schema, parser, store, search, index generation, the four tools wired into chat and MCP, the system-context section, and the HTTP API.
 
-**Phase 2.** A `/knowledge` page: browse by scope and tag, full-text box, note editor, backlinks panel, and "file this" from a journal line.
+**Phase 2 (built).** A `/knowledge` page in the sidebar: newest-first browse, scope facets (single-select) and tag facets (multi-select, AND) with counts, a debounced search box that goes through the same ranking the AI uses, a detail dialog with the full body plus clickable `LINKS TO` / `LINKED FROM` chips for walking the graph, and a create/edit dialog. The view model (`lib/view/knowledge.ts`) is pure and unit-tested; the page is a server component and every mutation goes through the HTTP API, so writes journal and commit exactly as the tools do.
+
+Not built in phase 2: "file this" straight from a journal line — it belongs with phase 3's distillation flow.
 
 **Phase 3.** Journal distillation — a weekly pass that reads the journal and *proposes* notes through the existing `propose_changes` → Accept/Discard card, so the owner reviews rather than authors. Then optional embedding re-rank if keyword recall proves insufficient.
