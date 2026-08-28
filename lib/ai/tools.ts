@@ -9,6 +9,11 @@ import {
   updateTask,
 } from "../core/store";
 import { getNextActions, type NextAction } from "../core/next";
+import { addEvent, listEvents, updateEvent } from "../core/calendar";
+import type { CalendarEvent } from "../core/types";
+import { addGrocery, dailySummary, getDaily, logDaily, toggleGrocery } from "../core/daily";
+import type { DailyData, Grocery } from "../core/types";
+import { isoToday, shiftIso } from "../ui/momentum";
 import { getInsights, type Insights } from "../core/insights";
 import { getAbout } from "../core/store";
 import { appendJournal, readJournal } from "../core/journal";
@@ -151,16 +156,74 @@ export const toolImpls = {
     return { ok: true };
   },
 
+  async listEvents(input: { from?: string; to?: string }): Promise<CalendarEvent[]> {
+    return listEvents({ from: input.from, to: input.to });
+  },
+
+  async createEvent(input: {
+    date: string;
+    title: string;
+    time?: string;
+    note?: string;
+    scope?: string;
+    action?: string;
+  }): Promise<CalendarEvent> {
+    if (!input.date) throw new Error("createEvent requires a date (YYYY-MM-DD)");
+    if (!input.title) throw new Error("createEvent requires a title");
+    return addEvent(input);
+  },
+
+  async updateEvent(input: {
+    id: string;
+    date?: string;
+    title?: string;
+    time?: string;
+    note?: string;
+    scope?: string;
+    action?: string;
+    done?: boolean;
+  }): Promise<CalendarEvent> {
+    if (!input.id) throw new Error("updateEvent requires an id");
+    const { id, ...patch } = input;
+    return updateEvent(id, patch);
+  },
+
   async nextActions(): Promise<NextAction[]> {
     return getNextActions();
   },
 
-  async weeklySummary(): Promise<{ insights: Insights; journalDigest: string }> {
+  async getDaily(): Promise<DailyData> {
+    return getDaily();
+  },
+
+  async logDaily(input: { id: string }): Promise<{ id: string; delta: number | "reset" }> {
+    if (!input.id) throw new Error("logDaily requires a habit or rhythm id");
+    return logDaily(input.id);
+  },
+
+  async addGrocery(input: { name: string; cat?: string }): Promise<Grocery> {
+    if (!input.name) throw new Error("addGrocery requires a name");
+    return addGrocery(input.name, input.cat ?? "Other");
+  },
+
+  async setGrocery(input: { id: string; got: boolean }): Promise<Grocery> {
+    if (!input.id) throw new Error("setGrocery requires an id");
+    if (typeof input.got !== "boolean") throw new Error("setGrocery requires got as a boolean");
+    return toggleGrocery(input.id, input.got);
+  },
+
+  async weeklySummary(): Promise<{
+    insights: Insights;
+    journalDigest: string;
+    daily: { habitDaysMet: number; rhythmsMet: number; rhythmsTotal: number; servingsEaten: number };
+  }> {
     const insights = await getInsights();
     const days = await readJournal(7);
     const journalDigest = days
       .map((d) => `## ${d.date}\n` + d.entries.map((e) => `- ${e.time} [${e.scope}] ${e.message}`).join("\n"))
       .join("\n\n");
-    return { insights, journalDigest };
+    const today = isoToday();
+    const daily = dailySummary(await getDaily(), shiftIso(today, -6), today);
+    return { insights, journalDigest, daily };
   },
 };

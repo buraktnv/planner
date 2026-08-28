@@ -34,6 +34,60 @@ export interface Task {
   parentId?: string | null;
 }
 
+export interface CalendarEvent {
+  id: string;
+  date: string;
+  title: string;
+  done: boolean;
+  time?: string;
+  note?: string;
+  scope?: string;
+  action?: string;
+}
+
+export interface Habit {
+  id: string;
+  name: string;
+  goal: number;
+  unit?: string;
+}
+
+export interface Rhythm {
+  id: string;
+  name: string;
+  per: number;
+}
+
+export interface Meal {
+  id: string;
+  name: string;
+  servings: number;
+}
+
+export interface Grocery {
+  id: string;
+  name: string;
+  cat: string;
+  got: boolean;
+}
+
+export type DailyDelta = number | "reset";
+
+export interface DailyLogEntry {
+  date: string;
+  time: string;
+  id: string;
+  delta: DailyDelta;
+}
+
+export interface DailyData {
+  habits: Habit[];
+  rhythms: Rhythm[];
+  meals: Meal[];
+  groceries: Grocery[];
+  log: DailyLogEntry[];
+}
+
 export type ProviderType = "claude-subscription" | "anthropic-api" | "openai-compatible";
 
 export interface ProviderProfile {

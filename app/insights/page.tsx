@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getInsights } from "@/lib/core/insights";
+import { getDaily } from "@/lib/core/daily";
 import { loadWorkspace } from "@/lib/view/workspace";
+import { buildDaily } from "@/lib/view/daily";
 import { isoWeek, parseIso, isoToday } from "@/lib/ui/momentum";
 import { Bar, Mono, Panel } from "@/components/momentum/primitives";
 
@@ -13,7 +15,12 @@ function daysAgoIso(n: number): string {
 }
 
 export default async function DashboardPage() {
-  const [ws, insights] = await Promise.all([loadWorkspace(), getInsights()]);
+  const [ws, insights, dailyData] = await Promise.all([
+    loadWorkspace(),
+    getInsights(),
+    getDaily(),
+  ]);
+  const daily = buildDaily(dailyData, ws.today);
 
   const since7 = daysAgoIso(7);
   const since14 = daysAgoIso(14);
@@ -73,6 +80,14 @@ export default async function DashboardPage() {
       <div className="mb-6 flex items-baseline gap-3">
         <h1 className="m-0 text-2xl font-semibold tracking-[-0.03em]">Dashboard</h1>
         <Mono className="text-[10px] tracking-[0.1em] text-faint">WEEK {isoWeek()}</Mono>
+        <div className="flex-1" />
+        {daily.rhythmsTotal > 0 && (
+          <Link href="/daily" className="shrink-0">
+            <Mono className="rounded-[7px] bg-quick-tint px-2.5 py-[5px] text-[10px] text-quick-ink">
+              {daily.rhythmsMet} / {daily.rhythmsTotal} RHYTHMS MET
+            </Mono>
+          </Link>
+        )}
       </div>
 
       <Panel className="mb-[11px] rounded-[20px] px-[26px] py-6">

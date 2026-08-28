@@ -41,6 +41,12 @@ All of `lint`, `typecheck`, `test` must pass before considering any change done.
 - `waits:` is a dependency: either a task id in the **same file** (`waits:T-041`) or free text without ` | ` (`waits:the clinic`). Serialized after `lane:`. An unknown id is tolerated by the parser; `isBlocked()` in `lib/core/deps.ts` then treats it as free text. A done blocker unblocks automatically. Blocked tasks sink to the bottom of the Focus ranking and are never the One Thing.
 - A subtask and its parent may sit in **different sections** (completing a subtask moves only that line to `## Done`). The parser resolves parents by dotted id across the whole file, not by position.
 - `archive/projects/<slug>.md` + `archive/projects/<slug>/` (same for `areas`): where `archiveCharter()` moves a charter and its tasks dir. Nothing is ever hard-deleted; the parser never reads `archive/`. Collisions get a `-2`, `-3`, … suffix.
+- Calendar: `calendar.md` at the data root, no sections, one event per line, kept sorted by date then time on write:
+  `- [ ] E-001 | 2026-09-01 | Passport appointment | time:09:40 | note:bring photos | scope:area:admin | action:photos not printed`
+  Fixed order is checkbox, id (`E-` + 3+ digits, monotonic), ISO date, title, then optional `time:` (free, ≤ 12 chars) / `note:` / `scope:` (`<project-slug>` or `area:<slug>`) / `action:` (free text = what still needs doing). Parsed by `lib/core/calendar.ts`; `action:` present on an open event is the "needs action" flag.
+- `daily/`: four definition files plus one append-only log, parsed by `lib/core/daily.ts`:
+  `daily/habits.md` `- H-001 | Walk | goal:4 | unit:× 15 min` (goal is per day, `unit:` optional) · `daily/rhythms.md` `- R-001 | Laundry | per:3` (times per week) · `daily/meals.md` `- M-001 | Lentil soup | servings:2` (live remaining count) · `daily/groceries.md` `- [ ] G-001 | Red lentils | cat:Staples` · `daily/log.md` `- 2026-08-28 09:12 | H-001 | +1` where the delta is `+n`, `-n` or `reset`.
+  Ids are `H-`/`R-`/`M-`/`G-` + 3+ digits, monotonic per file. A habit's count for a day and a rhythm's count for the Mon–Sun ISO week are summed from the log, restarting after each `reset`; tapping a row that already meets its goal appends `reset` (wrap-around). Eating a meal decrements `servings:` in place and appends a `-1` log line. `lib/view/daily.ts` builds the `/daily` screen model.
 - Journal: `journal/YYYY-MM-DD.md`, appended lines `- HH:mm [project] message`
 - Full contract: `CLAUDE.md` in the `planner-data` repo
 

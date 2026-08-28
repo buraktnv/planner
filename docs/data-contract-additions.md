@@ -36,3 +36,66 @@ A task line may carry one optional `waits:` field, alongside `created:` / `est:`
 - **Lane:** `waits:` does not force `lane:wait`. An explicit `lane:` still wins, and blocked cards commonly sit in `some`.
 - **Clearing:** write the field away — the API and store accept `waitsOn: ""` and drop the field from the line.
 - Blocked tasks rank last in the Focus list and are never picked as the One Thing.
+
+## Calendar events
+
+One file at the data root, `calendar.md`. No sections, one event per line, kept sorted by date then time then id on every write:
+
+```
+- [ ] E-001 | 2026-09-01 | Passport appointment | time:09:40 | note:bring photos | scope:area:admin | action:photos not printed
+- [x] E-002 | 2026-08-29 | Grocery run + prep | time:morning | scope:area:daily
+```
+
+- **Fixed order:** checkbox, id, ISO date, title, then the optional fields in the order `time:` / `note:` / `scope:` / `action:`.
+- **Id:** `E-` followed by at least 3 digits, zero-padded to 3. Monotonic across the file, never reused — `nextEventId()` takes the highest existing number and adds one.
+- **Date:** `YYYY-MM-DD`, required. There is no separate "done date"; a done event keeps its date and flips the checkbox.
+- **`time:`** free text up to 12 characters — `09:40`, `morning`, `after lunch`. Sorting is lexicographic, so an empty time sorts first within a day.
+- **`note:`** free text.
+- **`scope:`** either a project slug (`widget-shop`) or `area:<slug>`. Optional: an event may belong to nothing. Slugs are lowercase letters, digits and dashes.
+- **`action:`** free text = what still needs doing before the event. Its presence on an **open** event is the "needs action" flag the UI surfaces in wait-ink. A done event's `action:` is ignored.
+- No field value may contain ` | `, and no value may be empty on disk. `CalendarParseError` carries the line number for every malformed line; blank lines and `#` headings are tolerated and dropped on write. Round-trip (parse → serialize → parse) is identity up to sort order.
+- **Store** (`lib/core/calendar.ts`): `listEvents({ from?, to? })` (inclusive ISO range), `addEvent(input)`, `updateEvent(id, patch)` — any field including `done` and `date`. Passing an empty string for `time` / `note` / `scope` / `action` clears the field.
+- **Journal scope** is the event's scope slug with any `area:` prefix stripped, or `calendar` when the event has no scope.
+- **API:** `GET/POST /api/calendar`, `PATCH /api/calendar/[id]`.
+- **Views:** `/calendar` merges events and task `due:` dates into one three-week grid (square dots in the scope colour for events, round dots for tasks), a "Needs action" panel, a "Behind" group for passed open events and overdue tasks, and an "Up next" agenda of the next 14 days with events before due tasks. The Focus page shows today's open events above the plan.
+- **AI:** `list_events`, `create_event`, `update_event`; `buildSystemContext` includes `# Calendar (next 14 days)`.
+
+## Daily — habits, rhythms, meals, groceries
+
+A `daily/` directory at the data root. Four small mutable definition lists plus one append-only log, so counts and streaks stay honest.
+
+```
+daily/habits.md
+- H-001 | Walk | goal:4 | unit:× 15 min
+- H-002 | Water | goal:6
+
+daily/rhythms.md
+- R-001 | Laundry | per:3
+- R-002 | Kitchen reset | per:5
+
+daily/meals.md
+- M-001 | Lentil soup | servings:2
+- M-002 | Roast vegetables | servings:0
+
+daily/groceries.md
+- [ ] G-001 | Red lentils | cat:Staples
+- [x] G-003 | Olive oil | cat:Staples
+
+daily/log.md               (append-only)
+- 2026-08-28 09:12 | H-001 | +1
+- 2026-08-28 19:40 | R-002 | +1
+- 2026-08-28 20:05 | M-001 | -1
+- 2026-08-28 21:00 | H-001 | reset
+```
+
+- **Ids:** `H-` / `R-` / `M-` / `G-` plus at least 3 digits, zero-padded to 3, monotonic per file, never reused.
+- **Fixed order per line.** Habits: id, name, `goal:` (positive integer), optional `unit:` (free text label). Rhythms: id, name, `per:` (positive integer, times per week). Meals: id, name, `servings:` (0 or more, the live remaining count). Groceries: checkbox, id, name, `cat:` (free text category).
+- **Log lines:** `- <ISO date> <HH:mm> | <id> | <delta>` where delta is `+n`, `-n` or `reset`. Chronological, append-only, never rewritten. Any id kind may appear.
+- No value may contain ` | `. `DailyParseError` carries the line number for every malformed line; blank lines and `#` headings are tolerated and dropped on write. Round-trip (parse -> serialize -> parse) is identity.
+- **Derived counts:** a habit's count for a day is the sum of that habit's deltas on that date, restarting at 0 after each `reset` line; a rhythm's count is the same sum over Monday-Sunday of the current ISO week. A habit streak is the run of consecutive calendar days meeting `goal`, counted back from today (or from yesterday when today is not met yet).
+- **Wrap-around:** tapping a habit or rhythm that already meets its goal appends `reset` instead of `+1`, so the row starts over.
+- **Meals:** `servings` on disk is the live remaining count. "Eat" decrements it in place **and** appends a `-1` log line, so the weekly summary can count servings eaten.
+- **Store** (`lib/core/daily.ts`): `getDaily()`, `logHabit(id)`, `logRhythm(id)`, `logDaily(id)`, `eatMeal(id)`, `setMealServings(id, n)`, `toggleGrocery(id, got?)`, `addGrocery(name, cat)`, `clearBoughtGroceries()`, `addHabit(name, goal, unit?)`, `addRhythm(name, per)`, `addMeal(name, servings)`. Every mutation journals under scope `daily` and commits.
+- **API:** `GET /api/daily`, `POST /api/daily/log { id }`, `POST /api/daily/groceries { name, cat? }`, `DELETE /api/daily/groceries` (clear bought), `PATCH /api/daily/groceries/[id] { got? }`, `POST /api/daily/meals/[id]/eat`, `PATCH /api/daily/meals/[id] { servings }`, `POST /api/daily/{habits|rhythms|meals}`.
+- **Views:** `/daily` shows habits today (rings, tap to count), rhythms this week (9px square pips, rows behind by 2+ in wait-ink), then meal prep (8px round pips) and groceries by category side by side. The Focus plan card mentions `n habits left today`; the Dashboard header carries a "rhythms met" chip.
+- **AI:** `get_daily`, `log_daily { id }`, `add_grocery`, `set_grocery { id, got }`; `weekly_summary` gains a `daily` block (habit days met, rhythms met, servings eaten) and `buildSystemContext` includes a short `# Daily` block.

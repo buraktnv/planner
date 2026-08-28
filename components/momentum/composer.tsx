@@ -15,7 +15,7 @@ const HEADINGS: Record<ComposerKind, string> = {
   area: "New area",
   branch: "New task",
   target: "New target",
-  event: "New dated task",
+  event: "New event",
 };
 
 const PLACEHOLDERS: Record<ComposerKind, string> = {
@@ -52,13 +52,16 @@ export default function Composer({
   const [due, setDue] = useState("");
   const [steps, setSteps] = useState("");
   const [waitsOn, setWaitsOn] = useState("");
+  const [time, setTime] = useState("");
+  const [note, setNote] = useState("");
   const [scopeKey, setScopeKey] = useState<string>(
-    prefill?.scopeKey ?? charters[0]?.key ?? "",
+    prefill?.scopeKey ?? (kind === "event" ? "" : (charters[0]?.key ?? "")),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const needsScope = kind === "branch" || kind === "target" || kind === "event";
+  const scopeRequired = kind === "branch" || kind === "target";
 
   const submit = async () => {
     if (!title.trim() || busy) return;
@@ -79,6 +82,27 @@ export default function Composer({
         const charter = (await res.json()) as { id: string };
         onClose();
         router.push(kind === "project" ? `/projects/${charter.id}` : `/areas/${charter.id}`);
+        router.refresh();
+        return;
+      }
+
+      if (kind === "event") {
+        const [scopeType, scopeSlug] = scopeKey.split("/");
+        const res = await fetch("/api/calendar", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            date: due,
+            title: title.trim(),
+            ...(time.trim() ? { time: time.trim() } : {}),
+            ...(note.trim() ? { note: note.trim() } : {}),
+            ...(scopeType && scopeSlug
+              ? { scope: scopeType === "area" ? `area:${scopeSlug}` : scopeSlug }
+              : {}),
+          }),
+        });
+        if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? "Failed");
+        onClose();
         router.refresh();
         return;
       }
@@ -185,7 +209,7 @@ export default function Composer({
 
         {needsScope && (
           <>
-            <FieldLabel>BELONGS TO</FieldLabel>
+            <FieldLabel>{kind === "event" ? "BELONGS TO — OPTIONAL" : "BELONGS TO"}</FieldLabel>
             <div className="mb-[18px] flex flex-wrap gap-[7px]">
               {charters.map((c) => {
                 const on = scopeKey === c.key;
@@ -193,7 +217,7 @@ export default function Composer({
                   <button
                     key={c.key}
                     type="button"
-                    onClick={() => setScopeKey(c.key)}
+                    onClick={() => setScopeKey(on && kind === "event" ? "" : c.key)}
                     className={`inline-flex items-center gap-[7px] rounded-[10px] border px-[11px] py-1.5 text-[12px] ${
                       on ? "border-faint bg-soft text-ink" : "border-edge text-dim"
                     }`}
@@ -215,7 +239,7 @@ export default function Composer({
           </>
         )}
 
-        {(kind === "branch" || kind === "event") && (
+        {kind === "branch" && (
           <>
             <FieldLabel>LANE</FieldLabel>
             <div className="mb-[18px] flex flex-wrap gap-[7px]">
@@ -272,6 +296,26 @@ export default function Composer({
           </>
         )}
 
+        {kind === "event" && (
+          <>
+            <FieldLabel>TIME — OPTIONAL</FieldLabel>
+            <input
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              maxLength={12}
+              placeholder="09:40, or morning"
+              className="mb-[18px] w-full rounded-[13px] border border-edge bg-bg px-3.5 py-[11px] font-mono text-[12.5px] outline-none placeholder:text-faint"
+            />
+            <FieldLabel>NOTE — OPTIONAL</FieldLabel>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="bring photos"
+              className="mb-[18px] w-full rounded-[13px] border border-edge bg-bg px-3.5 py-[11px] text-[13px] outline-none placeholder:text-faint"
+            />
+          </>
+        )}
+
         {kind === "target" && (
           <>
             <FieldLabel>BY WHEN — OPTIONAL</FieldLabel>
@@ -317,7 +361,12 @@ export default function Composer({
           <button
             type="button"
             onClick={submit}
-            disabled={busy || !title.trim() || (needsScope && !scopeKey)}
+            disabled={
+              busy ||
+              !title.trim() ||
+              (scopeRequired && !scopeKey) ||
+              (kind === "event" && !due)
+            }
             className="rounded-[11px] bg-quick px-5 py-[11px] text-[13.5px] font-semibold text-white disabled:opacity-50"
           >
             {busy ? "Saving…" : "Create"}

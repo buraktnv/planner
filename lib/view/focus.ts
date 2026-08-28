@@ -1,5 +1,6 @@
 import type { JournalDay } from "@/lib/core/journal";
 import type { CardModel, Workspace } from "./workspace";
+import type { EventModel } from "./calendar";
 import { LANES, parseIso, shortDate } from "@/lib/ui/momentum";
 
 export interface RankedItem {
@@ -18,6 +19,7 @@ export interface StreakModel {
 
 export interface FocusModel {
   ranked: RankedItem[];
+  todayEvents: EventModel[];
   oneThing: RankedItem | null;
   streaks: StreakModel[];
   held: { n: number; label: string }[];
@@ -25,6 +27,7 @@ export interface FocusModel {
   openTotal: number;
   planLead: string;
   quietLead: string;
+  dailyNote: string | null;
   stuckFacts: string[];
   stuckOffers: { kind: "physical" | "small"; text: string; cardKey?: string }[];
 }
@@ -114,7 +117,15 @@ function streakOf(
   return n;
 }
 
-export function buildFocus(ws: Workspace, journal: JournalDay[]): FocusModel {
+export function buildFocus(
+  ws: Workspace,
+  journal: JournalDay[],
+  events: EventModel[] = [],
+  daily?: { habitsLeft: number },
+): FocusModel {
+  const todayEvents = events
+    .filter((e) => !e.done && e.date === ws.today)
+    .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? "") || a.id.localeCompare(b.id));
   const ranked = rankCards(ws);
   const overdue = ranked.filter((r) => r.card.overdue).length;
   const sorted = [...journal].sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -200,6 +211,7 @@ export function buildFocus(ws: Workspace, journal: JournalDay[]): FocusModel {
 
   return {
     ranked,
+    todayEvents,
     oneThing: ranked.find((r) => !r.card.blocked) ?? null,
     streaks,
     held: [
@@ -219,6 +231,10 @@ export function buildFocus(ws: Workspace, journal: JournalDay[]): FocusModel {
       openTotal === 0
         ? "Nothing open. Genuinely."
         : "Low day. Cut to the top two and put movement first — the rest can wait.",
+    dailyNote:
+      daily && daily.habitsLeft > 0
+        ? `${daily.habitsLeft} habit${daily.habitsLeft === 1 ? "" : "s"} left today.`
+        : null,
     stuckFacts,
     stuckOffers,
   };

@@ -64,6 +64,16 @@ export function parseIso(iso: string): Date {
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 
+export function shiftIso(iso: string, days: number): string {
+  const base = parseIso(iso);
+  return isoToday(new Date(base.getFullYear(), base.getMonth(), base.getDate() + days));
+}
+
+export function weekRange(iso: string): { start: string; end: string } {
+  const dow = parseIso(iso).getDay() || 7;
+  return { start: shiftIso(iso, 1 - dow), end: shiftIso(iso, 7 - dow) };
+}
+
 export function shortDate(iso: string): string {
   const d = parseIso(iso);
   return `${String(d.getDate()).padStart(2, "0")} ${MONTHS[d.getMonth()]}`;

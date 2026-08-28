@@ -1,20 +1,28 @@
+import { listEvents } from "@/lib/core/calendar";
 import { loadWorkspace } from "@/lib/view/workspace";
+import { buildCalendar } from "@/lib/view/calendar";
 import { AssistantNote } from "@/components/momentum/primitives";
 import CalendarView from "@/components/momentum/calendar/calendar-view";
 import NewButton from "@/components/momentum/new-button";
 
 export const dynamic = "force-dynamic";
 
-function noteFor(dated: number, overdue: number): string {
-  if (dated === 0) return "Nothing is dated. Deadlines only exist once you write them down.";
-  if (overdue === 0) return `${dated} dated ${dated === 1 ? "task" : "tasks"} ahead. Nothing needs you yet.`;
-  return `${overdue} ${overdue === 1 ? "thing needs" : "things need"} you. The rest is just showing up.`;
+function noteFor(events: number, dated: number, needsAction: number): string {
+  if (events === 0 && dated === 0) {
+    return "Nothing is dated. Deadlines only exist once you write them down.";
+  }
+  if (needsAction > 0) {
+    return `${needsAction} ${needsAction === 1 ? "event needs" : "events need"} something from you before the day arrives.`;
+  }
+  return `${events} ${events === 1 ? "event" : "events"} and ${dated} dated ${
+    dated === 1 ? "task" : "tasks"
+  } ahead. Nothing needs you yet.`;
 }
 
 export default async function CalendarPage() {
   const ws = await loadWorkspace();
-  const dated = ws.cards.filter((c) => c.due && !c.done);
-  const overdue = dated.filter((c) => c.overdue).length;
+  const events = await listEvents();
+  const model = buildCalendar(ws, events);
 
   return (
     <div className="mx-auto max-w-[720px] px-[36px] pt-[52px] pb-[90px]">
@@ -24,9 +32,11 @@ export default async function CalendarPage() {
         <NewButton kind="event">Event</NewButton>
       </div>
 
-      <AssistantNote className="mb-4">{noteFor(dated.length, overdue)}</AssistantNote>
+      <AssistantNote className="mb-4">
+        {noteFor(model.eventCount, model.datedCount, model.needsAction.length)}
+      </AssistantNote>
 
-      <CalendarView cards={dated} today={ws.today} />
+      <CalendarView model={model} />
     </div>
   );
 }

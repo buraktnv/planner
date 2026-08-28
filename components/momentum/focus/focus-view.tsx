@@ -70,6 +70,34 @@ export default function FocusView({ model }: { model: FocusModel }) {
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
   const ss = String(seconds % 60).padStart(2, "0");
 
+  const eventStrip = model.todayEvents.length ? (
+    <div className="mb-[22px] rounded-[20px] border border-edge bg-surf px-[22px] py-[17px]">
+      <Mono className="mb-3 block text-[9px] tracking-[0.14em] text-faint">TODAY</Mono>
+      <div className="flex flex-col gap-2.5">
+        {model.todayEvents.map((e) => (
+          <div key={e.key} className="flex min-w-0 items-start gap-2.5">
+            <span
+              className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-[2px]"
+              style={{ background: e.color }}
+            />
+            <div className="flex min-w-0 flex-col gap-[3px]">
+              <div className="flex flex-wrap items-baseline gap-2">
+                {e.time ? <Mono className="text-[10px] text-dim">{e.time}</Mono> : null}
+                <span className="text-[13.5px] font-medium leading-[1.35]">{e.title}</span>
+              </div>
+              {e.note ? (
+                <span className="text-[12.5px] leading-[1.5] text-dim">{e.note}</span>
+              ) : null}
+              {e.action ? (
+                <span className="text-[12.5px] leading-[1.5] text-wait-ink">{e.action}</span>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   const pickMood = async (n: number) => {
     setMood(n);
     setPlanState("open");
@@ -119,6 +147,7 @@ export default function FocusView({ model }: { model: FocusModel }) {
   if (ranked.length === 0) {
     return (
       <div className="mx-auto max-w-[680px] px-9 pt-16 pb-20">
+        {eventStrip}
         <Mono className="text-[10px] tracking-[0.18em] text-faint">ONE THING</Mono>
         <h1 className="mt-3.5 mb-6 text-[31px] font-semibold leading-[1.22] tracking-[-0.03em]">
           Nothing is open.
@@ -164,6 +193,8 @@ export default function FocusView({ model }: { model: FocusModel }) {
         </div>
       </div>
 
+      {eventStrip}
+
       <div className="mb-[26px] rounded-[20px] border border-edge bg-surf px-[22px] py-5">
         <div className="mb-4 flex items-start gap-3">
           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-[7px] bg-quick-tint font-mono text-[9.5px] text-quick-ink">
@@ -171,6 +202,14 @@ export default function FocusView({ model }: { model: FocusModel }) {
           </span>
           <span className="text-[13.5px] leading-[1.55] text-dim">
             {lowDay ? model.quietLead : model.planLead}
+            {model.dailyNote && (
+              <>
+                {" "}
+                <Link href="/daily" className="text-faint underline-offset-2 hover:underline">
+                  {model.dailyNote}
+                </Link>
+              </>
+            )}
           </span>
         </div>
 

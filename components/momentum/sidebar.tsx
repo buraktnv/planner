@@ -172,6 +172,30 @@ export default function Sidebar({
                 <span className="px-2.5 py-[7px] text-[12px] text-faint">No areas yet</span>
               )}
               <Link
+                href="/daily"
+                className={`flex items-center gap-[11px] rounded-[9px] px-2.5 py-[7px] transition-colors hover:bg-surf ${
+                  isActive("/daily") ? "bg-surf" : ""
+                }`}
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--color-faint)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="shrink-0"
+                  aria-hidden
+                >
+                  <path d="M12 20s-7-4.4-7-9.3A4.1 4.1 0 0112 8a4.1 4.1 0 017 2.7c0 4.9-7 9.3-7 9.3z" />
+                </svg>
+                <span className={`text-[12.5px] ${isActive("/daily") ? "text-ink" : "text-dim"}`}>
+                  Daily
+                </span>
+              </Link>
+              <Link
                 href="/calendar"
                 className={`flex items-center gap-[11px] rounded-[9px] px-2.5 py-[7px] transition-colors hover:bg-surf ${
                   isActive("/calendar") ? "bg-surf" : ""

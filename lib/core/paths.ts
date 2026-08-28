@@ -18,6 +18,13 @@ export function archiveDir(type?: "project" | "area") {
   if (!type) return base;
   return path.join(base, type === "project" ? "projects" : "areas");
 }
+export function dailyDir() { return path.join(dataRoot(), "daily"); }
+export function habitsPath() { return path.join(dailyDir(), "habits.md"); }
+export function rhythmsPath() { return path.join(dailyDir(), "rhythms.md"); }
+export function mealsPath() { return path.join(dailyDir(), "meals.md"); }
+export function groceriesPath() { return path.join(dailyDir(), "groceries.md"); }
+export function dailyLogPath() { return path.join(dailyDir(), "log.md"); }
 export function journalPath(date: string) { return path.join(dataRoot(), "journal", `${date}.md`); }
+export function calendarPath() { return path.join(dataRoot(), "calendar.md"); }
 export function aboutPath() { return path.join(dataRoot(), "about.md"); }
 export function providersPath() { return path.join(dataRoot(), "providers.json"); }

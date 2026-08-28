@@ -51,6 +51,40 @@ export const toolShapes = {
     scope: z.string(),
     message: z.string(),
   },
+  list_events: {
+    from: z.string().optional(),
+    to: z.string().optional(),
+  },
+  create_event: {
+    date: z.string(),
+    title: z.string(),
+    time: z.string().optional(),
+    note: z.string().optional(),
+    scope: z.string().optional(),
+    action: z.string().optional(),
+  },
+  update_event: {
+    id: z.string(),
+    date: z.string().optional(),
+    title: z.string().optional(),
+    time: z.string().optional(),
+    note: z.string().optional(),
+    scope: z.string().optional(),
+    action: z.string().optional(),
+    done: z.boolean().optional(),
+  },
+  get_daily: {},
+  log_daily: {
+    id: z.string(),
+  },
+  add_grocery: {
+    name: z.string(),
+    cat: z.string().optional(),
+  },
+  set_grocery: {
+    id: z.string(),
+    got: z.boolean(),
+  },
   next_actions: {},
   weekly_summary: {},
 } satisfies Record<string, ZodRawShape>;
@@ -78,6 +112,18 @@ export const toolDescriptions: Record<ToolName, string> = {
   decompose_task: "Break a task into subtasks.",
   move_to_parking_lot: "Add an idea to a charter's parking lot.",
   add_journal: "Append a journal entry for a scope.",
+  list_events:
+    "List calendar events, optionally limited to an ISO date range (from/to, inclusive).",
+  create_event:
+    "Create a calendar event on an ISO date. time is free text up to 12 characters, scope is a project slug or area:<slug> and is optional, action is what still needs doing before the event.",
+  update_event:
+    "Update a calendar event (date, title, time, note, scope, action, done). Pass an empty string to clear time, note, scope or action.",
+  get_daily:
+    "Get the daily habits, weekly rhythms, prepped meals, grocery list and the raw activity log.",
+  log_daily:
+    "Count one tick for a habit (H-) or a rhythm (R-). When the goal for today or the week is already met the tick wraps around and resets the count.",
+  add_grocery: "Add an item to the grocery list. cat is a free-text category, default Other.",
+  set_grocery: "Mark a grocery item as got (true) or back on the list (false).",
   next_actions: "Get the prioritized list of next actions across the workspace.",
   weekly_summary: "Get insights and the last 7 days of journal digest.",
 };
