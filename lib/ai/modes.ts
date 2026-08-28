@@ -18,7 +18,8 @@ export const CHAT_MODES: Record<ChatMode, ChatModeMeta> = {
     tint: "#e6eaf9",
     ink: "#4a63b0",
     opener: "What are we shaping — today, or the week?",
-    instruction: "Shape the day or week. Propose, do not ask. One decision per line.",
+    instruction:
+      "Shape the day or week. Propose, do not ask. One decision per line. For any batch of writes call propose_changes with the whole set instead of writing — nothing lands until the user accepts the card. Use the direct writing tools only for a single change the user explicitly asked for.",
   },
   straight: {
     key: "straight",

@@ -23,4 +23,5 @@ export const toolImplMap: Record<ToolName, ImplFn> = {
   set_grocery: toolImpls.setGrocery as ImplFn,
   next_actions: () => toolImpls.nextActions(),
   weekly_summary: () => toolImpls.weeklySummary(),
+  propose_changes: toolImpls.proposeChanges as ImplFn,
 };

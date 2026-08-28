@@ -4,12 +4,13 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import type { UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { CHAT_MODES, CHAT_MODE_KEYS, type ChatMode } from "@/lib/ai/modes";
-import { toolNames } from "@/lib/ai/schemas";
+import { toolNames, type Proposal } from "@/lib/ai/schemas";
 import type { ProvidersFile } from "@/lib/core/types";
 import type { NavCharter } from "./context";
 import { Mono } from "./primitives";
+import ProposalCard, { type ProposalState } from "./proposal-card";
 
 interface Session {
   id: string;
@@ -21,9 +22,31 @@ interface Session {
 interface ToolPartLike {
   type: string;
   toolName?: string;
+  toolCallId?: string;
   state?: string;
   input?: unknown;
   output?: unknown;
+}
+
+function toolNameOf(part: ToolPartLike): string {
+  const raw = part.toolName ?? part.type.replace(/^tool-/, "");
+  return raw.replace(/^mcp__planner__/, "");
+}
+
+function asProposal(output: unknown): Proposal | null {
+  let value = output;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== "object") return null;
+  const p = value as Partial<Proposal>;
+  if (typeof p.title !== "string") return null;
+  if (!Array.isArray(p.actions) || !Array.isArray(p.preview)) return null;
+  return p as Proposal;
 }
 
 function newSession(mode: ChatMode | null): Session {
@@ -62,6 +85,10 @@ function scopeFromPath(pathname: string, charters: NavCharter[]): string | null 
 function toolSummary(part: ToolPartLike): string {
   const out = part.output;
   if (out == null) return "";
+  if (toolNameOf(part) === "propose_changes") {
+    const proposal = asProposal(out);
+    return proposal ? `proposed ${proposal.actions.length} changes` : "";
+  }
   if (Array.isArray(out)) return `${out.length} rows`;
   if (typeof out === "object") {
     const id = (out as { id?: unknown }).id;
@@ -87,6 +114,7 @@ export default function ChatRail({
   onScopeChange: (key: string | null) => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mode, setMode] = useState<ChatMode | null>(null);
   const [scopeOpen, setScopeOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
@@ -99,6 +127,7 @@ export default function ChatRail({
   const [initialSession] = useState(() => newSession(null));
   const [sessions, setSessions] = useState<Session[]>(() => [initialSession]);
   const [activeId, setActiveId] = useState<string>(initialSession.id);
+  const [proposalStates, setProposalStates] = useState<Record<string, ProposalState>>({});
   const transcripts = useRef<Map<string, UIMessage[]>>(new Map());
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -196,6 +225,50 @@ export default function ChatRail({
     if (!text || busy || !profileId) return;
     setDraft("");
     sendMessage({ text });
+  };
+
+  const setProposalState = (key: string, next: ProposalState) => {
+    setProposalStates((prev) => ({ ...prev, [key]: next }));
+  };
+
+  const acceptProposal = async (key: string, proposal: Proposal) => {
+    setProposalState(key, { status: "applying" });
+    try {
+      const res = await fetch("/api/proposals/apply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ actions: proposal.actions }),
+      });
+      const data = (await res.json()) as {
+        applied?: number;
+        failedIndex?: number | null;
+        results?: { error?: string }[];
+        error?: string;
+      };
+      if (!res.ok) {
+        setProposalState(key, { status: "error", error: data.error ?? "Could not apply" });
+        return;
+      }
+      if (data.failedIndex != null) {
+        const failure = data.results?.[data.failedIndex]?.error ?? "Action failed";
+        setProposalState(key, {
+          status: "error",
+          error: `Applied ${data.applied ?? 0}, stopped at action ${data.failedIndex + 1}: ${failure}`,
+        });
+        router.refresh();
+        return;
+      }
+      setProposalState(key, {
+        status: "applied",
+        applied: data.applied ?? proposal.actions.length,
+      });
+      router.refresh();
+    } catch (e) {
+      setProposalState(key, {
+        status: "error",
+        error: e instanceof Error ? e.message : "Could not apply",
+      });
+    }
   };
 
   const saveAbout = async () => {
@@ -494,7 +567,7 @@ export default function ChatRail({
                   {tools.length > 0 && (
                     <div className="mb-2.5 flex flex-col items-start gap-1.5">
                       {tools.map((t, i) => {
-                        const name = t.toolName ?? t.type.replace(/^tool-/, "");
+                        const name = toolNameOf(t);
                         const done = t.state === "output-available";
                         return (
                           <div
@@ -514,6 +587,21 @@ export default function ChatRail({
                   <div className="text-[13.5px] leading-[1.6] whitespace-pre-wrap text-ink">
                     {text}
                   </div>
+                  {tools.map((t, i) => {
+                    if (toolNameOf(t) !== "propose_changes") return null;
+                    const proposal = asProposal(t.output);
+                    if (!proposal) return null;
+                    const key = t.toolCallId ?? `${m.id}-${i}`;
+                    return (
+                      <ProposalCard
+                        key={key}
+                        proposal={proposal}
+                        state={proposalStates[key] ?? { status: "idle" }}
+                        onAccept={() => acceptProposal(key, proposal)}
+                        onDiscard={() => setProposalState(key, { status: "discarded" })}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>

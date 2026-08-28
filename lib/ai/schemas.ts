@@ -1,6 +1,7 @@
 import { z, type ZodRawShape } from "zod";
+import type { TaskLane } from "../core/types";
 
-export const toolShapes = {
+const baseShapes = {
   list_projects: {},
   list_areas: {},
   get_context: {
@@ -89,6 +90,62 @@ export const toolShapes = {
   weekly_summary: {},
 } satisfies Record<string, ZodRawShape>;
 
+export const proposalActionSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("create_task"), ...baseShapes.create_task }),
+  z.object({ kind: z.literal("update_task"), ...baseShapes.update_task }),
+  z.object({ kind: z.literal("decompose_task"), ...baseShapes.decompose_task }),
+  z.object({ kind: z.literal("move_to_parking_lot"), ...baseShapes.move_to_parking_lot }),
+  z.object({ kind: z.literal("create_event"), ...baseShapes.create_event }),
+  z.object({ kind: z.literal("update_event"), ...baseShapes.update_event }),
+]);
+
+export type ProposalAction = z.infer<typeof proposalActionSchema>;
+export type ProposalActionKind = ProposalAction["kind"];
+
+export interface ProposalPreviewRow {
+  kind: ProposalActionKind;
+  id: string;
+  title: string;
+  lane: TaskLane | null;
+  note: string;
+  charterName: string;
+  color: string;
+}
+
+export interface Proposal {
+  proposalId: string;
+  title: string;
+  summary?: string;
+  actions: ProposalAction[];
+  preview: ProposalPreviewRow[];
+}
+
+export interface ProposalActionResult {
+  kind: ProposalActionKind;
+  ok: boolean;
+  result?: unknown;
+  error?: string;
+}
+
+export interface ProposalApplyResult {
+  applied: number;
+  failedIndex: number | null;
+  results: ProposalActionResult[];
+}
+
+export const toolShapes = {
+  ...baseShapes,
+  propose_changes: {
+    title: z.string(),
+    summary: z.string().optional(),
+    actions: z.array(proposalActionSchema),
+  },
+} satisfies Record<string, ZodRawShape>;
+
+export const proposalSchema = z.object(toolShapes.propose_changes);
+
+export type ProposalInput = z.infer<typeof proposalSchema>;
+
 export type ToolName = keyof typeof toolShapes;
 
 export const toolNames = Object.keys(toolShapes) as ToolName[];
@@ -126,4 +183,6 @@ export const toolDescriptions: Record<ToolName, string> = {
   set_grocery: "Mark a grocery item as got (true) or back on the list (false).",
   next_actions: "Get the prioritized list of next actions across the workspace.",
   weekly_summary: "Get insights and the last 7 days of journal digest.",
+  propose_changes:
+    "Propose a batch of changes without writing anything. Returns a preview the user must Accept before it is applied. Use this for any set of writes; use the direct tools only for a single, explicitly requested change.",
 };

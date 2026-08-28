@@ -1,4 +1,4 @@
-import type { Charter, ProjectType, Task, TaskSize } from "../core/types";
+import type { Charter, ProjectType, Task, TaskLane, TaskSize } from "../core/types";
 import {
   listCharters,
   getCharter,
@@ -13,7 +13,14 @@ import { addEvent, listEvents, updateEvent } from "../core/calendar";
 import type { CalendarEvent } from "../core/types";
 import { addGrocery, dailySummary, getDaily, logDaily, toggleGrocery } from "../core/daily";
 import type { DailyData, Grocery } from "../core/types";
-import { isoToday, shiftIso } from "../ui/momentum";
+import { hueOf, isoToday, shiftIso } from "../ui/momentum";
+import { laneOf } from "../core/lanes";
+import type {
+  Proposal,
+  ProposalAction,
+  ProposalInput,
+  ProposalPreviewRow,
+} from "./schemas";
 import { getInsights, type Insights } from "../core/insights";
 import { getAbout } from "../core/store";
 import { appendJournal, readJournal } from "../core/journal";
@@ -28,6 +35,155 @@ function parseScope(project: string): ScopeRef {
     return { type: "area", slug: project.slice("area:".length) };
   }
   return { type: "project", slug: project };
+}
+
+const NEUTRAL = "#a9a3b5";
+
+async function charterTone(
+  project: string | undefined,
+  cache: Map<string, { name: string; color: string }>,
+): Promise<{ name: string; color: string }> {
+  if (!project) return { name: "", color: NEUTRAL };
+  const hit = cache.get(project);
+  if (hit) return hit;
+  const scope = parseScope(project);
+  let tone = { name: scope.slug, color: NEUTRAL };
+  try {
+    const charter = await getCharter(scope.type, scope.slug);
+    tone = { name: charter.name, color: hueOf(charter.id).color };
+  } catch {
+    tone = { name: scope.slug, color: NEUTRAL };
+  }
+  cache.set(project, tone);
+  return tone;
+}
+
+async function findTask(project: string, id: string): Promise<Task | undefined> {
+  const scope = parseScope(project);
+  const tasks = await listTasks(scope.type, scope.slug);
+  return tasks.find((t) => t.id === id);
+}
+
+function laneFor(task: Partial<Task> & { title: string; size: TaskSize }): TaskLane {
+  return laneOf({
+    id: task.id ?? "",
+    title: task.title,
+    size: task.size,
+    lane: task.lane,
+    done: task.done ?? false,
+    section: task.section ?? "backlog",
+  });
+}
+
+async function previewRow(
+  action: ProposalAction,
+  cache: Map<string, { name: string; color: string }>,
+): Promise<ProposalPreviewRow> {
+  if (action.kind === "create_task") {
+    const tone = await charterTone(action.project, cache);
+    return {
+      kind: action.kind,
+      id: "NEW",
+      title: action.title,
+      lane: laneFor({ title: action.title, size: action.size }),
+      note: action.waitsOn ? `waits on ${action.waitsOn}` : "",
+      charterName: tone.name,
+      color: tone.color,
+    };
+  }
+  if (action.kind === "update_task") {
+    const tone = await charterTone(action.project, cache);
+    const existing = await findTask(action.project, action.id);
+    const title = action.title ?? existing?.title ?? action.id;
+    const size = action.size ?? existing?.size ?? "M";
+    const section = action.section ?? existing?.section ?? "backlog";
+    const done = action.complete ?? existing?.done ?? false;
+    return {
+      kind: action.kind,
+      id: action.id,
+      title,
+      lane: laneFor({ title, size, lane: existing?.lane, done, section }),
+      note: action.complete
+        ? "mark done"
+        : action.section
+          ? `to ${action.section}`
+          : action.due
+            ? `due ${action.due}`
+            : "update",
+      charterName: tone.name,
+      color: tone.color,
+    };
+  }
+  if (action.kind === "decompose_task") {
+    const tone = await charterTone(action.project, cache);
+    const existing = await findTask(action.project, action.id);
+    const title = existing?.title ?? action.id;
+    return {
+      kind: action.kind,
+      id: action.id,
+      title,
+      lane: existing ? laneOf(existing) : null,
+      note: `${action.subtasks.length} subtasks`,
+      charterName: tone.name,
+      color: tone.color,
+    };
+  }
+  if (action.kind === "move_to_parking_lot") {
+    const tone = await charterTone(action.project, cache);
+    return {
+      kind: action.kind,
+      id: "PARK",
+      title: action.idea,
+      lane: "some",
+      note: "parking lot",
+      charterName: tone.name,
+      color: tone.color,
+    };
+  }
+  if (action.kind === "create_event") {
+    const tone = await charterTone(action.scope, cache);
+    return {
+      kind: action.kind,
+      id: "NEW",
+      title: action.title,
+      lane: null,
+      note: [action.date, action.time].filter(Boolean).join(" "),
+      charterName: tone.name,
+      color: tone.color,
+    };
+  }
+  const existing = (await listEvents({})).find((e) => e.id === action.id);
+  const tone = await charterTone(action.scope ?? existing?.scope, cache);
+  return {
+    kind: action.kind,
+    id: action.id,
+    title: action.title ?? existing?.title ?? action.id,
+    lane: null,
+    note: action.done
+      ? "mark done"
+      : [action.date ?? existing?.date, action.time ?? existing?.time].filter(Boolean).join(" "),
+    charterName: tone.name,
+    color: tone.color,
+  };
+}
+
+export async function buildProposal(input: ProposalInput): Promise<Proposal> {
+  if (!input.title) throw new Error("proposeChanges requires a title");
+  if (!Array.isArray(input.actions) || input.actions.length === 0) {
+    throw new Error("proposeChanges requires a non-empty actions array");
+  }
+  const cache = new Map<string, { name: string; color: string }>();
+  const preview: ProposalPreviewRow[] = [];
+  for (const action of input.actions) {
+    preview.push(await previewRow(action, cache));
+  }
+  return {
+    proposalId: `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    title: input.title,
+    summary: input.summary,
+    actions: input.actions,
+    preview,
+  };
 }
 
 function openTasks(tasks: Task[]): Task[] {
@@ -186,6 +342,10 @@ export const toolImpls = {
     if (!input.id) throw new Error("updateEvent requires an id");
     const { id, ...patch } = input;
     return updateEvent(id, patch);
+  },
+
+  async proposeChanges(input: ProposalInput): Promise<Proposal> {
+    return buildProposal(input);
   },
 
   async nextActions(): Promise<NextAction[]> {
