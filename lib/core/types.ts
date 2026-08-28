@@ -121,3 +121,26 @@ export interface ProvidersFile {
   profiles: ProviderProfile[];
   default: string;
 }
+
+export interface KnowledgeNote {
+  id: string;
+  title: string;
+  summary: string;
+  scope: string[];
+  tags: string[];
+  created: string;
+  updated: string;
+  source?: string;
+  body: string;
+}
+
+export interface KnowledgeHit {
+  id: string;
+  title: string;
+  summary: string;
+  scope: string[];
+  tags: string[];
+  updated: string;
+  score: number;
+  snippet: string;
+}

@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { simpleGit } from "simple-git";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -10,6 +11,12 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { allowedToolNames } from "../planner";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+const tsxCli = path.join(
+  path.dirname(createRequire(import.meta.url).resolve("tsx/package.json")),
+  "dist",
+  "cli.mjs",
+);
 
 let tmp: string;
 
@@ -41,7 +48,7 @@ describe("stdio transport", () => {
     async () => {
       const transport = new StdioClientTransport({
         command: process.execPath,
-        args: [path.join(root, "node_modules", "tsx", "dist", "cli.mjs"), path.join(root, "mcp", "server.ts")],
+        args: [tsxCli, path.join(root, "mcp", "server.ts")],
         cwd: root,
         env: {
           PATH: process.env.PATH ?? "",

@@ -2,6 +2,7 @@ import { getAbout, getCharter, listTasks } from "../core/store";
 import { readJournal } from "../core/journal";
 import { listEvents } from "../core/calendar";
 import { countIn, countOnDay, getDaily } from "../core/daily";
+import { knowledgeSection } from "../core/knowledge";
 import { isoToday, weekRange } from "../ui/momentum";
 import type { Task } from "../core/types";
 import { CHAT_MODES, type ChatMode } from "./modes";
@@ -78,11 +79,15 @@ ${CHAT_MODES[mode].instruction}
   parts.push(await dailySection());
 
   if (!focus || !focus.slug) {
+    parts.push(await knowledgeSection());
     parts.push(
       "\n\n# Focus\nNo project is currently focused. Ask the user which project or area to focus on, or use listProjects/listAreas to suggest one.",
     );
     return parts.join("\n");
   }
+
+  const focusScope = focus.type === "area" ? `area:${focus.slug}` : focus.slug;
+  parts.push(await knowledgeSection(focusScope));
 
   let charter;
   try {

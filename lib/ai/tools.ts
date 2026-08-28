@@ -21,6 +21,8 @@ import type {
   ProposalInput,
   ProposalPreviewRow,
 } from "./schemas";
+import { addNote, readNote, searchNotes, updateNote } from "../core/knowledge";
+import type { KnowledgeHit, KnowledgeNote } from "../core/types";
 import { getInsights, type Insights } from "../core/insights";
 import { getAbout } from "../core/store";
 import { appendJournal, readJournal } from "../core/journal";
@@ -370,6 +372,57 @@ export const toolImpls = {
     if (!input.id) throw new Error("setGrocery requires an id");
     if (typeof input.got !== "boolean") throw new Error("setGrocery requires got as a boolean");
     return toggleGrocery(input.id, input.got);
+  },
+
+  async searchKnowledge(input: {
+    query: string;
+    scope?: string;
+    tags?: string[];
+    limit?: number;
+  }): Promise<KnowledgeHit[]> {
+    if (!input.query || !input.query.trim()) {
+      throw new Error("searchKnowledge requires a query");
+    }
+    return searchNotes({
+      q: input.query,
+      scope: input.scope,
+      tags: input.tags,
+      limit: input.limit,
+    });
+  },
+
+  async readNote(input: {
+    id: string;
+  }): Promise<{ note: KnowledgeNote; links: string[]; backlinks: string[] }> {
+    if (!input.id) throw new Error("readNote requires a note id");
+    return readNote(input.id);
+  },
+
+  async addNote(input: {
+    title: string;
+    summary: string;
+    body?: string;
+    scope?: string[];
+    tags?: string[];
+    source?: string;
+  }): Promise<KnowledgeNote> {
+    if (!input.title) throw new Error("addNote requires a title");
+    if (!input.summary) throw new Error("addNote requires a summary");
+    return addNote(input);
+  },
+
+  async updateNote(input: {
+    id: string;
+    title?: string;
+    summary?: string;
+    body?: string;
+    scope?: string[];
+    tags?: string[];
+    source?: string;
+  }): Promise<KnowledgeNote> {
+    if (!input.id) throw new Error("updateNote requires a note id");
+    const { id, ...patch } = input;
+    return updateNote(id, patch);
   },
 
   async weeklySummary(): Promise<{

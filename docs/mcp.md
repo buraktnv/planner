@@ -26,11 +26,15 @@ picked up automatically; an explicit `env` entry in the client config always win
 ## What is exposed
 
 Read tools: `list_projects`, `list_areas`, `get_context`, `list_events`, `get_daily`,
-`next_actions`, `weekly_summary`.
+`next_actions`, `weekly_summary`, `search_knowledge`, `read_note`.
 
 Write tools: `create_task`, `update_task`, `decompose_task`, `move_to_parking_lot`, `add_journal`,
-`create_event`, `update_event`, `log_daily`, `add_grocery`, `set_grocery`, plus `propose_changes`
-(which writes nothing and returns a preview).
+`create_event`, `update_event`, `log_daily`, `add_grocery`, `set_grocery`, `add_note`,
+`update_note`, plus `propose_changes` (which writes nothing and returns a preview).
+
+The knowledge tools are how an agent reads and writes the owner's second brain. Only notes scoped to
+the focused project or area are ever loaded automatically — reach for `search_knowledge` before
+concluding something is not written down, and `add_note` when you learn something worth keeping.
 
 Never exposed: `create_project` and `create_area` — charters are the owner's job, created from the
 web app. There is no archive tool at all.

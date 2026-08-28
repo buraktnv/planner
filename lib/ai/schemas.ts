@@ -86,6 +86,32 @@ const baseShapes = {
     id: z.string(),
     got: z.boolean(),
   },
+  search_knowledge: {
+    query: z.string(),
+    scope: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    limit: z.number().int().positive().optional(),
+  },
+  read_note: {
+    id: z.string(),
+  },
+  add_note: {
+    title: z.string(),
+    summary: z.string(),
+    body: z.string().optional(),
+    scope: z.array(z.string()).optional(),
+    tags: z.array(z.string()).optional(),
+    source: z.string().optional(),
+  },
+  update_note: {
+    id: z.string(),
+    title: z.string().optional(),
+    summary: z.string().optional(),
+    body: z.string().optional(),
+    scope: z.array(z.string()).optional(),
+    tags: z.array(z.string()).optional(),
+    source: z.string().optional(),
+  },
   next_actions: {},
   weekly_summary: {},
 } satisfies Record<string, ZodRawShape>;
@@ -181,6 +207,13 @@ export const toolDescriptions: Record<ToolName, string> = {
     "Count one tick for a habit (H-) or a rhythm (R-). When the goal for today or the week is already met the tick wraps around and resets the count.",
   add_grocery: "Add an item to the grocery list. cat is a free-text category, default Other.",
   set_grocery: "Mark a grocery item as got (true) or back on the list (false).",
+  search_knowledge:
+    "Search the knowledge base and get ranked snippets. Use this whenever the answer might already be written down — the system prompt only lists notes for the focused scope. scope filters to a project slug or area:<slug>; tags must all match.",
+  read_note: "Read one knowledge note in full, with the notes it links to and the notes linking back to it.",
+  add_note:
+    "File a new knowledge note. summary must be a single line stating the conclusion, not the topic — it is the only text loaded into context until someone searches. scope is a list of project slugs or area:<slug>.",
+  update_note:
+    "Amend a knowledge note. Only the fields you pass change; updated is bumped. Pass source as an empty string to clear it.",
   next_actions: "Get the prioritized list of next actions across the workspace.",
   weekly_summary: "Get insights and the last 7 days of journal digest.",
   propose_changes:

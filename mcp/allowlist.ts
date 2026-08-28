@@ -14,6 +14,8 @@ export const READ_TOOLS: ToolName[] = [
   "get_daily",
   "next_actions",
   "weekly_summary",
+  "search_knowledge",
+  "read_note",
 ];
 
 export const WRITE_TOOLS: ToolName[] = [
@@ -27,6 +29,8 @@ export const WRITE_TOOLS: ToolName[] = [
   "log_daily",
   "add_grocery",
   "set_grocery",
+  "add_note",
+  "update_note",
 ];
 
 export const OWNER_ONLY_TOOLS: ToolName[] = ["create_project", "create_area"];

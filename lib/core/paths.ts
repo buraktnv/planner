@@ -28,3 +28,5 @@ export function journalPath(date: string) { return path.join(dataRoot(), "journa
 export function calendarPath() { return path.join(dataRoot(), "calendar.md"); }
 export function aboutPath() { return path.join(dataRoot(), "about.md"); }
 export function providersPath() { return path.join(dataRoot(), "providers.json"); }
+export function knowledgeDir() { return path.join(dataRoot(), "knowledge"); }
+export function knowledgeIndexPath() { return path.join(knowledgeDir(), "index.md"); }
