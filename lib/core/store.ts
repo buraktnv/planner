@@ -23,6 +23,16 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+function cleanWaitsOn(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (trimmed === "") return undefined;
+  if (trimmed.includes(" | ")) {
+    throw new Error('A waits: value may not contain " | "');
+  }
+  return trimmed;
+}
+
 function dataDir(type: ProjectType): string {
   return type === "project" ? "projects" : "areas";
 }
@@ -134,6 +144,7 @@ export async function addTask(
     parentId?: string;
     est?: string;
     due?: string;
+    waitsOn?: string;
   },
 ): Promise<Task> {
   const tasks = await listTasks(type, slug);
@@ -162,6 +173,7 @@ export async function addTask(
       created: today(),
       est: input.est,
       due: input.due,
+      waitsOn: cleanWaitsOn(input.waitsOn),
       parentId: input.parentId,
       section: parentSection,
     };
@@ -178,6 +190,7 @@ export async function addTask(
       created: today(),
       est: input.est,
       due: input.due,
+      waitsOn: cleanWaitsOn(input.waitsOn),
       parentId: null,
     };
     tasks.push(task);
@@ -193,7 +206,7 @@ export async function updateTask(
   type: ProjectType,
   slug: string,
   taskId: string,
-  patch: Partial<Pick<Task, "title" | "size" | "section" | "est" | "due" | "lane">> & {
+  patch: Partial<Pick<Task, "title" | "size" | "section" | "est" | "due" | "lane" | "waitsOn">> & {
     complete?: boolean;
   },
 ): Promise<Task> {
@@ -206,6 +219,7 @@ export async function updateTask(
   if (patch.est !== undefined) t.est = patch.est;
   if (patch.due !== undefined) t.due = patch.due;
   if (patch.lane !== undefined) t.lane = patch.lane;
+  if (patch.waitsOn !== undefined) t.waitsOn = cleanWaitsOn(patch.waitsOn);
   if (patch.complete) {
     t.done = true;
     t.section = "done";
