@@ -36,9 +36,11 @@ All of `lint`, `typecheck`, `test` must pass before considering any change done.
 - Charter files (`projects/<slug>.md`, `areas/<slug>.md`): YAML frontmatter (`id`, `name`, `type`, `status`, `priority`, `mvp`, `repo`, `created`, `updated`) + body sections `## Why`, `## MVP scope`, `## Parking lot`
 - Task lines (fixed grammar, parsed by `lib/core/schema.ts`):
   `- [ ] T-007 | M | Title | created:2026-08-27`, subtasks indented with dotted ids (`T-007.1`), done: `- [x] ... | done:2026-08-27`; sections `## Backlog` / `## In progress` / `## Done`
-- Optional field keys after the title: `created:` / `est:` / `due:` / `done:` / `lane:`
+- Optional field keys after the title: `created:` / `est:` / `due:` / `lane:` / `waits:` / `done:`
 - `lane:` is one of `quick` | `deep` | `wait` | `some` — the Board's four columns. It is optional; when absent `laneOf()` in `lib/core/lanes.ts` derives it (size `S` → quick, otherwise deep). Dragging a card on the Board writes this field.
+- `waits:` is a dependency: either a task id in the **same file** (`waits:T-041`) or free text without ` | ` (`waits:the clinic`). Serialized after `lane:`. An unknown id is tolerated by the parser; `isBlocked()` in `lib/core/deps.ts` then treats it as free text. A done blocker unblocks automatically. Blocked tasks sink to the bottom of the Focus ranking and are never the One Thing.
 - A subtask and its parent may sit in **different sections** (completing a subtask moves only that line to `## Done`). The parser resolves parents by dotted id across the whole file, not by position.
+- `archive/projects/<slug>.md` + `archive/projects/<slug>/` (same for `areas`): where `archiveCharter()` moves a charter and its tasks dir. Nothing is ever hard-deleted; the parser never reads `archive/`. Collisions get a `-2`, `-3`, … suffix.
 - Journal: `journal/YYYY-MM-DD.md`, appended lines `- HH:mm [project] message`
 - Full contract: `CLAUDE.md` in the `planner-data` repo
 

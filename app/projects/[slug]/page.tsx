@@ -5,6 +5,7 @@ import { isQuiet, LANES, LANE_KEYS } from "@/lib/ui/momentum";
 import { Bar, Mono, Ring } from "@/components/momentum/primitives";
 import CardOpener from "@/components/momentum/card-opener";
 import NewButton from "@/components/momentum/new-button";
+import ArchiveButton from "@/components/momentum/archive-button";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export default async function ProjectDetailPage({
         <NewButton kind="branch" prefill={{ scopeKey }} variant="mono">
           + BRANCH
         </NewButton>
+        <ArchiveButton type="project" slug={charter.id} name={charter.name} />
       </div>
 
       <div className="relative mb-3 overflow-hidden rounded-[20px] border border-edge bg-surf px-[22px] py-5">

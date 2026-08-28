@@ -8,7 +8,7 @@ import {
   serializeTasks,
   nextTaskId,
 } from "./schema";
-import { charterPath, tasksPath, aboutPath, dataRoot } from "./paths";
+import { charterPath, tasksPath, aboutPath, dataRoot, archiveDir } from "./paths";
 import { appendJournal } from "./journal";
 import { commitData } from "./git";
 
@@ -240,4 +240,42 @@ export async function saveAbout(md: string): Promise<void> {
   await fs.writeFile(aboutPath(), md, "utf8");
   await appendJournal("about", "about updated");
   await commitData("about updated");
+}
+
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await fs.stat(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function archiveCharter(
+  type: ProjectType,
+  slug: string,
+): Promise<{ slug: string; archivedAs: string }> {
+  await getCharter(type, slug);
+  const dir = archiveDir(type);
+  await fs.mkdir(dir, { recursive: true });
+
+  let archivedAs = slug;
+  let n = 1;
+  while (
+    (await pathExists(path.join(dir, `${archivedAs}.md`))) ||
+    (await pathExists(path.join(dir, archivedAs)))
+  ) {
+    n += 1;
+    archivedAs = `${slug}-${n}`;
+  }
+
+  await fs.rename(charterPath(type, slug), path.join(dir, `${archivedAs}.md`));
+  const taskDir = path.dirname(tasksPath(type, slug));
+  if (await pathExists(taskDir)) {
+    await fs.rename(taskDir, path.join(dir, archivedAs));
+  }
+
+  await appendJournal(slug, "charter archived");
+  await commitData(`charter archived: ${slug}`);
+  return { slug, archivedAs };
 }

@@ -10,6 +10,7 @@ import {
 } from "@/components/momentum/primitives";
 import CardOpener from "@/components/momentum/card-opener";
 import NewButton from "@/components/momentum/new-button";
+import ArchiveButton from "@/components/momentum/archive-button";
 import { targetsOf } from "@/lib/view/targets";
 import TargetToggle from "@/components/momentum/target-toggle";
 import { LANES, shortDate } from "@/lib/ui/momentum";
@@ -65,6 +66,7 @@ export default async function AreaPage({
         <NewButton kind="branch" prefill={{ scopeKey: `area/${area.id}` }} variant="mono">
           + TASK
         </NewButton>
+        <ArchiveButton type="area" slug={area.id} name={area.name} />
       </div>
 
       <AssistantNote className="mb-3.5">

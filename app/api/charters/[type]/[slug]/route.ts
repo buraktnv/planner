@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCharter, updateCharter } from "@/lib/core/store";
+import { archiveCharter, getCharter, updateCharter } from "@/lib/core/store";
 import type { Charter, ProjectStatus, ProjectType } from "@/lib/core/types";
 
 export const dynamic = "force-dynamic";
@@ -56,5 +56,19 @@ export async function PATCH(req: Request, { params }: Ctx) {
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function DELETE(req: Request, { params }: Ctx) {
+  const { type, slug } = await params;
+  if (!TYPES.includes(type as ProjectType)) {
+    return NextResponse.json({ error: "type must be project or area" }, { status: 400 });
+  }
+  try {
+    await archiveCharter(type as ProjectType, slug);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 404 });
   }
 }

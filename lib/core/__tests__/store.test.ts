@@ -182,3 +182,76 @@ describe("store CRUD", () => {
     expect(tasks.find((x) => x.id === child.id)!.section).toBe("backlog");
   });
 });
+
+describe("archiveCharter", () => {
+  it("moves the charter and its tasks dir into archive/, journals and commits", async () => {
+    const { createCharter, addTask, archiveCharter, listCharters } = await import("../store");
+    await createCharter({ type: "project", name: "Old Thing", why: "y", mvp: "ship" });
+    await addTask("project", "old-thing", { title: "Leftover", size: "M" });
+    const before = await gitCommitCount();
+
+    const result = await archiveCharter("project", "old-thing");
+    expect(result.archivedAs).toBe("old-thing");
+
+    await expect(fs.stat(path.join(tmp, "projects", "old-thing.md"))).rejects.toThrow();
+    await expect(fs.stat(path.join(tmp, "projects", "old-thing"))).rejects.toThrow();
+    const moved = await fs.readFile(
+      path.join(tmp, "archive", "projects", "old-thing.md"),
+      "utf8",
+    );
+    expect(moved).toContain("Old Thing");
+    const movedTasks = await fs.readFile(
+      path.join(tmp, "archive", "projects", "old-thing", "tasks.md"),
+      "utf8",
+    );
+    expect(movedTasks).toContain("Leftover");
+
+    const journal = await fs.readFile(path.join(tmp, "journal", `${localDate()}.md`), "utf8");
+    expect(journal).toContain("[old-thing] charter archived");
+    expect(await gitCommitCount()).toBeGreaterThan(before);
+
+    const charters = await listCharters();
+    expect(charters.find((c) => c.id === "old-thing")).toBeUndefined();
+  });
+
+  it("tolerates a charter with no tasks directory", async () => {
+    const { createCharter, archiveCharter } = await import("../store");
+    await createCharter({ type: "area", name: "Bare Area", why: "nothing here" });
+    await archiveCharter("area", "bare-area");
+    const moved = await fs.readFile(path.join(tmp, "archive", "areas", "bare-area.md"), "utf8");
+    expect(moved).toContain("Bare Area");
+    await expect(
+      fs.stat(path.join(tmp, "archive", "areas", "bare-area")),
+    ).rejects.toThrow();
+  });
+
+  it("suffixes on collision in archive/", async () => {
+    const { createCharter, addTask, archiveCharter } = await import("../store");
+    for (const suffix of ["", "-2"]) {
+      await createCharter({ type: "area", name: "Repeat Area", why: "again" });
+      await addTask("area", "repeat-area", { title: `Task${suffix}`, size: "S" });
+      const result = await archiveCharter("area", "repeat-area");
+      expect(result.archivedAs).toBe(`repeat-area${suffix}`);
+    }
+    const third = await (async () => {
+      await createCharter({ type: "area", name: "Repeat Area", why: "again" });
+      return archiveCharter("area", "repeat-area");
+    })();
+    expect(third.archivedAs).toBe("repeat-area-3");
+    const names = await fs.readdir(path.join(tmp, "archive", "areas"));
+    expect(names.sort()).toEqual(
+      [
+        "repeat-area",
+        "repeat-area-2",
+        "repeat-area-2.md",
+        "repeat-area-3.md",
+        "repeat-area.md",
+      ].sort(),
+    );
+  });
+
+  it("throws for a missing charter", async () => {
+    const { archiveCharter } = await import("../store");
+    await expect(archiveCharter("project", "nope")).rejects.toThrow();
+  });
+});

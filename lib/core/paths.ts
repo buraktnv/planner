@@ -13,6 +13,11 @@ export function charterPath(type: "project" | "area", slug: string) {
 export function tasksPath(type: "project" | "area", slug: string) {
   return path.join(type === "project" ? projectsDir() : areasDir(), slug, "tasks.md");
 }
+export function archiveDir(type?: "project" | "area") {
+  const base = path.join(dataRoot(), "archive");
+  if (!type) return base;
+  return path.join(base, type === "project" ? "projects" : "areas");
+}
 export function journalPath(date: string) { return path.join(dataRoot(), "journal", `${date}.md`); }
 export function aboutPath() { return path.join(dataRoot(), "about.md"); }
 export function providersPath() { return path.join(dataRoot(), "providers.json"); }
