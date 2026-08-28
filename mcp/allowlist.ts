@@ -1,4 +1,4 @@
-import { toolNames, type ToolName } from "@/lib/ai/schemas";
+import { toolNames, type ToolName } from "../lib/ai/schemas";
 
 export interface McpEnv {
   PLANNER_AGENT?: string;

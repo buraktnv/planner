@@ -2,10 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { toolShapes, toolDescriptions, type ToolName } from "@/lib/ai/schemas";
-import { toolImplMap } from "@/lib/ai/tool-map";
-import { appendJournal } from "@/lib/core/journal";
-import { dataRoot } from "@/lib/core/paths";
+import { toolShapes, toolDescriptions, type ToolName } from "../lib/ai/schemas";
+import { toolImplMap } from "../lib/ai/tool-map";
+import { appendJournal } from "../lib/core/journal";
+import { dataRoot } from "../lib/core/paths";
 import { agentName, allowedToolNames, WRITE_TOOLS, type McpEnv } from "./allowlist";
 
 export * from "./allowlist";
