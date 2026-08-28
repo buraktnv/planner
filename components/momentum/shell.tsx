@@ -6,6 +6,7 @@ import CardDetail from "./card-detail";
 import ChatRail from "./chat-rail";
 import Composer from "./composer";
 import Sidebar from "./sidebar";
+import { useMediaQuery } from "./use-media-query";
 import {
   MomentumContext,
   type ComposerKind,
@@ -22,6 +23,8 @@ export default function Shell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
+  const compact = useMediaQuery("(max-width: 1023px)");
+  const railOverlay = useMediaQuery("(max-width: 1279px)");
   const [chatScope, setChatScope] = useState<string | null>(null);
   const [composer, setComposer] = useState<{
     kind: ComposerKind;
@@ -43,7 +46,8 @@ export default function Shell({
     <MomentumContext.Provider value={api}>
       <div className="flex h-screen overflow-hidden bg-bg">
         <Sidebar
-          collapsed={collapsed}
+          collapsed={collapsed || compact}
+          lockCollapsed={compact}
           onToggle={() => setCollapsed((v) => !v)}
           charters={charters}
         />
@@ -54,6 +58,7 @@ export default function Shell({
           {children}
         </main>
         <ChatRail
+          overlay={railOverlay}
           open={chatOpen}
           onToggle={() => setChatOpen((v) => !v)}
           charters={charters}

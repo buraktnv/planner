@@ -10,31 +10,11 @@ import {
 } from "@/components/momentum/primitives";
 import CardOpener from "@/components/momentum/card-opener";
 import NewButton from "@/components/momentum/new-button";
+import { targetsOf } from "@/lib/view/targets";
+import TargetToggle from "@/components/momentum/target-toggle";
 import { LANES, shortDate } from "@/lib/ui/momentum";
 
 export const dynamic = "force-dynamic";
-
-interface Target {
-  title: string;
-  by: string | null;
-  done: boolean;
-}
-
-function parseScopeLine(line: string): Target | null {
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-  const marker = /^-\s*\[( |x)\]\s*/.exec(trimmed);
-  const done = marker ? marker[1] === "x" : false;
-  let rest = marker ? trimmed.slice(marker[0].length) : trimmed.replace(/^-\s*/, "");
-  let by: string | null = null;
-  const byMatch = /\s*(?:—|--)\s*by\s+(.+)$/i.exec(rest);
-  if (byMatch) {
-    by = byMatch[1].trim();
-    rest = rest.slice(0, byMatch.index).trim();
-  }
-  if (!rest) return null;
-  return { title: rest, by, done };
-}
 
 function parkedTitle(line: string): string | null {
   const trimmed = line.trim();
@@ -66,9 +46,7 @@ export default async function AreaPage({
   const area = await loadCharterModel("area", slug);
   if (!area) notFound();
 
-  const targets = area.mvpScope
-    .map(parseScopeLine)
-    .filter((t): t is Target => t !== null);
+  const targets = targetsOf(area.mvpScope);
   const parked = area.parkingLot
     .map(parkedTitle)
     .filter((t): t is string => t !== null);
@@ -118,8 +96,24 @@ export default async function AreaPage({
               className="flex min-w-0 items-center gap-[13px] rounded-2xl border border-edge bg-surf p-[15px]"
             >
               <Ring pct={t.done ? 100 : 0} size={42} width={13} color={area.color} />
-              <div className="min-w-0">
-                <div className="text-[13px] font-semibold leading-[1.3]">{t.title}</div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2.5">
+                  <TargetToggle
+                    type="area"
+                    slug={area.id}
+                    scope={area.mvpScope}
+                    index={t.index}
+                    done={t.done}
+                    color={area.color}
+                  />
+                  <div
+                    className={`text-[13px] font-semibold leading-[1.3] ${
+                      t.done ? "text-faint line-through" : ""
+                    }`}
+                  >
+                    {t.title}
+                  </div>
+                </div>
                 <Mono className="mt-1.5 block text-[9px] text-faint">
                   {t.done ? "DONE" : "OPEN"}
                   {t.by ? ` · BY ${t.by.toUpperCase()}` : ""}

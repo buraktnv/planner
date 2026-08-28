@@ -86,12 +86,27 @@ function reasonFor(card: CardModel, today: string): string {
   return `${card.charterName} · nothing blocking it`;
 }
 
-function streakOf(days: JournalDay[], predicate: (d: JournalDay) => boolean): number {
+function isoOf(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function shiftIso(iso: string, days: number): string {
+  const base = parseIso(iso);
+  return isoOf(new Date(base.getFullYear(), base.getMonth(), base.getDate() + days));
+}
+
+function streakOf(
+  days: JournalDay[],
+  predicate: (day: JournalDay) => boolean,
+  today: string,
+): number {
+  const hit = new Set(days.filter(predicate).map((d) => d.date));
+  const offset = hit.has(today) ? 0 : 1;
   let n = 0;
-  for (const day of days) {
-    if (predicate(day)) n += 1;
-    else break;
-  }
+  while (n < 400 && hit.has(shiftIso(today, -(offset + n)))) n += 1;
   return n;
 }
 
@@ -100,9 +115,11 @@ export function buildFocus(ws: Workspace, journal: JournalDay[]): FocusModel {
   const overdue = ranked.filter((r) => r.card.overdue).length;
   const sorted = [...journal].sort((a, b) => (a.date < b.date ? 1 : -1));
 
-  const activeStreak = streakOf(sorted, (d) => d.entries.length > 0);
-  const morningStreak = streakOf(sorted, (d) =>
-    d.entries.some((e) => Number(e.time.slice(0, 2)) < 12),
+  const activeStreak = streakOf(sorted, (d) => d.entries.length > 0, ws.today);
+  const morningStreak = streakOf(
+    sorted,
+    (d) => d.entries.some((e) => Number(e.time.slice(0, 2)) < 12),
+    ws.today,
   );
 
   const weekAgo = new Date(parseIso(ws.today).getTime() - 6 * 86400000);
@@ -137,7 +154,9 @@ export function buildFocus(ws: Workspace, journal: JournalDay[]): FocusModel {
   ];
 
   const smallest = ranked.find((r) => r.card.size === "S");
-  const stalest = [...ranked].sort((a, b) => (a.card.created ?? "9") .localeCompare(b.card.created ?? "9"))[0];
+  const stalest = [...ranked].sort((a, b) =>
+    (a.card.created ?? "9").localeCompare(b.card.created ?? "9"),
+  )[0];
 
   const stuckFacts: string[] = [];
   if (overdue > 0) {

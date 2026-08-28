@@ -37,10 +37,12 @@ function Chevron({ open }: { open: boolean }) {
 
 export default function Sidebar({
   collapsed,
+  lockCollapsed = false,
   onToggle,
   charters,
 }: {
   collapsed: boolean;
+  lockCollapsed?: boolean;
   onToggle: () => void;
   charters: NavCharter[];
 }) {
@@ -292,6 +294,7 @@ export default function Sidebar({
       <button
         type="button"
         onClick={onToggle}
+        hidden={lockCollapsed}
         className="mx-2 mt-2 flex shrink-0 items-center gap-3 rounded-[10px] px-2.5 py-[9px] text-faint transition-colors hover:bg-surf hover:text-ink"
       >
         <svg

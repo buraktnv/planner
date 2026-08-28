@@ -1,34 +1,13 @@
-import { loadWorkspace, type CharterModel } from "@/lib/view/workspace";
+import { loadWorkspace } from "@/lib/view/workspace";
 import { Bar, Mono, Rule } from "@/components/momentum/primitives";
 import NewButton from "@/components/momentum/new-button";
+import { allTargets, targetPct, type CharterTarget } from "@/lib/view/targets";
+import TargetToggle from "@/components/momentum/target-toggle";
 
 export const dynamic = "force-dynamic";
 
-interface Target {
-  title: string;
-  by: string | null;
-  done: boolean;
-  charter: CharterModel;
-}
-
-function parseScopeLine(line: string): Omit<Target, "charter"> | null {
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-  const marker = /^-\s*\[( |x)\]\s*/.exec(trimmed);
-  const done = marker ? marker[1] === "x" : false;
-  let rest = marker ? trimmed.slice(marker[0].length) : trimmed.replace(/^-\s*/, "");
-  let by: string | null = null;
-  const byMatch = /\s*(?:—|--)\s*by\s+(.+)$/i.exec(rest);
-  if (byMatch) {
-    by = byMatch[1].trim();
-    rest = rest.slice(0, byMatch.index).trim();
-  }
-  if (!rest) return null;
-  return { title: rest, by, done };
-}
-
-function TargetCard({ target, dashed }: { target: Target; dashed: boolean }) {
-  const pct = target.done ? 100 : 0;
+function TargetCard({ target, dashed }: { target: CharterTarget; dashed: boolean }) {
+  const pct = targetPct(target);
   return (
     <div
       className={`rounded-2xl px-[18px] py-4 ${
@@ -36,8 +15,22 @@ function TargetCard({ target, dashed }: { target: Target; dashed: boolean }) {
       }`}
       style={dashed ? undefined : { borderLeft: `3px solid ${target.charter.color}` }}
     >
-      <div className="mb-[11px] flex flex-wrap items-baseline gap-[11px]">
-        <span className="text-[14.5px] font-semibold tracking-[-0.02em]">{target.title}</span>
+      <div className="mb-[11px] flex flex-wrap items-center gap-[11px]">
+        <TargetToggle
+          type={target.charter.type}
+          slug={target.charter.id}
+          scope={target.charter.mvpScope}
+          index={target.index}
+          done={target.done}
+          color={target.charter.color}
+        />
+        <span
+          className={`text-[14.5px] font-semibold tracking-[-0.02em] ${
+            target.done ? "text-faint line-through" : ""
+          }`}
+        >
+          {target.title}
+        </span>
         <Mono className="rounded-[5px] bg-soft px-2 py-[3px] text-[9px] tracking-[0.08em] text-dim">
           {target.charter.name.toUpperCase()}
         </Mono>
@@ -54,12 +47,7 @@ function TargetCard({ target, dashed }: { target: Target; dashed: boolean }) {
 
 export default async function TargetsPage() {
   const ws = await loadWorkspace();
-  const all: Target[] = ws.charters.flatMap((c) =>
-    c.mvpScope
-      .map(parseScopeLine)
-      .filter((t): t is Omit<Target, "charter"> => t !== null)
-      .map((t) => ({ ...t, charter: c })),
-  );
+  const all = allTargets(ws.charters);
   const short = all.filter((t) => t.charter.priority <= 2);
   const long = all.filter((t) => t.charter.priority > 2);
 

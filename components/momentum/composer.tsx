@@ -6,6 +6,7 @@ import { LANES, LANE_KEYS } from "@/lib/ui/momentum";
 import type { TaskLane, TaskSize } from "@/lib/core/types";
 import type { ComposerKind, ComposerPrefill, NavCharter } from "./context";
 import { Mono } from "./primitives";
+import Dialog from "./dialog";
 
 const SIZES: TaskSize[] = ["S", "M", "L"];
 
@@ -134,18 +135,8 @@ export default function Composer({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[rgba(46,42,38,.28)] px-6 py-16"
-      onClick={onClose}
-      role="presentation"
-    >
-      <div
-        className="animate-pop w-full max-w-[480px] rounded-[22px] border border-edge bg-surf px-[26px] py-6 shadow-[0_20px_50px_rgba(46,42,38,.14)]"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={HEADINGS[kind]}
-      >
+    <Dialog label={HEADINGS[kind]} onClose={onClose} maxWidth={480} paddingTop={64}>
+      <>
         <div className="mb-5 flex items-center gap-2.5">
           <span className="text-[17px] font-semibold tracking-[-0.02em]">{HEADINGS[kind]}</span>
           <div className="flex-1" />
@@ -163,7 +154,6 @@ export default function Composer({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder={PLACEHOLDERS[kind]}
-          autoFocus
           className="mb-[18px] w-full rounded-[13px] border border-edge bg-bg px-[15px] py-[13px] text-[15px] outline-none placeholder:text-faint"
         />
 
@@ -331,7 +321,7 @@ export default function Composer({
             Cancel
           </button>
         </div>
-      </div>
-    </div>
+      </>
+    </Dialog>
   );
 }

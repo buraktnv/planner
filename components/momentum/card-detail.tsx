@@ -7,6 +7,7 @@ import type { CardModel } from "@/lib/view/workspace";
 import type { TaskLane, TaskSection } from "@/lib/core/types";
 import { LANES, LANE_KEYS, shortDate } from "@/lib/ui/momentum";
 import { Bar, Mono, Tick } from "./primitives";
+import Dialog from "./dialog";
 
 const FLOW: { key: TaskSection | "next"; label: string }[] = [
   { key: "backlog", label: "BACKLOG" },
@@ -71,18 +72,8 @@ export default function CardDetail({
   const href = card.type === "project" ? `/projects/${card.slug}` : `/areas/${card.slug}`;
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-[rgba(46,42,38,.28)] px-6 py-[70px]"
-      onClick={onClose}
-      role="presentation"
-    >
-      <div
-        className="animate-pop w-full max-w-[520px] rounded-[22px] border border-edge bg-surf px-[26px] py-6 shadow-[0_20px_50px_rgba(46,42,38,.14)]"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={card.title}
-      >
+    <Dialog label={card.title} onClose={onClose}>
+      <>
         <div className="mb-3.5 flex items-center gap-2.5">
           <span
             className="h-[9px] w-[9px] rounded-[3px]"
@@ -212,7 +203,7 @@ export default function CardDetail({
             ))}
           </div>
         )}
-      </div>
-    </div>
+      </>
+    </Dialog>
   );
 }

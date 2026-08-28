@@ -73,12 +73,14 @@ function toolSummary(part: ToolPartLike): string {
 
 export default function ChatRail({
   open,
+  overlay = false,
   onToggle,
   charters,
   scope,
   onScopeChange,
 }: {
   open: boolean;
+  overlay?: boolean;
   onToggle: () => void;
   charters: NavCharter[];
   scope: string | null;
@@ -210,8 +212,7 @@ export default function ChatRail({
     }
   };
 
-  if (!open) {
-    return (
+  const strip = (
       <aside className="flex w-14 shrink-0 flex-col items-center gap-3.5 border-l border-edge2 bg-surf py-4.5">
         <button
           type="button"
@@ -226,13 +227,20 @@ export default function ChatRail({
           style={{ background: scopeMeta.color }}
         />
       </aside>
-    );
-  }
+  );
+
+  if (!open) return strip;
 
   const modeMeta = mode ? CHAT_MODES[mode] : null;
 
-  return (
-    <aside className="flex w-[372px] min-w-[340px] shrink-0 flex-col border-l border-edge2 bg-surf">
+  const panel = (
+    <aside
+      className={
+        overlay
+          ? "fixed inset-y-0 right-0 z-40 flex w-[372px] max-w-[92vw] flex-col border-l border-edge2 bg-surf shadow-[0_0_40px_rgba(46,42,38,.18)]"
+          : "flex w-[372px] min-w-[340px] shrink-0 flex-col border-l border-edge2 bg-surf"
+      }
+    >
       <div className="border-b border-edge2 px-[18px] pt-4 pb-3.5">
         <div className="mb-3 flex items-center gap-2.5">
           <span className="grid h-[22px] w-[22px] place-items-center rounded-[7px] bg-quick-tint font-mono text-[10px] text-quick-ink">
@@ -665,4 +673,15 @@ export default function ChatRail({
       </div>
     </aside>
   );
+
+  if (overlay) {
+    return (
+      <>
+        {strip}
+        {panel}
+      </>
+    );
+  }
+
+  return panel;
 }
