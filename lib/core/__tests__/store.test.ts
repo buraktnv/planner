@@ -183,6 +183,69 @@ describe("store CRUD", () => {
   });
 });
 
+describe("subtask ordering", () => {
+  it("keeps subtasks in the order they were added", async () => {
+    const { createCharter, addTask, listTasks } = await import("../store");
+    await createCharter({ type: "project", name: "Ordering", why: "w", mvp: "m" });
+    const parent = await addTask("project", "ordering", { title: "Parent", size: "L" });
+
+    for (const title of ["First", "Second", "Third"]) {
+      await addTask("project", "ordering", { title, size: "S", parentId: parent.id });
+    }
+
+    const tasks = await listTasks("project", "ordering");
+    expect(tasks.map((t) => t.id)).toEqual([
+      parent.id,
+      `${parent.id}.1`,
+      `${parent.id}.2`,
+      `${parent.id}.3`,
+    ]);
+    expect(tasks.filter((t) => t.parentId === parent.id).map((t) => t.title)).toEqual([
+      "First",
+      "Second",
+      "Third",
+    ]);
+  });
+
+  it("does not disturb a following top-level task", async () => {
+    const { createCharter, addTask, listTasks } = await import("../store");
+    await createCharter({ type: "project", name: "Ordering Two", why: "w", mvp: "m" });
+    const first = await addTask("project", "ordering-two", { title: "First branch", size: "M" });
+    const second = await addTask("project", "ordering-two", { title: "Second branch", size: "M" });
+    await addTask("project", "ordering-two", { title: "Step A", size: "S", parentId: first.id });
+    await addTask("project", "ordering-two", { title: "Step B", size: "S", parentId: first.id });
+
+    const tasks = await listTasks("project", "ordering-two");
+    expect(tasks.map((t) => t.id)).toEqual([
+      first.id,
+      `${first.id}.1`,
+      `${first.id}.2`,
+      second.id,
+    ]);
+  });
+
+  it("nests a grandchild under its own parent", async () => {
+    const { createCharter, addTask, listTasks } = await import("../store");
+    await createCharter({ type: "project", name: "Ordering Three", why: "w", mvp: "m" });
+    const parent = await addTask("project", "ordering-three", { title: "Parent", size: "L" });
+    const a = await addTask("project", "ordering-three", {
+      title: "A",
+      size: "S",
+      parentId: parent.id,
+    });
+    await addTask("project", "ordering-three", { title: "A1", size: "S", parentId: a.id });
+    await addTask("project", "ordering-three", { title: "B", size: "S", parentId: parent.id });
+
+    const tasks = await listTasks("project", "ordering-three");
+    expect(tasks.map((t) => t.id)).toEqual([
+      parent.id,
+      `${parent.id}.1`,
+      `${parent.id}.1.1`,
+      `${parent.id}.2`,
+    ]);
+  });
+});
+
 describe("archiveCharter", () => {
   it("moves the charter and its tasks dir into archive/, journals and commits", async () => {
     const { createCharter, addTask, archiveCharter, listCharters } = await import("../store");

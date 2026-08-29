@@ -188,7 +188,11 @@ export async function addTask(
       section: parentSection,
     };
     const parentIdx = tasks.findIndex((t) => t.id === input.parentId);
-    tasks.splice(parentIdx + 1, 0, task);
+    let insertAt = parentIdx + 1;
+    while (insertAt < tasks.length && tasks[insertAt].id.startsWith(`${input.parentId}.`)) {
+      insertAt++;
+    }
+    tasks.splice(insertAt, 0, task);
   } else {
     task = {
       id: nextTaskId(tasks),
