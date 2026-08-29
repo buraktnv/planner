@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildFocus, rankCards } from "../focus";
+import {
+  buildFocus,
+  clockOf,
+  isLowDay,
+  nextIndexAfterSkip,
+  planRowsFor,
+  rankCards,
+} from "../focus";
 import type { CardModel, CharterModel, Workspace } from "../workspace";
 import type { JournalDay } from "@/lib/core/journal";
 
@@ -294,5 +301,130 @@ describe("buildFocus", () => {
   it("offers no small task when every open card is large", () => {
     const ws = workspace([charter("alpha", 2, [card({ id: "T-001", size: "L" })])]);
     expect(buildFocus(ws, []).stuckOffers.some((o) => o.kind === "small")).toBe(false);
+  });
+});
+
+describe("blocked work", () => {
+  it("sinks below everything open, even when it is overdue", () => {
+    const ws = workspace([
+      charter("alpha", 1, [
+        card({ id: "T-001", blocked: true, due: "2026-08-01", overdue: true }),
+        card({ id: "T-002" }),
+      ]),
+    ]);
+    expect(rankCards(ws).map((r) => r.card.id)).toEqual(["T-002", "T-001"]);
+  });
+
+  it("is never pinned, so an overdue blocked card is not highlighted", () => {
+    const ws = workspace([
+      charter("alpha", 1, [card({ id: "T-001", blocked: true, due: "2026-08-01", overdue: true })]),
+    ]);
+    expect(rankCards(ws)[0].pinned).toBe(false);
+  });
+
+  it("is never the One Thing", () => {
+    const ws = workspace([
+      charter("alpha", 1, [
+        card({ id: "T-001", blocked: true, due: "2026-08-01", overdue: true }),
+        card({ id: "T-002" }),
+      ]),
+    ]);
+    const model = buildFocus(ws, []);
+    expect(model.oneThing?.card.id).toBe("T-002");
+    expect(model.ranked[model.oneIndex].card.id).toBe("T-002");
+  });
+
+  it("names no One Thing when every open card is blocked, but still points somewhere", () => {
+    const ws = workspace([charter("alpha", 1, [card({ id: "T-001", blocked: true })])]);
+    const model = buildFocus(ws, []);
+    // oneThing stays null — there is genuinely nothing unblocked to recommend.
+    // oneIndex still has to be a valid row, because the view must render one.
+    expect(model.oneThing).toBeNull();
+    expect(model.oneIndex).toBe(0);
+  });
+
+  it("has no one thing at all when nothing is open", () => {
+    const model = buildFocus(workspace([charter("alpha", 1, [])]), []);
+    expect(model.oneThing).toBeNull();
+    expect(model.oneIndex).toBe(0);
+  });
+});
+
+describe("planRowsFor", () => {
+  const ranked = (n: number) =>
+    rankCards(
+      workspace([
+        charter(
+          "alpha",
+          1,
+          Array.from({ length: n }, (_, i) =>
+            card({ id: `T-0${String(i + 1).padStart(2, "0")}` }),
+          ),
+        ),
+      ]),
+    );
+
+  it("shows five rows on a normal day and two on a low one", () => {
+    expect(planRowsFor(ranked(8), null)).toHaveLength(5);
+    expect(planRowsFor(ranked(8), 4)).toHaveLength(5);
+    expect(planRowsFor(ranked(8), 2)).toHaveLength(2);
+    expect(planRowsFor(ranked(8), 1)).toHaveLength(2);
+  });
+
+  it("never invents rows it does not have", () => {
+    expect(planRowsFor(ranked(1), null)).toHaveLength(1);
+    expect(planRowsFor([], 1)).toEqual([]);
+  });
+
+  it("treats no answer as a normal day", () => {
+    expect(isLowDay(null)).toBe(false);
+    expect(isLowDay(3)).toBe(false);
+    expect(isLowDay(2)).toBe(true);
+  });
+});
+
+describe("nextIndexAfterSkip", () => {
+  // Built directly rather than through rankCards, which would reorder by size
+  // and hide what this function actually does with the index it is given.
+  const item = (id: string, size: "S" | "M" | "L") => ({
+    card: card({ id, size }),
+    why: "",
+    effort: "",
+    pinned: false,
+  });
+  const ranked = [item("T-001", "L"), item("T-002", "L"), item("T-003", "S")];
+
+  it("steps to the next row for an urgent interruption", () => {
+    expect(nextIndexAfterSkip(ranked, 0, "urgent")).toBe(1);
+  });
+
+  it("jumps to the cheapest other task for a quick win or no energy", () => {
+    expect(nextIndexAfterSkip(ranked, 0, "quick")).toBe(2);
+    expect(nextIndexAfterSkip(ranked, 0, "energy")).toBe(2);
+  });
+
+  it("never picks the card being skipped, even when it is the small one", () => {
+    expect(nextIndexAfterSkip(ranked, 2, "quick")).toBe(2);
+  });
+
+  it("clamps at the end rather than pointing past it", () => {
+    expect(nextIndexAfterSkip(ranked, 2, "urgent")).toBe(2);
+  });
+
+  it("is safe on an empty ranking", () => {
+    expect(nextIndexAfterSkip([], 0, "quick")).toBe(0);
+  });
+});
+
+describe("clockOf", () => {
+  it("pads to mm:ss", () => {
+    expect(clockOf(25 * 60)).toBe("25:00");
+    expect(clockOf(65)).toBe("01:05");
+    expect(clockOf(9)).toBe("00:09");
+    expect(clockOf(0)).toBe("00:00");
+  });
+
+  it("does not render a negative clock", () => {
+    expect(clockOf(-5)).toBe("00:00");
   });
 });

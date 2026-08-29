@@ -69,8 +69,8 @@ The UI implements the **Momentum v2** design: a warm light theme, a collapsible 
 | `/life`, `/areas/<slug>`, `/targets` | Life | Areas, their tasks, and targets (charter `## MVP scope` lines) |
 | `/calendar` | Calendar | Month grid and grouped list built from task `due:` dates |
 | `/review` | Review | Weekly numbers, distance to MVP per project, momentum over recent weeks, open-work split, plus an on-demand AI read of the week |
-| `/journal` | Activity | The journal, newest first |
-| `/agents` | Agents | Sources with their connection state and the tools the assistant may call |
+| `/settings/activity` | Activity | The journal, newest first |
+| `/settings/agents` | Agents | Connected coding agents and the tools the assistant may call |
 | `/settings` | Settings | Sources, model catalog, favourites and the general context (`about.md`) |
 
 The assistant rail has four modes (Plan / Straight / Reflect / Target) that change the system prompt, a scope selector that follows the screen by default, and an **Inspect context** panel showing exactly what is being sent — including `about.md`, which you can edit in place.

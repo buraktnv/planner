@@ -21,6 +21,11 @@ export interface FocusModel {
   ranked: RankedItem[];
   todayEvents: EventModel[];
   oneThing: RankedItem | null;
+  /**
+   * Index of oneThing in `ranked`, so the view can start there and still do
+   * its own index arithmetic when you skip. 0 when nothing qualifies.
+   */
+  oneIndex: number;
   streaks: StreakModel[];
   held: { n: number; label: string }[];
   overdue: number;
@@ -33,6 +38,41 @@ export interface FocusModel {
 }
 
 const EFFORT: Record<string, string> = { S: "15 min", M: "1 h", L: "2 h+" };
+
+/** A low mood cuts the day's plan to two rows. Moods are 1-4; 1-2 is a low day. */
+export function isLowDay(mood: number | null): boolean {
+  return mood !== null && mood <= 2;
+}
+
+export function planRowsFor(ranked: RankedItem[], mood: number | null): RankedItem[] {
+  return ranked.slice(0, isLowDay(mood) ? 2 : 5);
+}
+
+export type SkipReason = "energy" | "blocked" | "urgent" | "quick";
+
+/**
+ * Where the One Thing pointer lands after a skip. "quick" and "energy" look
+ * for the cheapest other task; anything else steps down the ranking. Clamped,
+ * so skipping the last row leaves it there rather than pointing past the end.
+ */
+export function nextIndexAfterSkip(
+  ranked: RankedItem[],
+  index: number,
+  reason: SkipReason,
+): number {
+  if (ranked.length === 0) return 0;
+  const step = Math.min(index + 1, ranked.length - 1);
+  if (reason !== "quick" && reason !== "energy") return step;
+  const small = ranked.findIndex((r, i) => i !== index && r.card.size === "S");
+  return small >= 0 ? small : step;
+}
+
+export function clockOf(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const mm = String(Math.floor(safe / 60)).padStart(2, "0");
+  const ss = String(safe % 60).padStart(2, "0");
+  return `${mm}:${ss}`;
+}
 
 function groupOf(card: CardModel, today: string): number {
   if (card.blocked) return 4;
@@ -208,11 +248,16 @@ export function buildFocus(
   }
 
   const openTotal = ranked.length;
+  // Blocked work is never the One Thing. -1 means everything open is blocked,
+  // in which case the view still has to show something, so fall back to first.
+  const firstUnblocked = ranked.findIndex((r) => !r.card.blocked);
+  const oneIndex = firstUnblocked === -1 ? 0 : firstUnblocked;
 
   return {
     ranked,
     todayEvents,
-    oneThing: ranked.find((r) => !r.card.blocked) ?? null,
+    oneThing: firstUnblocked === -1 ? null : ranked[firstUnblocked],
+    oneIndex,
     streaks,
     held: [
       { n: doneToday, label: "DONE TODAY" },

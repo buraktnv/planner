@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { appendJournal, readJournal } from "@/lib/core/journal";
+import { commitData } from "@/lib/core/git";
+import { withDataLock } from "@/lib/core/locks";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,13 @@ export async function POST(req: Request) {
     const message = typeof body.message === "string" ? body.message.trim() : "";
     if (!scope) return NextResponse.json({ error: "scope is required" }, { status: 400 });
     if (!message) return NextResponse.json({ error: "message is required" }, { status: 400 });
-    await appendJournal(scope, message);
+    // appendJournal is the one lib/core writer that does not commit — every
+    // other caller commits after it as part of a larger write. A journal entry
+    // posted on its own has no such caller, so it commits here or not at all.
+    await withDataLock(async () => {
+      await appendJournal(scope, message);
+      await commitData(`journal: ${message} (${scope})`);
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error";

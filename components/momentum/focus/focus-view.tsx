@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import type { FocusModel, RankedItem } from "@/lib/view/focus";
+import {
+  clockOf,
+  isLowDay,
+  nextIndexAfterSkip,
+  planRowsFor,
+  type FocusModel,
+  type RankedItem,
+  type SkipReason,
+} from "@/lib/view/focus";
 import { LANES } from "@/lib/ui/momentum";
 import { useMomentum } from "../context";
 import { Bar, Mono, Ring, Rule, Tick } from "../primitives";
@@ -37,7 +45,8 @@ export default function FocusView({ model }: { model: FocusModel }) {
   const [stuckOpen, setStuckOpen] = useState(false);
   const [stuckStep, setStuckStep] = useState(0);
   const [skipOpen, setSkipOpen] = useState(false);
-  const [oneIndex, setOneIndex] = useState(0);
+  // Seeded from the model so a blocked task is never presented first.
+  const [oneIndex, setOneIndex] = useState(model.oneIndex);
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
   const [seconds, setSeconds] = useState(FOCUS_MINUTES * 60);
   const [timing, setTiming] = useState(false);
@@ -62,13 +71,12 @@ export default function FocusView({ model }: { model: FocusModel }) {
     };
   }, [timing]);
 
-  const lowDay = mood !== null && mood <= 2;
+  const lowDay = isLowDay(mood);
   const ranked = model.ranked;
   const one: RankedItem | null = ranked[oneIndex] ?? ranked[0] ?? null;
-  const planRows = lowDay ? ranked.slice(0, 2) : ranked.slice(0, 5);
+  const planRows = planRowsFor(ranked, mood);
 
-  const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
-  const ss = String(seconds % 60).padStart(2, "0");
+  const clock = clockOf(seconds);
 
   const eventStrip = model.todayEvents.length ? (
     <div className="mb-[22px] rounded-[20px] border border-edge bg-surf px-[22px] py-[17px]">
@@ -124,7 +132,7 @@ export default function FocusView({ model }: { model: FocusModel }) {
     router.refresh();
   };
 
-  const skip = async (reason: (typeof SKIP_REASONS)[number]["key"]) => {
+  const skip = async (reason: SkipReason) => {
     setSkipOpen(false);
     if (!one) return;
     if (reason === "blocked") {
@@ -136,12 +144,7 @@ export default function FocusView({ model }: { model: FocusModel }) {
       router.refresh();
       return;
     }
-    if (reason === "quick" || reason === "energy") {
-      const idx = ranked.findIndex((r, i) => i !== oneIndex && r.card.size === "S");
-      setOneIndex(idx >= 0 ? idx : Math.min(oneIndex + 1, ranked.length - 1));
-      return;
-    }
-    setOneIndex((i) => Math.min(i + 1, ranked.length - 1));
+    setOneIndex(nextIndexAfterSkip(ranked, oneIndex, reason));
   };
 
   if (ranked.length === 0) {
@@ -346,7 +349,7 @@ export default function FocusView({ model }: { model: FocusModel }) {
                   >
                     <path d={timing ? "M9 6v12M15 6v12" : "M7 4l13 8-13 8z"} />
                   </svg>
-                  {timing ? `${mm}:${ss}` : `Start ${FOCUS_MINUTES} minutes`}
+                  {timing ? clock : `Start ${FOCUS_MINUTES} minutes`}
                 </button>
                 <button
                   type="button"
@@ -454,7 +457,7 @@ export default function FocusView({ model }: { model: FocusModel }) {
               >
                 <path d={timing ? "M9 6v12M15 6v12" : "M7 4l13 8-13 8z"} />
               </svg>
-              {timing ? `${mm}:${ss}` : `Start ${FOCUS_MINUTES} minutes`}
+              {timing ? clock : `Start ${FOCUS_MINUTES} minutes`}
             </button>
             <button
               type="button"

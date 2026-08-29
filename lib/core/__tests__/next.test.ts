@@ -81,3 +81,51 @@ describe("getNextActions", () => {
     expect(actions.find((x) => x.task.id === done.id)).toBeUndefined();
   });
 });
+
+describe("blocked work matches the Focus page", () => {
+  it("sinks a blocked task below open work, even when it is overdue", async () => {
+    const { createCharter, addTask, updateTask } = await import("../store");
+    const { getNextActions } = await import("../next");
+
+    await createCharter({ type: "project", name: "Bot", why: "w", mvp: "ship it", priority: 1 });
+    const blocker = await addTask("project", "bot", { title: "Camera control", size: "M" });
+    const waiting = await addTask("project", "bot", {
+      title: "YOLO nano",
+      size: "S",
+      due: shift(-3),
+      waitsOn: blocker.id,
+    });
+    const free = await addTask("project", "bot", { title: "Anything else", size: "L" });
+
+    const actions = await getNextActions(10);
+    const ids = actions.map((a) => a.task.id);
+    expect(ids.indexOf(waiting.id)).toBe(ids.length - 1);
+    expect(ids.indexOf(free.id)).toBeLessThan(ids.indexOf(waiting.id));
+    expect(actions.find((a) => a.task.id === waiting.id)?.blocked).toBe(true);
+    expect(actions.find((a) => a.task.id === free.id)?.blocked).toBe(false);
+
+    await updateTask("project", "bot", blocker.id, { complete: true });
+    const after = await getNextActions(10);
+    expect(after.find((a) => a.task.id === waiting.id)?.blocked).toBe(false);
+    expect(after[0].task.id).toBe(waiting.id);
+  });
+
+  it("gives the same answer for a fixed today, whatever the clock says", async () => {
+    const { createCharter, addTask } = await import("../store");
+    const { getNextActions } = await import("../next");
+
+    await createCharter({ type: "project", name: "Bot", why: "w", mvp: "ship it", priority: 1 });
+    await addTask("project", "bot", { title: "Dated", size: "M", due: "2026-06-01" });
+    await addTask("project", "bot", { title: "Undated", size: "S" });
+
+    const ids = async (today: string) =>
+      (await getNextActions(10, today)).map((a) => a.task.id);
+    expect(await ids("2026-05-01")).toEqual(await ids("2026-05-01"));
+    // Dated work outranks undated work either side of the due date. The
+    // overdue-vs-upcoming tiers cannot reorder two dated tasks, because a
+    // group-0 date is by definition earlier than a group-1 one — the split
+    // exists for the copy, not the ordering.
+    expect((await ids("2026-05-01"))[0]).toBe("T-001");
+    expect((await ids("2026-07-01"))[0]).toBe("T-001");
+  });
+});
