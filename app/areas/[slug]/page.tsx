@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadCharterModel, type CardModel } from "@/lib/view/workspace";
 import {
@@ -12,6 +13,7 @@ import CardOpener from "@/components/momentum/card-opener";
 import NewButton from "@/components/momentum/new-button";
 import ArchiveButton from "@/components/momentum/archive-button";
 import { targetsOf } from "@/lib/view/targets";
+import { listNotes } from "@/lib/core/knowledge";
 import TargetToggle from "@/components/momentum/target-toggle";
 import { LANES, shortDate } from "@/lib/ui/momentum";
 
@@ -47,6 +49,9 @@ export default async function AreaPage({
   const area = await loadCharterModel("area", slug);
   if (!area) notFound();
 
+  const notes = await listNotes();
+  const docCount = notes.filter((n) => n.scope.includes(`area:${area.id}`)).length;
+
   const targets = targetsOf(area.mvpScope);
   const parked = area.parkingLot
     .map(parkedTitle)
@@ -63,6 +68,12 @@ export default async function AreaPage({
         />
         <h1 className="m-0 text-2xl font-semibold tracking-[-0.03em]">{area.name}</h1>
         <div className="flex-1" />
+        <Link
+          href={`/areas/${area.id}/docs`}
+          className="font-mono text-[10px] tracking-[0.12em] text-faint transition-colors hover:text-ink"
+        >
+          DOCS · {docCount}
+        </Link>
         <NewButton kind="branch" prefill={{ scopeKey: `area/${area.id}` }} variant="mono">
           + TASK
         </NewButton>

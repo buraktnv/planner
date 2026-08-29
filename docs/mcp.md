@@ -37,6 +37,19 @@ The knowledge tools are how an agent reads and writes the owner's second brain. 
 the focused project or area are ever loaded automatically — reach for `search_knowledge` before
 concluding something is not written down, and `add_note` when you learn something worth keeping.
 
+**A project's documentation is its scoped notes.** Everything else in the planner points forward — a
+charter says why a project exists, a task says what is left to do. A note scoped to a project is the
+only place that records what has *already been built*: how it is put together, what the interfaces
+are, which decisions were settled and why, how to run it. File one with `add_note` and
+`scope: ["<project-slug>"]` (or `["area:<slug>"]`), and revise it with `update_note` rather than
+filing a second note on the same subject. The owner browses these at `/projects/<slug>/docs`.
+
+Use the first tag as the doc's category — `architecture`, `protocol`, `decision`, `runbook` or
+`reference` — because the docs page groups by it. The `summary` is the single line that gets loaded
+into chat before any body is read, so state the conclusion in it, not the topic. Note that scoped
+notes live in `knowledge/` and therefore do **not** move into `archive/` with a charter; project
+documentation deliberately outlives the project.
+
 A task line carries only a title, a size and a few dates — there is nowhere in it to record *why* a
 task exists or how it should be done. That lives in the task detail: free markdown at
 `projects/<slug>/details/<task-id>.md`, one file per task or subtask. Call `read_task_detail` before

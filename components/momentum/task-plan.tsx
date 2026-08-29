@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ProjectType } from "@/lib/core/types";
 import { Mono } from "./primitives";
+import Markdown from "./markdown";
 
 export default function TaskPlan({
   type,
@@ -132,8 +133,8 @@ export default function TaskPlan({
       ) : body === null ? (
         <Mono className="block text-[10px] text-faint">LOADING…</Mono>
       ) : body.trim() ? (
-        <div className="whitespace-pre-wrap rounded-[13px] bg-soft p-[13px] text-[13px] leading-[1.65] text-ink">
-          {body.trim()}
+        <div className="rounded-[13px] bg-soft p-[13px]">
+          <Markdown>{body.trim()}</Markdown>
         </div>
       ) : (
         <button

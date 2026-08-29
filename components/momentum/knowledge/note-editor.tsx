@@ -46,10 +46,12 @@ export default function NoteEditor({
   initial,
   onClose,
   onSaved,
+  lockedScope,
 }: {
   initial: EditorValue;
   onClose: () => void;
   onSaved: () => void;
+  lockedScope?: string;
 }) {
   const [value, setValue] = useState<EditorValue>(initial);
   const [error, setError] = useState<string | null>(null);
@@ -126,14 +128,20 @@ export default function NoteEditor({
         </Field>
 
         <div className="grid grid-cols-2 gap-3.5">
-          <Field label="SCOPE" hint="Comma separated. ftbot, area:trading">
-            <input
-              className={FIELD}
-              value={value.scope}
-              onChange={(e) => set({ scope: e.target.value })}
-              placeholder="ftbot, area:trading"
-            />
-          </Field>
+          {lockedScope ? (
+            <Field label="SCOPE" hint="Filed to this charter.">
+              <input className={`${FIELD} text-dim`} value={value.scope || lockedScope} readOnly />
+            </Field>
+          ) : (
+            <Field label="SCOPE" hint="Comma separated. ftbot, area:trading">
+              <input
+                className={FIELD}
+                value={value.scope}
+                onChange={(e) => set({ scope: e.target.value })}
+                placeholder="ftbot, area:trading"
+              />
+            </Field>
+          )}
           <Field label="TAGS" hint="Comma separated, lowercase.">
             <input
               className={FIELD}

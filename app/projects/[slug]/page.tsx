@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadCharterModel } from "@/lib/view/workspace";
+import { listNotes } from "@/lib/core/knowledge";
 import { isQuiet, LANES, LANE_KEYS, shortDate } from "@/lib/ui/momentum";
 import { Bar, Mono, Ring } from "@/components/momentum/primitives";
 import CardOpener from "@/components/momentum/card-opener";
@@ -17,6 +18,9 @@ export default async function ProjectDetailPage({
   const { slug } = await params;
   const charter = await loadCharterModel("project", slug);
   if (!charter) notFound();
+
+  const notes = await listNotes();
+  const docCount = notes.filter((n) => n.scope.includes(charter.id)).length;
 
   const quiet = isQuiet(charter.status);
   const scopeKey = `project/${charter.id}`;
@@ -35,6 +39,12 @@ export default async function ProjectDetailPage({
           ← PROJECTS
         </Link>
         <div className="flex-1" />
+        <Link
+          href={`/projects/${charter.id}/docs`}
+          className="font-mono text-[10px] tracking-[0.12em] text-faint transition-colors hover:text-ink"
+        >
+          DOCS · {docCount}
+        </Link>
         <NewButton kind="target" prefill={{ scopeKey }} variant="mono">
           + TARGET
         </NewButton>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Dialog from "../dialog";
 import { Empty, Mono } from "../primitives";
+import Markdown from "../markdown";
 import { scopeChip } from "@/lib/view/knowledge";
 import type { KnowledgeNote } from "@/lib/core/types";
 
@@ -117,8 +118,8 @@ export default function NoteDetail({
           </div>
 
           {data.note.body ? (
-            <div className="mt-4 whitespace-pre-wrap border-t border-edge pt-4 text-[13.5px] leading-[1.65]">
-              {data.note.body}
+            <div className="mt-4 border-t border-edge pt-4">
+              <Markdown>{data.note.body}</Markdown>
             </div>
           ) : (
             <div className="mt-4 border-t border-edge pt-4">

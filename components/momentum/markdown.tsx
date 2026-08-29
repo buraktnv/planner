@@ -1,0 +1,92 @@
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+const COMPONENTS: Components = {
+  h1: ({ children }) => (
+    <h1 className="mt-5 mb-2 text-[17px] font-semibold tracking-[-0.02em] text-ink first:mt-0">
+      {children}
+    </h1>
+  ),
+  h2: ({ children }) => (
+    <h2 className="mt-5 mb-2 text-[15px] font-semibold tracking-[-0.02em] text-ink first:mt-0">
+      {children}
+    </h2>
+  ),
+  h3: ({ children }) => (
+    <h3 className="mt-4 mb-1.5 text-[13.5px] font-semibold tracking-[-0.01em] text-ink first:mt-0">
+      {children}
+    </h3>
+  ),
+  h4: ({ children }) => (
+    <h4 className="mt-3.5 mb-1.5 font-mono text-[10px] tracking-[0.12em] text-faint uppercase first:mt-0">
+      {children}
+    </h4>
+  ),
+  p: ({ children }) => <p className="mb-2.5 last:mb-0">{children}</p>,
+  ul: ({ children }) => (
+    <ul className="mb-2.5 flex list-disc flex-col gap-1 pl-[18px] last:mb-0">{children}</ul>
+  ),
+  ol: ({ children }) => (
+    <ol className="mb-2.5 flex list-decimal flex-col gap-1 pl-[18px] last:mb-0">{children}</ol>
+  ),
+  li: ({ children }) => <li className="leading-[1.6]">{children}</li>,
+  a: ({ href, children }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="text-dim underline underline-offset-2 transition-colors hover:text-ink"
+    >
+      {children}
+    </a>
+  ),
+  strong: ({ children }) => <strong className="font-semibold text-ink">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+  blockquote: ({ children }) => (
+    <blockquote className="mb-2.5 border-l-2 border-edge pl-3 text-dim last:mb-0">
+      {children}
+    </blockquote>
+  ),
+  hr: () => <hr className="my-4 border-0 border-t border-edge2" />,
+  pre: ({ children }) => (
+    <pre className="mb-2.5 overflow-x-auto rounded-[8px] bg-soft p-3 font-mono text-[11.5px] leading-[1.55] last:mb-0">
+      {children}
+    </pre>
+  ),
+  code: ({ className, children }) => {
+    const text = String(children ?? "");
+    const block = (className ?? "").includes("language-") || text.includes("\n");
+    if (block) {
+      return <code className="font-mono text-[11.5px] leading-[1.55]">{children}</code>;
+    }
+    return (
+      <code className="rounded-[5px] bg-soft px-[5px] py-[2px] font-mono text-[11.5px]">
+        {children}
+      </code>
+    );
+  },
+  table: ({ children }) => (
+    <div className="mb-2.5 overflow-x-auto last:mb-0">
+      <table className="w-full border-collapse text-[12px]">{children}</table>
+    </div>
+  ),
+  th: ({ children }) => (
+    <th className="border border-edge2 bg-soft px-2 py-1 text-left font-medium text-dim">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => <td className="border border-edge2 px-2 py-1 align-top">{children}</td>,
+  input: ({ checked }) => (
+    <input type="checkbox" checked={checked} readOnly className="mr-1.5 align-middle" />
+  ),
+};
+
+export default function Markdown({ children }: { children: string }) {
+  return (
+    <div className="text-[13px] leading-[1.65] text-ink">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
+        {children}
+      </ReactMarkdown>
+    </div>
+  );
+}

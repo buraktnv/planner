@@ -154,7 +154,7 @@ export default function Sidebar({
           {lifeOpen && !collapsed && (
             <div className="mb-1.5 flex flex-col gap-px pl-3.5">
               {areas.map((a) => {
-                const active = pathname === `/areas/${a.slug}`;
+                const active = pathname === `/areas/${a.slug}` || pathname.startsWith(`/areas/${a.slug}/`);
                 return (
                   <Link
                     key={a.key}
@@ -291,7 +291,8 @@ export default function Sidebar({
           {projOpen && !collapsed && (
             <div className="mb-1.5 flex flex-col gap-px pl-3.5">
               {projects.map((p) => {
-                const active = pathname === `/projects/${p.slug}`;
+                const active =
+                  pathname === `/projects/${p.slug}` || pathname.startsWith(`/projects/${p.slug}/`);
                 return (
                   <Link
                     key={p.key}
