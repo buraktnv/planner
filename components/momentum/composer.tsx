@@ -1,8 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LANES, LANE_KEYS } from "@/lib/ui/momentum";
+import {
+  milestoneNames,
+  nextTargetId,
+  parseMilestoneLine,
+  serializeTargetLine,
+  targetsOf,
+} from "@/lib/view/targets";
 import type { TaskLane, TaskSize } from "@/lib/core/types";
 import type { ComposerKind, ComposerPrefill, NavCharter } from "./context";
 import { Mono } from "./primitives";
@@ -52,12 +59,47 @@ export default function Composer({
   const [due, setDue] = useState("");
   const [steps, setSteps] = useState("");
   const [waitsOn, setWaitsOn] = useState("");
+  const [milestone, setMilestone] = useState("");
+  const [target, setTarget] = useState("");
+  const [scopeTargets, setScopeTargets] = useState<
+    { id: string; title: string; milestone: string | null }[]
+  >([]);
+  const [scopeMilestones, setScopeMilestones] = useState<string[]>([]);
   const [time, setTime] = useState("");
   const [note, setNote] = useState("");
   const [scopeKey, setScopeKey] = useState<string>(
     prefill?.scopeKey ?? (kind === "event" ? "" : (charters[0]?.key ?? "")),
   );
   const [busy, setBusy] = useState(false);
+
+  // The charter owns the targets and milestones, so the pickers follow whichever
+  // charter is selected rather than being computed once.
+  useEffect(() => {
+    if (kind !== "target" && kind !== "branch") return;
+    const [type, slug] = scopeKey.split("/");
+    if (!type || !slug) return;
+    let live = true;
+    fetch(`/api/charters/${type}/${slug}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((c: { mvpScope?: string[] }) => {
+        if (!live) return;
+        const scope = c.mvpScope ?? [];
+        setScopeMilestones(milestoneNames(scope));
+        setScopeTargets(
+          targetsOf(scope)
+            .filter((t) => t.id !== null)
+            .map((t) => ({ id: t.id as string, title: t.title, milestone: t.milestone })),
+        );
+      })
+      .catch(() => {
+        if (!live) return;
+        setScopeMilestones([]);
+        setScopeTargets([]);
+      });
+    return () => {
+      live = false;
+    };
+  }, [kind, scopeKey]);
   const [error, setError] = useState<string | null>(null);
 
   const needsScope = kind === "branch" || kind === "target" || kind === "event";
@@ -114,11 +156,34 @@ export default function Composer({
         const current = await fetch(`/api/charters/${type}/${slug}`);
         if (!current.ok) throw new Error("Could not read the charter");
         const charter = (await current.json()) as { mvpScope: string[] };
-        const line = due.trim() ? `${title.trim()} — by ${due.trim()}` : title.trim();
+        const line = serializeTargetLine({
+          id: nextTargetId(charter.mvpScope),
+          title: title.trim(),
+          by: due.trim() || null,
+          done: false,
+        });
+        // A target joins an existing milestone by being appended under it, so
+        // the heading order in the file stays the roadmap order.
+        const wanted = milestone.trim();
+        const next = [...charter.mvpScope];
+        if (wanted) {
+          const headings = next
+            .map((l, i) => ({ i, name: parseMilestoneLine(l) }))
+            .filter((h) => h.name !== null);
+          const at = headings.findIndex((h) => h.name === wanted);
+          if (at === -1) {
+            next.push(`### ${wanted}`, line);
+          } else {
+            const end = at + 1 < headings.length ? headings[at + 1].i : next.length;
+            next.splice(end, 0, line);
+          }
+        } else {
+          next.push(line);
+        }
         const res = await fetch(`/api/charters/${type}/${slug}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ mvpScope: [...charter.mvpScope, `- [ ] ${line}`] }),
+          body: JSON.stringify({ mvpScope: next }),
         });
         if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? "Failed");
         onClose();
@@ -136,6 +201,7 @@ export default function Composer({
           lane,
           ...(due ? { due } : {}),
           ...(kind === "branch" && waitsOn.trim() ? { waitsOn: waitsOn.trim() } : {}),
+          ...(kind === "branch" && target ? { target } : {}),
         }),
       });
       if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? "Failed");
@@ -318,6 +384,20 @@ export default function Composer({
 
         {kind === "target" && (
           <>
+            <FieldLabel>MILESTONE — OPTIONAL</FieldLabel>
+            <input
+              value={milestone}
+              onChange={(e) => setMilestone(e.target.value)}
+              list="composer-milestones"
+              placeholder="M1 — prove it works"
+              className="mb-[18px] w-full rounded-[13px] border border-edge bg-bg px-3.5 py-[11px] text-[13px] outline-none placeholder:text-faint"
+            />
+            <datalist id="composer-milestones">
+              {scopeMilestones.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+
             <FieldLabel>BY WHEN — OPTIONAL</FieldLabel>
             <input
               value={due}
@@ -326,8 +406,26 @@ export default function Composer({
               className="mb-[18px] w-full rounded-[13px] border border-edge bg-bg px-3.5 py-[11px] font-mono text-[12.5px] outline-none placeholder:text-faint"
             />
             <Mono className="mb-2 block text-[9px] leading-[1.6] tracking-[0.06em] text-faint">
-              TARGETS ARE STORED AS MVP SCOPE LINES ON THE CHARTER
+              TARGETS ARE MVP SCOPE LINES ON THE CHARTER · A NEW MILESTONE NAME CREATES IT
             </Mono>
+          </>
+        )}
+
+        {kind === "branch" && scopeTargets.length > 0 && (
+          <>
+            <FieldLabel>TARGET — OPTIONAL</FieldLabel>
+            <select
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              className="mb-[18px] w-full rounded-[13px] border border-edge bg-bg px-3.5 py-[11px] text-[13px] outline-none"
+            >
+              <option value="">No target</option>
+              {scopeTargets.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.milestone ? `${t.milestone} · ${t.title}` : t.title}
+                </option>
+              ))}
+            </select>
           </>
         )}
 

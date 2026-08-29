@@ -40,10 +40,14 @@ export default function DocPage({
   // already on, so it is shown for out-of-scope charters only.
   const otherScopes = note.scope.filter((s) => s !== scopeKey);
 
+  // The sidebar carries its own "all docs" link, so the inline one is only
+  // hidden at the width where the sidebar actually appears.
+  const hasSidebar = Boolean(scopeKey) && model.groups.length > 0;
+
   return (
     <div className="px-[30px] pt-[34px] pb-[70px]">
       <div className="mx-auto flex w-full max-w-[1000px] gap-9">
-        {scopeKey && model.groups.length ? (
+        {hasSidebar && scopeKey ? (
           <DocsSidebar
             groups={model.groups}
             scopeKey={scopeKey}
@@ -57,7 +61,9 @@ export default function DocPage({
           <div className="mb-4 flex items-center gap-3">
             <Link
               href={indexHref}
-              className="font-mono text-[10px] tracking-[0.12em] text-faint transition-colors hover:text-ink lg:hidden"
+              className={`font-mono text-[10px] tracking-[0.12em] text-faint transition-colors hover:text-ink ${
+                hasSidebar ? "lg:hidden" : ""
+              }`}
             >
               ← {backLabel.toUpperCase()}
             </Link>

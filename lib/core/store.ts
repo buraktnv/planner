@@ -33,6 +33,16 @@ function cleanWaitsOn(value: string | undefined): string | undefined {
   return trimmed;
 }
 
+function cleanTarget(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (trimmed === "") return undefined;
+  if (!/^G-\d{3,}$/.test(trimmed)) {
+    throw new Error(`A target: value must look like G-001, got "${trimmed}"`);
+  }
+  return trimmed;
+}
+
 function dataDir(type: ProjectType): string {
   return type === "project" ? "projects" : "areas";
 }
@@ -154,6 +164,7 @@ export async function addTask(
     parentId?: string;
     est?: string;
     due?: string;
+    target?: string;
     waitsOn?: string;
   },
 ): Promise<Task> {
@@ -183,6 +194,7 @@ export async function addTask(
       created: today(),
       est: input.est,
       due: input.due,
+      target: cleanTarget(input.target),
       waitsOn: cleanWaitsOn(input.waitsOn),
       parentId: input.parentId,
       section: parentSection,
@@ -204,6 +216,7 @@ export async function addTask(
       created: today(),
       est: input.est,
       due: input.due,
+      target: cleanTarget(input.target),
       waitsOn: cleanWaitsOn(input.waitsOn),
       parentId: null,
     };
@@ -220,7 +233,9 @@ export async function updateTask(
   type: ProjectType,
   slug: string,
   taskId: string,
-  patch: Partial<Pick<Task, "title" | "size" | "section" | "est" | "due" | "lane" | "waitsOn">> & {
+  patch: Partial<
+    Pick<Task, "title" | "size" | "section" | "est" | "due" | "lane" | "target" | "waitsOn">
+  > & {
     complete?: boolean;
   },
 ): Promise<Task> {
@@ -233,6 +248,7 @@ export async function updateTask(
   if (patch.est !== undefined) t.est = patch.est;
   if (patch.due !== undefined) t.due = patch.due;
   if (patch.lane !== undefined) t.lane = patch.lane;
+  if (patch.target !== undefined) t.target = cleanTarget(patch.target);
   if (patch.waitsOn !== undefined) t.waitsOn = cleanWaitsOn(patch.waitsOn);
   if (patch.complete) {
     t.done = true;

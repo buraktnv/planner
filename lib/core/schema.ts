@@ -38,7 +38,8 @@ const TASK_SECTION_HEADER: Record<TaskSection, string> = {
   "in-progress": "## In progress",
   done: "## Done",
 };
-const TASK_FIELD_KEYS = new Set(["created", "done", "est", "due", "lane", "waits"]);
+const TASK_FIELD_KEYS = new Set(["created", "done", "est", "due", "lane", "target", "waits"]);
+const TARGET_REF_RE = /^G-\d{3,}$/;
 const TASK_LANE_VALUES: TaskLane[] = ["quick", "deep", "wait", "some"];
 const TASK_SIZE_VALUES: TaskSize[] = ["S", "M", "L"];
 
@@ -131,6 +132,7 @@ export function parseTasks(raw: string): Task[] {
     let est: string | undefined;
     let due: string | undefined;
     let lane: TaskLane | undefined;
+    let target: string | undefined;
     let waitsOn: string | undefined;
     for (const field of parts.slice(3)) {
       const colon = field.indexOf(":");
@@ -153,6 +155,16 @@ export function parseTasks(raw: string): Task[] {
           );
         }
         lane = value as TaskLane;
+      } else if (key === "target") {
+        // Shape only. Targets live in the charter file, not here, so this
+        // parser cannot check existence — and must not, or editing a charter
+        // could make tasks.md unparseable. Unknown ids resolve to no link.
+        if (!TARGET_REF_RE.test(value)) {
+          throw new TaskParseError(
+            `Line ${lineNo}: task ${id} has invalid target "${value}"; expected G- followed by at least 3 digits`,
+          );
+        }
+        target = value;
       } else if (key === "waits") {
         if (value === "") {
           throw new TaskParseError(`Line ${lineNo}: task ${id} has an empty waits: value: ${line}`);
@@ -185,6 +197,7 @@ export function parseTasks(raw: string): Task[] {
       doneDate,
       est,
       due,
+      target,
       waitsOn,
       parentId,
     });
@@ -201,11 +214,31 @@ export function parseTasks(raw: string): Task[] {
   return tasks;
 }
 
+/** `T-001.2` -> [1, 2], so ids sort as a tree rather than as strings. */
+function idPath(id: string): number[] {
+  return id
+    .replace(/^T-/, "")
+    .split(".")
+    .map((part) => Number(part) || 0);
+}
+
+function byIdPath(a: Task, b: Task): number {
+  const pa = idPath(a.id);
+  const pb = idPath(b.id);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] ?? -1) - (pb[i] ?? -1);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
 export function serializeTasks(tasks: Task[]): string {
   const blocks = TASK_SECTION_ORDER.map((sec) => {
     const lines: string[] = [TASK_SECTION_HEADER[sec]];
-    for (const t of tasks) {
-      if (t.section !== sec) continue;
+    // Sorted by id rather than array position: completing a task moves it to
+    // another section without moving it in the array, so raw order would list
+    // a decomposition backwards in ## Done.
+    for (const t of [...tasks].filter((x) => x.section === sec).sort(byIdPath)) {
       const indent = "  ".repeat(depthOf(t.id));
       const box = t.done ? "[x]" : "[ ]";
       const fields: string[] = [];
@@ -213,6 +246,7 @@ export function serializeTasks(tasks: Task[]): string {
       if (t.est) fields.push(`est:${t.est}`);
       if (t.due) fields.push(`due:${t.due}`);
       if (t.lane) fields.push(`lane:${t.lane}`);
+      if (t.target) fields.push(`target:${t.target}`);
       if (t.waitsOn) fields.push(`waits:${t.waitsOn}`);
       if (t.doneDate) fields.push(`done:${t.doneDate}`);
       const fieldStr = fields.length ? ` | ${fields.join(" | ")}` : "";

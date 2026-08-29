@@ -28,6 +28,7 @@ export const toolImplMap: Record<ToolName, ImplFn> = {
   add_note: toolImpls.addNote as ImplFn,
   update_note: toolImpls.updateNote as ImplFn,
   next_actions: () => toolImpls.nextActions(),
+  list_targets: (a) => toolImpls.listTargets(a as { project?: string }),
   weekly_summary: () => toolImpls.weeklySummary(),
   propose_changes: toolImpls.proposeChanges as ImplFn,
 };

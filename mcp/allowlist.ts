@@ -13,6 +13,7 @@ export const READ_TOOLS: ToolName[] = [
   "list_events",
   "get_daily",
   "next_actions",
+  "list_targets",
   "weekly_summary",
   "search_knowledge",
   "read_note",

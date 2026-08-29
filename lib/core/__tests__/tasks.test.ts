@@ -148,6 +148,80 @@ describe("serializeTasks", () => {
   });
 });
 
+describe("section ordering", () => {
+  it("lists a completed decomposition in id order, not completion order", () => {
+    // Completing subtasks one at a time moves each into ## Done without moving
+    // it in the array, so raw array order would come out backwards.
+    const tasks = parseTasks(
+      "## Backlog\n- [ ] T-001 | L | Parent\n  - [ ] T-001.1 | S | One\n  - [ ] T-001.2 | S | Two\n  - [ ] T-001.3 | S | Three\n",
+    );
+    const completed = tasks.map((t) =>
+      t.id === "T-001"
+        ? t
+        : { ...t, done: true, section: "done" as const, doneDate: "2026-08-29", created: undefined },
+    );
+    // Reverse the array to simulate the worst case ordering.
+    const out = serializeTasks([...completed].reverse());
+    const ids = out
+      .split("\n")
+      .filter((l) => l.includes("T-001."))
+      .map((l) => l.trim().split(" ")[2]);
+    expect(ids).toEqual(["T-001.1", "T-001.2", "T-001.3"]);
+  });
+
+  it("orders branches numerically, not as strings", () => {
+    const raw =
+      "## Backlog\n- [ ] T-002 | M | Second\n- [ ] T-010 | M | Tenth\n- [ ] T-001 | M | First\n";
+    const out = serializeTasks(parseTasks(raw));
+    const ids = out
+      .split("\n")
+      .filter((l) => l.startsWith("- ["))
+      .map((l) => /T-[\d.]+/.exec(l)![0]);
+    expect(ids).toEqual(["T-001", "T-002", "T-010"]);
+  });
+
+  it("keeps a parent and its subtask in different sections", () => {
+    const raw =
+      "## Backlog\n- [ ] T-001 | L | Parent\n\n## Done\n  - [x] T-001.1 | S | One | done:2026-08-29\n";
+    expect(serializeTasks(parseTasks(raw))).toBe(serializeTasks(parseTasks(serializeTasks(parseTasks(raw)))));
+  });
+});
+
+describe("target: field", () => {
+  const line = (fields: string) => `## Backlog\n- [ ] T-001 | M | Audit${fields}\n`;
+
+  it("parses a target reference", () => {
+    expect(parseTasks(line(" | target:G-001"))[0].target).toBe("G-001");
+  });
+
+  it("is absent when not written", () => {
+    expect(parseTasks(line(""))[0].target).toBeUndefined();
+  });
+
+  it("round-trips in the fixed field order, between lane: and waits:", () => {
+    const raw =
+      "## Backlog\n- [ ] T-001 | M | Audit | created:2026-08-29 | lane:deep | target:G-001 | waits:T-002\n";
+    const once = serializeTasks(parseTasks(raw));
+    expect(once).toContain(
+      "- [ ] T-001 | M | Audit | created:2026-08-29 | lane:deep | target:G-001 | waits:T-002",
+    );
+    expect(serializeTasks(parseTasks(once))).toBe(once);
+  });
+
+  it("tolerates a target that does not exist — targets live in another file", () => {
+    expect(parseTasks(line(" | target:G-999"))[0].target).toBe("G-999");
+  });
+
+  it("rejects a malformed target value", () => {
+    expect(() => parseTasks(line(" | target:nonsense"))).toThrow(/invalid target/);
+    expect(() => parseTasks(line(" | target:G-1"))).toThrow(/invalid target/);
+  });
+
+  it("still rejects an unknown key, so the grammar stays closed", () => {
+    expect(() => parseTasks(line(" | targets:G-001"))).toThrow(/unknown field key/);
+  });
+});
+
 describe("nextTaskId", () => {
   it("returns T-008 after T-007", () => {
     const tasks = parseTasks(`## Backlog

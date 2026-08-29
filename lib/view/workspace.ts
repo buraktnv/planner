@@ -23,6 +23,7 @@ export interface SubModel {
   est?: string;
   created?: string;
   doneDate?: string;
+  target?: string;
   waitsOn?: string;
   hasDetail: boolean;
   subs: SubModel[];
@@ -45,6 +46,7 @@ export interface CardModel {
   est?: string;
   created?: string;
   doneDate?: string;
+  target?: string;
   waitsOn?: string;
   blocked: boolean;
   blockedByTitle?: string;
@@ -107,6 +109,7 @@ function buildSubs(tasks: Task[], parentId: string, details: Set<string>): SubMo
       est: s.est,
       created: s.created,
       doneDate: s.doneDate,
+      target: s.target,
       waitsOn: s.waitsOn,
       hasDetail: details.has(s.id),
       subs: buildSubs(tasks, s.id, details),
@@ -149,6 +152,7 @@ function buildCards(
       est: t.est,
       created: t.created,
       doneDate: t.doneDate,
+      target: t.target,
       waitsOn: t.waitsOn,
       blocked: isBlocked(t, tasks),
       blockedByTitle: blocker?.title,

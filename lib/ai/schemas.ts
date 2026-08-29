@@ -21,6 +21,7 @@ const baseShapes = {
     project: z.string(),
     title: z.string(),
     size: z.enum(["S", "M", "L"]),
+    target: z.string().optional(),
     waitsOn: z.string().optional(),
   },
   update_task: {
@@ -31,6 +32,7 @@ const baseShapes = {
     section: z.enum(["backlog", "in-progress", "done"]).optional(),
     est: z.string().optional(),
     due: z.string().optional(),
+    target: z.string().optional(),
     waitsOn: z.string().optional(),
     complete: z.boolean().optional(),
   },
@@ -123,6 +125,7 @@ const baseShapes = {
     source: z.string().optional(),
   },
   next_actions: {},
+  list_targets: { project: z.string().optional() },
   weekly_summary: {},
 } satisfies Record<string, ZodRawShape>;
 
@@ -202,9 +205,9 @@ export const toolDescriptions: Record<ToolName, string> = {
   create_project: "Create a new project charter.",
   create_area: "Create a new life area charter.",
   create_task:
-    "Create a task in a project or area (slug or area:<slug>). waitsOn marks it blocked by a task id in the same file or by free text.",
+    "Create a task in a project or area (slug or area:<slug>). waitsOn marks it blocked by a task id in the same file or by free text. target links it to a charter goal (G-001) from list_targets, which is what makes that goal show real progress.",
   update_task:
-    "Update a task's fields (title, size, section, est, due, waitsOn, done). Pass waitsOn as an empty string to clear it.",
+    "Update a task's fields (title, size, section, est, due, target, waitsOn, done). Pass waitsOn or target as an empty string to clear it.",
   decompose_task:
     "Break a task into subtasks. Each subtask may carry an optional plan — free markdown stored alongside it, which is the only place the reasoning behind the breakdown survives.",
   move_to_parking_lot: "Add an idea to a charter's parking lot.",
@@ -233,6 +236,8 @@ export const toolDescriptions: Record<ToolName, string> = {
   update_note:
     "Amend a knowledge note. Only the fields you pass change; updated is bumped. Pass source as an empty string to clear it.",
   next_actions: "Get the prioritized list of next actions across the workspace.",
+  list_targets:
+    "List the goals (targets) on a charter, with their G- ids, milestone grouping and progress. Read this before setting target: on a task — an id that does not exist simply shows no link.",
   weekly_summary: "Get insights and the last 7 days of journal digest.",
   propose_changes:
     "Propose a batch of changes without writing anything — tasks, events and knowledge notes. Returns a preview the user must Accept before it is applied. Use this for any set of writes; use the direct tools only for a single, explicitly requested change.",

@@ -26,7 +26,7 @@ picked up automatically; an explicit `env` entry in the client config always win
 ## What is exposed
 
 Read tools: `list_projects`, `list_areas`, `get_context`, `list_events`, `get_daily`,
-`next_actions`, `weekly_summary`, `search_knowledge`, `read_note`, `read_task_detail`.
+`next_actions`, `weekly_summary`, `search_knowledge`, `read_note`, `read_task_detail`, `list_targets`.
 
 Write tools: `create_task`, `update_task`, `decompose_task`, `move_to_parking_lot`, `add_journal`,
 `create_event`, `update_event`, `log_daily`, `add_grocery`, `set_grocery`, `add_note`,
@@ -56,6 +56,8 @@ task exists or how it should be done. That lives in the task detail: free markdo
 starting work on a task and `write_task_detail` when you finish, so the next agent inherits what you
 learned instead of rediscovering it. `decompose_task` takes an optional `plan` per subtask, which is
 the only place the reasoning behind a breakdown survives. Ids may be dotted (`T-007.2`).
+
+Targets are the charter's goals, and a task can name one. Call `list_targets` to see them — each returns a `G-` id, its milestone, and how many tasks already point at it — then pass `target: "G-001"` to `create_task` or `update_task`. That link is what makes a goal show real progress instead of a bare tick; without it the roadmap can only say done or not done. An id that does not exist is tolerated and simply shows no link, so read the list rather than guessing. Targets themselves are edited in the web app, not through a tool.
 
 Never exposed: `create_project` and `create_area` — charters are the owner's job, created from the
 web app. There is no archive or restore tool either: both exist in the web app only, deliberately,

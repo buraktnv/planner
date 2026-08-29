@@ -9,6 +9,7 @@ import {
   updateTask,
 } from "../core/store";
 import { getNextActions, type NextAction } from "../core/next";
+import { targetsOf, targetProgress } from "../view/targets";
 import { addEvent, listEvents, updateEvent } from "../core/calendar";
 import type { CalendarEvent } from "../core/types";
 import { addGrocery, dailySummary, getDaily, logDaily, toggleGrocery } from "../core/daily";
@@ -267,13 +268,19 @@ export const toolImpls = {
     project: string;
     title: string;
     size: TaskSize;
+    target?: string;
     waitsOn?: string;
   }): Promise<Task> {
     if (!input.project) throw new Error("createTask requires a project (slug or area:<slug>)");
     if (!input.title) throw new Error("createTask requires a title");
     const size = input.size ?? "M";
     const scope = parseScope(input.project);
-    return addTask(scope.type, scope.slug, { title: input.title, size, waitsOn: input.waitsOn });
+    return addTask(scope.type, scope.slug, {
+      title: input.title,
+      size,
+      target: input.target,
+      waitsOn: input.waitsOn,
+    });
   },
 
   async updateTask(input: {
@@ -284,19 +291,21 @@ export const toolImpls = {
     section?: Task["section"];
     est?: string;
     due?: string;
+    target?: string;
     waitsOn?: string;
     complete?: boolean;
   }): Promise<Task> {
     if (!input.project) throw new Error("updateTask requires a project (slug or area:<slug>)");
     if (!input.id) throw new Error("updateTask requires an id");
     const scope = parseScope(input.project);
-    const { title, size, section, est, due, waitsOn, complete } = input;
+    const { title, size, section, est, due, target, waitsOn, complete } = input;
     return updateTask(scope.type, scope.slug, input.id, {
       title,
       size,
       section,
       est,
       due,
+      target,
       waitsOn,
       complete,
     });
@@ -408,6 +417,42 @@ export const toolImpls = {
 
   async proposeChanges(input: ProposalInput): Promise<Proposal> {
     return buildProposal(input);
+  },
+
+  async listTargets(input: { project?: string } = {}): Promise<
+    {
+      charter: string;
+      id: string | null;
+      title: string;
+      milestone: string | null;
+      by: string | null;
+      done: boolean;
+      pct: number;
+      linkedTasks: number;
+    }[]
+  > {
+    const charters = input.project
+      ? [await getCharter(parseScope(input.project).type, parseScope(input.project).slug)]
+      : await listCharters();
+
+    const out = [];
+    for (const c of charters) {
+      const tasks = await listTasks(c.type, c.id).catch(() => []);
+      for (const t of targetsOf(c.mvpScope)) {
+        const progress = targetProgress(t, tasks);
+        out.push({
+          charter: c.type === "area" ? `area:${c.id}` : c.id,
+          id: t.id,
+          title: t.title,
+          milestone: t.milestone,
+          by: t.by,
+          done: t.done,
+          pct: progress.pct,
+          linkedTasks: progress.total,
+        });
+      }
+    }
+    return out;
   },
 
   async nextActions(): Promise<NextAction[]> {
