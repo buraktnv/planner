@@ -13,6 +13,12 @@ export function charterPath(type: "project" | "area", slug: string) {
 export function tasksPath(type: "project" | "area", slug: string) {
   return path.join(type === "project" ? projectsDir() : areasDir(), slug, "tasks.md");
 }
+export function detailsDir(type: "project" | "area", slug: string) {
+  return path.join(type === "project" ? projectsDir() : areasDir(), slug, "details");
+}
+export function detailPath(type: "project" | "area", slug: string, taskId: string) {
+  return path.join(detailsDir(type, slug), `${taskId}.md`);
+}
 export function archiveDir(type?: "project" | "area") {
   const base = path.join(dataRoot(), "archive");
   if (!type) return base;

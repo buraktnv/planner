@@ -22,6 +22,7 @@ import type {
   ProposalPreviewRow,
 } from "./schemas";
 import { deriveTitle, readNote, searchNotes, updateNote } from "../core/knowledge";
+import { readDetail, writeDetail } from "../core/details";
 import { fileNote, type FileNoteResult } from "./file-note";
 import type { KnowledgeHit, KnowledgeNote } from "../core/types";
 import { getInsights, type Insights } from "../core/insights";
@@ -304,7 +305,7 @@ export const toolImpls = {
   async decomposeTask(input: {
     project: string;
     id: string;
-    subtasks: { title: string; size: TaskSize }[];
+    subtasks: { title: string; size: TaskSize; plan?: string }[];
   }): Promise<Task[]> {
     if (!input.project) throw new Error("decomposeTask requires a project (slug or area:<slug>)");
     if (!input.id) throw new Error("decomposeTask requires an id");
@@ -315,15 +316,46 @@ export const toolImpls = {
     const created: Task[] = [];
     for (const sub of input.subtasks) {
       if (!sub.title) throw new Error("decomposeTask subtask requires a title");
-      created.push(
-        await addTask(scope.type, scope.slug, {
-          title: sub.title,
-          size: sub.size ?? "M",
-          parentId: input.id,
-        }),
-      );
+      const task = await addTask(scope.type, scope.slug, {
+        title: sub.title,
+        size: sub.size ?? "M",
+        parentId: input.id,
+      });
+      if (sub.plan && sub.plan.trim()) {
+        await writeDetail(scope.type, scope.slug, task.id, sub.plan);
+      }
+      created.push(task);
     }
     return created;
+  },
+
+  async readTaskDetail(input: {
+    project: string;
+    id: string;
+  }): Promise<{ id: string; body: string }> {
+    if (!input.project) throw new Error("readTaskDetail requires a project (slug or area:<slug>)");
+    if (!input.id) throw new Error("readTaskDetail requires an id");
+    const scope = parseScope(input.project);
+    const body = await readDetail(scope.type, scope.slug, input.id);
+    return { id: input.id, body: body ?? "" };
+  },
+
+  async writeTaskDetail(input: {
+    project: string;
+    id: string;
+    body: string;
+  }): Promise<{ id: string; body: string }> {
+    if (!input.project) throw new Error("writeTaskDetail requires a project (slug or area:<slug>)");
+    if (!input.id) throw new Error("writeTaskDetail requires an id");
+    if (typeof input.body !== "string") throw new Error("writeTaskDetail requires a body string");
+    const scope = parseScope(input.project);
+    const tasks = await listTasks(scope.type, scope.slug);
+    if (!tasks.some((t) => t.id === input.id)) {
+      throw new Error(`Task not found: ${input.id} in ${input.project}`);
+    }
+    await writeDetail(scope.type, scope.slug, input.id, input.body);
+    const body = await readDetail(scope.type, scope.slug, input.id);
+    return { id: input.id, body: body ?? "" };
   },
 
   async moveToParkingLot(input: { project: string; idea: string }): Promise<Charter> {

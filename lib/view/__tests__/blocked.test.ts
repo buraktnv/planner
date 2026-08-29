@@ -41,6 +41,7 @@ function card(partial: Partial<CardModel> & { id: string }): CardModel {
     subDone: 0,
     subTotal: 0,
     subs: [],
+    hasDetail: false,
     priority: "P2",
     ...partial,
   };

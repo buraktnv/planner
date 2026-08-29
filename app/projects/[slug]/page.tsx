@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadCharterModel } from "@/lib/view/workspace";
-import { isQuiet, LANES, LANE_KEYS } from "@/lib/ui/momentum";
+import { isQuiet, LANES, LANE_KEYS, shortDate } from "@/lib/ui/momentum";
 import { Bar, Mono, Ring } from "@/components/momentum/primitives";
 import CardOpener from "@/components/momentum/card-opener";
 import NewButton from "@/components/momentum/new-button";
@@ -21,6 +21,9 @@ export default async function ProjectDetailPage({
   const quiet = isQuiet(charter.status);
   const scopeKey = `project/${charter.id}`;
   const open = charter.cards.filter((c) => !c.done);
+  const doneCards = charter.cards
+    .filter((c) => c.done)
+    .sort((a, b) => (b.doneDate ?? "").localeCompare(a.doneDate ?? ""));
 
   return (
     <div className="px-[30px] pt-[34px] pb-[60px]">
@@ -136,6 +139,29 @@ export default async function ProjectDetailPage({
           );
         })}
       </div>
+
+      {doneCards.length > 0 && (
+        <details className="mt-[18px] rounded-[18px] border border-edge2 px-3.5 py-3">
+          <summary className="cursor-pointer list-none font-mono text-[10px] tracking-[0.12em] text-faint transition-colors hover:text-ink">
+            DONE · {doneCards.length}
+          </summary>
+          <div className="mt-3 flex flex-col">
+            {doneCards.map((card) => (
+              <CardOpener
+                key={card.key}
+                card={card}
+                className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-edge2 py-2.5 text-left"
+              >
+                <Mono className="text-[9px] text-faint">{card.id}</Mono>
+                <span className="truncate text-[13px] text-faint line-through">{card.title}</span>
+                <Mono className="text-[9px] text-faint">
+                  {card.doneDate ? shortDate(card.doneDate) : ""}
+                </Mono>
+              </CardOpener>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }

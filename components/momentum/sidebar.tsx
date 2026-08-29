@@ -16,7 +16,9 @@ const NAV = [
     label: "Knowledge",
     d: "M4 5h6a2 2 0 012 2v12a2 2 0 00-2-2H4zM20 5h-6a2 2 0 00-2 2v12a2 2 0 012-2h6z",
   },
+  { href: "/done", label: "Done", d: "M5 12.5l4.5 4.5L19 7.5" },
   { href: "/journal", label: "Activity", d: "M6 4h12v16H6zM9 8h6M9 12h6M9 16h3" },
+  { href: "/archive", label: "Archive", d: "M4 7h16v3H4zM6 10v9h12v-9M10 14h4" },
   { href: "/agents", label: "Agents", d: "M12 3v3M8 9h8v6H8zM6 12H3M21 12h-3M9 18v3M15 18v3" },
   { href: "/settings", label: "Settings", d: "M12 9a3 3 0 100 6 3 3 0 000-6M4 12h2M18 12h2M12 4v2M12 18v2" },
 ];

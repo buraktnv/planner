@@ -41,6 +41,7 @@ const baseShapes = {
       z.object({
         title: z.string(),
         size: z.enum(["S", "M", "L"]),
+        plan: z.string().optional(),
       }),
     ),
   },
@@ -85,6 +86,15 @@ const baseShapes = {
   set_grocery: {
     id: z.string(),
     got: z.boolean(),
+  },
+  read_task_detail: {
+    project: z.string(),
+    id: z.string(),
+  },
+  write_task_detail: {
+    project: z.string(),
+    id: z.string(),
+    body: z.string(),
   },
   search_knowledge: {
     query: z.string(),
@@ -195,7 +205,8 @@ export const toolDescriptions: Record<ToolName, string> = {
     "Create a task in a project or area (slug or area:<slug>). waitsOn marks it blocked by a task id in the same file or by free text.",
   update_task:
     "Update a task's fields (title, size, section, est, due, waitsOn, done). Pass waitsOn as an empty string to clear it.",
-  decompose_task: "Break a task into subtasks.",
+  decompose_task:
+    "Break a task into subtasks. Each subtask may carry an optional plan — free markdown stored alongside it, which is the only place the reasoning behind the breakdown survives.",
   move_to_parking_lot: "Add an idea to a charter's parking lot.",
   add_journal: "Append a journal entry for a scope.",
   list_events:
@@ -210,6 +221,10 @@ export const toolDescriptions: Record<ToolName, string> = {
     "Count one tick for a habit (H-) or a rhythm (R-). When the goal for today or the week is already met the tick wraps around and resets the count.",
   add_grocery: "Add an item to the grocery list. cat is a free-text category, default Other.",
   set_grocery: "Mark a grocery item as got (true) or back on the list (false).",
+  read_task_detail:
+    "Read the plan attached to one task or subtask — the notes, steps and decisions behind it. Task lines only carry a title, so read this before working on a task. Returns an empty body when nothing is written yet.",
+  write_task_detail:
+    "Write the plan for one task or subtask, replacing whatever is there. Free markdown: steps, findings, decisions, anything worth keeping. id accepts a subtask id like T-007.2. An empty body removes the plan.",
   search_knowledge:
     "Search the knowledge base and get ranked snippets. Use this whenever the answer might already be written down — the system prompt only lists notes for the focused scope. scope filters to a project slug or area:<slug>; tags must all match.",
   read_note: "Read one knowledge note in full, with the notes it links to and the notes linking back to it.",

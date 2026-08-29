@@ -303,3 +303,90 @@ export async function archiveCharter(
   await commitData(`charter archived: ${slug}`);
   return { slug, archivedAs };
 }
+
+export interface ArchivedCharter extends Charter {
+  archivedAs: string;
+  archivedAt: string;
+}
+
+const ARCHIVE_TYPES: ProjectType[] = ["project", "area"];
+
+async function readArchived(type: ProjectType, name: string): Promise<ArchivedCharter> {
+  const file = path.join(archiveDir(type), `${name}.md`);
+  const raw = await fs.readFile(file, "utf8");
+  const stat = await fs.stat(file);
+  return {
+    ...parseCharter(raw),
+    type,
+    archivedAs: name,
+    archivedAt: stat.mtime.toLocaleDateString("sv").slice(0, 10),
+  };
+}
+
+export async function listArchived(): Promise<ArchivedCharter[]> {
+  const out: ArchivedCharter[] = [];
+  for (const type of ARCHIVE_TYPES) {
+    let names: string[];
+    try {
+      names = await fs.readdir(archiveDir(type));
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      if (!name.endsWith(".md")) continue;
+      out.push(await readArchived(type, name.slice(0, -3)));
+    }
+  }
+  return out;
+}
+
+export async function getArchived(type: ProjectType, name: string): Promise<ArchivedCharter> {
+  try {
+    return await readArchived(type, name);
+  } catch {
+    throw new Error(`Archived charter not found: ${type}/${name}`);
+  }
+}
+
+export async function listArchivedTasks(type: ProjectType, name: string): Promise<Task[]> {
+  try {
+    const raw = await fs.readFile(path.join(archiveDir(type), name, "tasks.md"), "utf8");
+    return parseTasks(raw);
+  } catch {
+    return [];
+  }
+}
+
+export async function restoreCharter(
+  type: ProjectType,
+  name: string,
+): Promise<{ slug: string; archivedAs: string }> {
+  const charter = await getArchived(type, name);
+  const dir = archiveDir(type);
+  const base = charter.id || name;
+
+  let slug = base;
+  let n = 1;
+  while (
+    (await pathExists(charterPath(type, slug))) ||
+    (await pathExists(path.dirname(tasksPath(type, slug))))
+  ) {
+    n += 1;
+    slug = `${base}-${n}`;
+  }
+
+  await fs.mkdir(path.dirname(charterPath(type, slug)), { recursive: true });
+  await fs.rename(path.join(dir, `${name}.md`), charterPath(type, slug));
+  if (slug !== charter.id) {
+    const moved: Charter = { ...charter, id: slug };
+    await fs.writeFile(charterPath(type, slug), serializeCharter(moved), "utf8");
+  }
+  const archivedTasks = path.join(dir, name);
+  if (await pathExists(archivedTasks)) {
+    await fs.rename(archivedTasks, path.dirname(tasksPath(type, slug)));
+  }
+
+  await appendJournal(slug, "charter restored");
+  await commitData(`charter restored: ${slug}`);
+  return { slug, archivedAs: name };
+}

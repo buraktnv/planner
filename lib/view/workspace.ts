@@ -1,4 +1,5 @@
 import { listCharters, listTasks } from "@/lib/core/store";
+import { listDetailIds } from "@/lib/core/details";
 import { laneOf } from "@/lib/core/lanes";
 import { blockerOf, isBlocked } from "@/lib/core/deps";
 import type {
@@ -17,6 +18,14 @@ export interface SubModel {
   title: string;
   done: boolean;
   size: TaskSize;
+  section: TaskSection;
+  due?: string;
+  est?: string;
+  created?: string;
+  doneDate?: string;
+  waitsOn?: string;
+  hasDetail: boolean;
+  subs: SubModel[];
 }
 
 export interface CardModel {
@@ -39,6 +48,7 @@ export interface CardModel {
   waitsOn?: string;
   blocked: boolean;
   blockedByTitle?: string;
+  hasDetail: boolean;
   overdue: boolean;
   pct: number;
   subDone: number;
@@ -84,13 +94,35 @@ function priorityLabel(priority: number): string {
   return `P${Math.max(1, Math.min(9, Math.round(priority)))}`;
 }
 
-function buildCards(charter: Charter, tasks: Task[], today: string): CardModel[] {
+function buildSubs(tasks: Task[], parentId: string, details: Set<string>): SubModel[] {
+  return tasks
+    .filter((s) => s.parentId === parentId)
+    .map((s) => ({
+      id: s.id,
+      title: s.title,
+      done: s.done,
+      size: s.size,
+      section: s.section,
+      due: s.due,
+      est: s.est,
+      created: s.created,
+      doneDate: s.doneDate,
+      waitsOn: s.waitsOn,
+      hasDetail: details.has(s.id),
+      subs: buildSubs(tasks, s.id, details),
+    }));
+}
+
+function buildCards(
+  charter: Charter,
+  tasks: Task[],
+  today: string,
+  details: Set<string> = new Set(),
+): CardModel[] {
   const tone = hueOf(charter.id);
   const tops = tasks.filter((t) => !t.parentId);
   return tops.map((t) => {
-    const subs = tasks
-      .filter((s) => s.parentId === t.id)
-      .map((s) => ({ id: s.id, title: s.title, done: s.done, size: s.size }));
+    const subs = buildSubs(tasks, t.id, details);
     const subDone = subs.filter((s) => s.done).length;
     const blocker = blockerOf(t, tasks);
     const pct = subs.length
@@ -120,6 +152,7 @@ function buildCards(charter: Charter, tasks: Task[], today: string): CardModel[]
       waitsOn: t.waitsOn,
       blocked: isBlocked(t, tasks),
       blockedByTitle: blocker?.title,
+      hasDetail: details.has(t.id),
       overdue: !!t.due && !t.done && t.due < today,
       pct,
       subDone,
@@ -148,7 +181,8 @@ export async function loadWorkspace(now: Date = new Date()): Promise<Workspace> 
   const models: CharterModel[] = [];
   for (const c of charters) {
     const tasks = await listTasks(c.type, c.id);
-    const cards = buildCards(c, tasks, today);
+    const details = new Set(await listDetailIds(c.type, c.id));
+    const cards = buildCards(c, tasks, today, details);
     const open = cards.filter((t) => !t.done).length;
     const doneTotal = cards.filter((t) => t.done).length;
     const total = cards.length;
