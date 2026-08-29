@@ -34,5 +34,22 @@ export function journalPath(date: string) { return path.join(dataRoot(), "journa
 export function calendarPath() { return path.join(dataRoot(), "calendar.md"); }
 export function aboutPath() { return path.join(dataRoot(), "about.md"); }
 export function providersPath() { return path.join(dataRoot(), "providers.json"); }
+export function canvasDir() { return path.join(dataRoot(), "canvas"); }
+/**
+ * Per-charter canvases live inside the charter directory so archiveCharter,
+ * which renames the whole <slug>/ folder, carries them along — the same reason
+ * details/ lives there. The knowledge canvas is global because notes do not
+ * archive with a charter and a note's scope is a list.
+ */
+export function canvasPathFor(
+  surface:
+    | { kind: "knowledge" }
+    | { kind: "system"; type: "project" | "area"; slug: string }
+    | { kind: "tasks"; type: "project" | "area"; slug: string },
+) {
+  if (surface.kind === "knowledge") return path.join(canvasDir(), "knowledge.md");
+  const base = surface.type === "project" ? projectsDir() : areasDir();
+  return path.join(base, surface.slug, surface.kind === "system" ? "system.md" : "canvas.md");
+}
 export function knowledgeDir() { return path.join(dataRoot(), "knowledge"); }
 export function knowledgeIndexPath() { return path.join(knowledgeDir(), "index.md"); }

@@ -68,6 +68,7 @@ The UI implements the **Momentum v2** design: a warm light theme, a collapsible 
 | `/projects`, `/projects/<slug>` | Projects | Progress rings per project; detail with lane columns |
 | `/life`, `/areas/<slug>`, `/targets` | Life | Areas, their tasks, and targets (charter `## MVP scope` lines) |
 | `/calendar` | Calendar | Month grid and grouped list built from task `due:` dates |
+| `/canvas` | Canvas | Notes as cards on a pannable, zoomable board, joined by their `[[K-nnn]]` links. Read on the canvas, click a title for a popup, open the full page from there. Arrange mode drags cards; positions are saved to `canvas/knowledge.md` |
 | `/review` | Review | Weekly numbers, distance to MVP per project, momentum over recent weeks, open-work split, plus an on-demand AI read of the week |
 | `/settings/activity` | Activity | The journal, newest first |
 | `/settings/agents` | Agents | Connected coding agents and the tools the assistant may call |

@@ -14,6 +14,11 @@ const NAV = [
     label: "Knowledge",
     d: "M4 5h6a2 2 0 012 2v12a2 2 0 00-2-2H4zM20 5h-6a2 2 0 00-2 2v12a2 2 0 012-2h6z",
   },
+  {
+    href: "/canvas",
+    label: "Canvas",
+    d: "M4 6h6v5H4zM14 4h6v6h-6zM9 15h6v5H9zM10 8.5h4M12 11v4",
+  },
   { href: "/done", label: "Done", d: "M5 12.5l4.5 4.5L19 7.5" },
   { href: "/settings", label: "Settings", d: "M12 9a3 3 0 100 6 3 3 0 000-6M4 12h2M18 12h2M12 4v2M12 18v2" },
 ];
