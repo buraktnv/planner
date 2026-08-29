@@ -8,7 +8,6 @@ import type { NavCharter } from "./context";
 const NAV = [
   { href: "/", label: "Focus", d: "M12 4v3M12 17v3M4 12h3M17 12h3" },
   { href: "/board", label: "Board", d: "M4 5h5v14H4zM11 5h4v9h-4zM17 5h3v6h-3z" },
-  { href: "/insights", label: "Dashboard", d: "M5 19V9M10 19V5M15 19v-7M20 19v-4" },
   { href: "/review", label: "Review", d: "M5 4h14v16H5zM9 9h6M9 13h6M9 17h3" },
   {
     href: "/knowledge",

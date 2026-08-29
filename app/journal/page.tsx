@@ -1,6 +1,7 @@
 import { readJournal } from "@/lib/core/journal";
 import { loadWorkspace } from "@/lib/view/workspace";
-import { isoToday, shortDate, weekdayOf } from "@/lib/ui/momentum";
+import { closedSince, daysAgo, journalStreak } from "@/lib/view/review";
+import { shortDate, weekdayOf } from "@/lib/ui/momentum";
 import { Mono, Panel } from "@/components/momentum/primitives";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +16,6 @@ const WEEKDAY_FULL: Record<string, string> = {
   SUN: "SUNDAY",
 };
 
-function daysAgoIso(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return isoToday(d);
-}
-
 export default async function ActivityPage() {
   const [days, ws] = await Promise.all([readJournal(30), loadWorkspace()]);
 
@@ -29,14 +24,12 @@ export default async function ActivityPage() {
     ws.byId.get(`area/${scope}`)?.color ??
     "var(--color-faint)";
 
-  const since30 = daysAgoIso(30);
-  const closed30 = ws.cards.filter((c) => c.doneDate && c.doneDate >= since30).length;
+  const closed30 = closedSince(ws.cards, daysAgo(ws.today, 30));
   const entries30 = days.reduce((a, d) => a + d.entries.length, 0);
-
-  const journalDates = new Set(days.map((d) => d.date));
-  let streak = 0;
-  const offset = journalDates.has(isoToday()) ? 0 : 1;
-  while (streak < 30 && journalDates.has(daysAgoIso(offset + streak))) streak++;
+  const streak = journalStreak(
+    days.map((d) => d.date),
+    ws.today,
+  );
 
   return (
     <div className="mx-auto max-w-[720px] px-9 pt-[52px] pb-20">
