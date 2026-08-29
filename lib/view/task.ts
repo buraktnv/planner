@@ -135,7 +135,6 @@ const BACK_LABELS: [string, string][] = [
   ["/board", "Board"],
   ["/done", "Done"],
   ["/targets", "Roadmap"],
-  ["/branches", "Branches"],
   ["/review", "Review"],
   ["/life", "Life"],
   ["/daily", "Daily"],

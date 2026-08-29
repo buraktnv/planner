@@ -83,15 +83,11 @@ function titleFrom(messages: UIMessage[], fallback: string): string {
   return text.length > 42 ? `${text.slice(0, 42)}…` : text;
 }
 
-function scopeFromPath(pathname: string, charters: NavCharter[]): string | null {
+function scopeFromPath(pathname: string): string | null {
   const project = /^\/projects\/([^/]+)/.exec(pathname);
   if (project) return `project/${decodeURIComponent(project[1])}`;
   const area = /^\/areas\/([^/]+)/.exec(pathname);
   if (area) return `area/${decodeURIComponent(area[1])}`;
-  if (pathname.startsWith("/branches")) {
-    const first = charters.find((c) => c.type === "project");
-    return first ? first.key : null;
-  }
   return null;
 }
 
@@ -146,7 +142,7 @@ export default function ChatRail({
   const transcripts = useRef<Map<string, UIMessage[]>>(new Map());
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  const effectiveScope = scope ?? scopeFromPath(pathname, charters);
+  const effectiveScope = scope ?? scopeFromPath(pathname);
   const focus = useMemo(() => {
     if (!effectiveScope || effectiveScope === "all") return undefined;
     const [type, slug] = effectiveScope.split("/");

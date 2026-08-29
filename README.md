@@ -65,7 +65,6 @@ The UI implements the **Momentum v2** design: a warm light theme, a collapsible 
 | --- | --- | --- |
 | `/` | Focus | Mood strip (logged to the journal), the day's plan, the single next action with a 25-minute timer, the ranked rest, streak rings |
 | `/board` | Board | Four lanes — quick win / deep work / waiting / someday. Drag a card to move it; the lane is saved on the task line |
-| `/branches` | Branches | Trunk, Flow and Map views of a project's tasks and subtasks |
 | `/projects`, `/projects/<slug>` | Projects | Progress rings per project; detail with lane columns |
 | `/life`, `/areas/<slug>`, `/targets` | Life | Areas, their tasks, and targets (charter `## MVP scope` lines) |
 | `/calendar` | Calendar | Month grid and grouped list built from task `due:` dates |
