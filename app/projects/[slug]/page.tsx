@@ -5,6 +5,7 @@ import { listNotes } from "@/lib/core/knowledge";
 import { isQuiet, LANES, LANE_KEYS, shortDate } from "@/lib/ui/momentum";
 import { Bar, Mono, Ring } from "@/components/momentum/primitives";
 import CardOpener from "@/components/momentum/card-opener";
+import CharterWhy from "@/components/momentum/charter-why";
 import NewButton from "@/components/momentum/new-button";
 import ArchiveButton from "@/components/momentum/archive-button";
 
@@ -111,6 +112,8 @@ export default async function ProjectDetailPage({
           </div>
         </div>
       </div>
+
+      <CharterWhy type="project" slug={charter.id} why={charter.why} color={charter.color} />
 
       <div className="grid items-start gap-[11px] grid-cols-[repeat(auto-fit,minmax(200px,1fr))]">
         {LANE_KEYS.map((k) => {

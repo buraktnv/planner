@@ -10,6 +10,7 @@ import {
   Tick,
 } from "@/components/momentum/primitives";
 import CardOpener from "@/components/momentum/card-opener";
+import CharterWhy from "@/components/momentum/charter-why";
 import NewButton from "@/components/momentum/new-button";
 import ArchiveButton from "@/components/momentum/archive-button";
 import { targetsOf } from "@/lib/view/targets";
@@ -86,11 +87,16 @@ export default async function AreaPage({
         >
           MAP
         </Link>
+        <NewButton kind="target" prefill={{ scopeKey: `area/${area.id}` }} variant="mono">
+          + TARGET
+        </NewButton>
         <NewButton kind="branch" prefill={{ scopeKey: `area/${area.id}` }} variant="mono">
           + TASK
         </NewButton>
         <ArchiveButton type="area" slug={area.id} name={area.name} />
       </div>
+
+      <CharterWhy type="area" slug={area.id} why={area.why} color={area.color} />
 
       <AssistantNote className="mb-3.5">
         {noteFor(area.open, overdue, area.lastActivity)}
