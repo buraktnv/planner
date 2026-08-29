@@ -26,18 +26,28 @@ picked up automatically; an explicit `env` entry in the client config always win
 ## What is exposed
 
 Read tools: `list_projects`, `list_areas`, `get_context`, `list_events`, `get_daily`,
-`next_actions`, `weekly_summary`, `search_knowledge`, `read_note`.
+`next_actions`, `weekly_summary`, `search_knowledge`, `read_note`, `read_task_detail`.
 
 Write tools: `create_task`, `update_task`, `decompose_task`, `move_to_parking_lot`, `add_journal`,
 `create_event`, `update_event`, `log_daily`, `add_grocery`, `set_grocery`, `add_note`,
-`update_note`, plus `propose_changes` (which writes nothing and returns a preview).
+`update_note`, `write_task_detail`, plus `propose_changes` (which writes nothing and returns a
+preview).
 
 The knowledge tools are how an agent reads and writes the owner's second brain. Only notes scoped to
 the focused project or area are ever loaded automatically — reach for `search_knowledge` before
 concluding something is not written down, and `add_note` when you learn something worth keeping.
 
+A task line carries only a title, a size and a few dates — there is nowhere in it to record *why* a
+task exists or how it should be done. That lives in the task detail: free markdown at
+`projects/<slug>/details/<task-id>.md`, one file per task or subtask. Call `read_task_detail` before
+starting work on a task and `write_task_detail` when you finish, so the next agent inherits what you
+learned instead of rediscovering it. `decompose_task` takes an optional `plan` per subtask, which is
+the only place the reasoning behind a breakdown survives. Ids may be dotted (`T-007.2`).
+
 Never exposed: `create_project` and `create_area` — charters are the owner's job, created from the
-web app. There is no archive tool at all.
+web app. There is no archive or restore tool either: both exist in the web app only, deliberately,
+because retiring a charter is the owner's decision. Nothing is ever hard-deleted — archiving moves a
+charter and its tasks and details into `archive/`, and the owner can restore it from `/archive`.
 
 Two resources are registered for cheap context:
 
