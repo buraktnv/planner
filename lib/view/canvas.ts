@@ -1,5 +1,7 @@
 import type { KnowledgeNote } from "@/lib/core/types";
 import type { CanvasEdgeKind, CanvasFile } from "@/lib/core/canvas";
+import type { CardModel, SubModel } from "./workspace";
+import { milestonesOf } from "./targets";
 import { edgeKey } from "@/lib/core/canvas";
 import { hueOf } from "@/lib/ui/momentum";
 import { noteRefsIn } from "./doc";
@@ -219,6 +221,172 @@ export function buildNoteCanvas(
     bounds: boundsOf(groups.map((g) => g.rect)),
     orphans: [...orphanSet].sort(),
   };
+}
+
+export interface TaskCanvasCharter {
+  id: string;
+  name: string;
+  type: "project" | "area";
+  color: string;
+  tint: string;
+  mvpScope: string[];
+  cards: CardModel[];
+}
+
+/**
+ * Tasks as cards: branches and every subtask beneath them, grouped by the
+ * milestone their target belongs to. Arrows are parent→subtask and waits:
+ * dependencies — both derived, because both already live in tasks.md.
+ *
+ * Bodies are null: task detail is a file per task, and loading every one to
+ * draw a board would be absurd. The popup links to the task page instead.
+ */
+export function buildTaskCanvas(
+  charter: TaskCanvasCharter,
+  file: CanvasFile,
+  opts: { grid?: LayoutGrid } = {},
+): CanvasModel {
+  const grid = opts.grid ?? DEFAULT_GRID;
+  const milestoneOf = new Map<string, string>();
+  for (const m of milestonesOf(charter.mvpScope)) {
+    for (const t of m.targets) {
+      if (t.id) milestoneOf.set(t.id, m.name ?? "Unscheduled");
+    }
+  }
+
+  interface Flat {
+    id: string;
+    title: string;
+    size: string;
+    done: boolean;
+    section: string;
+    target?: string;
+    waitsOn?: string;
+    parentId: string | null;
+  }
+  const flat: Flat[] = [];
+  const walk = (subs: SubModel[], parentId: string) => {
+    for (const s of subs) {
+      flat.push({
+        id: s.id,
+        title: s.title,
+        size: s.size,
+        done: s.done,
+        section: s.section,
+        target: s.target,
+        waitsOn: s.waitsOn,
+        parentId,
+      });
+      walk(s.subs, s.id);
+    }
+  };
+  for (const c of charter.cards) {
+    flat.push({
+      id: c.id,
+      title: c.title,
+      size: c.size,
+      done: c.done,
+      section: c.section,
+      target: c.target,
+      waitsOn: c.waitsOn,
+      parentId: null,
+    });
+    walk(c.subs, c.id);
+  }
+
+  const groupFor = (t: Flat): string | null => {
+    if (t.target && milestoneOf.has(t.target)) return milestoneOf.get(t.target)!;
+    return t.done ? "Done" : t.section === "in-progress" ? "In progress" : "Backlog";
+  };
+
+  const savedByRef = new Map(file.nodes.map((n) => [n.ref, n]));
+  const saved = new Map<string, Point>();
+  for (const t of flat) {
+    const at = savedByRef.get(t.id);
+    if (at) saved.set(t.id, { x: at.x, y: at.y });
+  }
+
+  const auto = autoLayout(
+    flat.map((t, i) => ({ id: t.id, groupKey: groupFor(t), order: i })),
+    saved,
+    grid,
+  );
+
+  const base = charter.type === "area" ? "areas" : "projects";
+  const nodes: CanvasNodeModel[] = flat.map((t) => {
+    const at = saved.get(t.id) ?? auto.get(t.id) ?? { x: 0, y: 0 };
+    const stored = savedByRef.get(t.id);
+    const group = groupFor(t);
+    return {
+      id: t.id,
+      title: t.title,
+      preview: `${t.size}${t.done ? " · done" : ""}${t.waitsOn ? ` · waits on ${t.waitsOn}` : ""}`,
+      body: null,
+      href: `/${base}/${charter.id}/tasks/${t.id}`,
+      groupKey: group,
+      groupLabel: group ?? "Backlog",
+      color: charter.color,
+      tint: charter.tint,
+      x: at.x,
+      y: at.y,
+      w: stored?.w ?? CARD_W,
+      h: stored?.h ?? CARD_H,
+      placed: saved.has(t.id) ? "saved" : "auto",
+      pin: stored?.pin === true,
+      tags: [],
+      progress: null,
+    };
+  });
+
+  const rectById = new Map(nodes.map((n) => [n.id, n]));
+  const edges: CanvasEdgeModel[] = [];
+  const push = (from: string, to: string, kind: CanvasEdgeKind, label: string | null) => {
+    const a = rectById.get(from);
+    const b = rectById.get(to);
+    if (!a || !b || from === to) return;
+    edges.push({
+      key: edgeKey({ from, to, kind }),
+      from,
+      to,
+      kind,
+      source: "derived",
+      label,
+      d: edgePath(a, b),
+      head: arrowHead(a, b),
+    });
+  };
+
+  for (const t of flat) {
+    if (t.parentId) push(t.parentId, t.id, "rel", null);
+    // Free-text waits: is not a dependency between two cards, so no arrow.
+    if (t.waitsOn && rectById.has(t.waitsOn)) push(t.waitsOn, t.id, "requires", "waits on");
+  }
+
+  const pad = Math.round(grid.gap / 2);
+  const byGroup = new Map<string | null, CanvasNodeModel[]>();
+  for (const n of nodes) {
+    const list = byGroup.get(n.groupKey);
+    if (list) list.push(n);
+    else byGroup.set(n.groupKey, [n]);
+  }
+  const groups: CanvasGroupModel[] = [...byGroup.entries()].map(([key, members]) => {
+    const r = boundsOf(members);
+    return {
+      key: key ?? "backlog",
+      label: key ?? "Backlog",
+      color: charter.color,
+      rect: { x: r.x - pad, y: r.y - pad, w: r.w + pad * 2, h: r.h + pad * 2 },
+    };
+  });
+
+  const live = new Set(nodes.map((n) => n.id));
+  const orphans = [
+    ...new Set(
+      file.nodes.map((n) => n.ref).filter((ref) => !live.has(ref) && !ref.startsWith("group:")),
+    ),
+  ].sort();
+
+  return { nodes, edges, groups, bounds: boundsOf(groups.map((g) => g.rect)), orphans };
 }
 
 export interface NoteLinkable {

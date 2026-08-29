@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { KnowledgeNote } from "@/lib/core/types";
 import type { CanvasFile } from "@/lib/core/canvas";
-import { buildNoteCanvas, canvasNote, noteProgress } from "../canvas";
+import type { CardModel, SubModel } from "../workspace";
+import { buildNoteCanvas, buildTaskCanvas, canvasNote, noteProgress } from "../canvas";
 
 function note(partial: Partial<KnowledgeNote> & { id: string }): KnowledgeNote {
   return {
@@ -201,6 +202,131 @@ describe("determinism and empty input", () => {
     expect(model.nodes).toEqual([]);
     expect(model.bounds).toEqual({ x: 0, y: 0, w: 0, h: 0 });
     expect(canvasNote(model)).toContain("Nothing to map yet");
+  });
+});
+
+describe("buildTaskCanvas", () => {
+  const sub = (id: string, extra: Partial<SubModel> = {}): SubModel => ({
+    id,
+    title: `Sub ${id}`,
+    done: false,
+    size: "S",
+    section: "backlog",
+    hasDetail: false,
+    subs: [],
+    ...extra,
+  });
+
+  const card = (id: string, extra: Partial<CardModel> = {}): CardModel => ({
+    key: `project/bot/${id}`,
+    type: "project",
+    slug: "bot",
+    charterName: "Bot",
+    color: "#1",
+    tint: "#2",
+    id,
+    title: `Task ${id}`,
+    size: "M",
+    lane: "deep",
+    section: "backlog",
+    done: false,
+    blocked: false,
+    hasDetail: false,
+    overdue: false,
+    pct: 0,
+    subDone: 0,
+    subTotal: 0,
+    subs: [],
+    priority: "P1",
+    ...extra,
+  });
+
+  const charter = (cards: CardModel[], mvpScope: string[] = []) => ({
+    id: "bot",
+    name: "Bot",
+    type: "project" as const,
+    color: "#1",
+    tint: "#2",
+    mvpScope,
+    cards,
+  });
+
+  it("flattens branches and every subtask beneath them", () => {
+    const model = buildTaskCanvas(
+      charter([card("T-001", { subs: [sub("T-001.1", { subs: [sub("T-001.1.1")] })] })]),
+      empty,
+    );
+    expect(model.nodes.map((n) => n.id)).toEqual(["T-001", "T-001.1", "T-001.1.1"]);
+  });
+
+  it("links each subtask to its parent", () => {
+    const model = buildTaskCanvas(charter([card("T-001", { subs: [sub("T-001.1")] })]), empty);
+    expect(model.edges).toHaveLength(1);
+    expect(model.edges[0]).toMatchObject({ from: "T-001", to: "T-001.1", source: "derived" });
+  });
+
+  it("draws a waits: dependency between two cards", () => {
+    const model = buildTaskCanvas(
+      charter([card("T-001"), card("T-002", { waitsOn: "T-001" })]),
+      empty,
+    );
+    const dep = model.edges.find((e) => e.kind === "requires");
+    expect(dep).toMatchObject({ from: "T-001", to: "T-002", label: "waits on" });
+  });
+
+  it("draws no arrow for free-text waits, which is not a card", () => {
+    const model = buildTaskCanvas(charter([card("T-001", { waitsOn: "the clinic" })]), empty);
+    expect(model.edges).toEqual([]);
+  });
+
+  it("groups by the milestone the task's target belongs to", () => {
+    const scope = ["### M1 — Prove it", "- [ ] G-001 | First"];
+    const model = buildTaskCanvas(charter([card("T-001", { target: "G-001" })], scope), empty);
+    expect(model.nodes[0].groupKey).toBe("M1 — Prove it");
+  });
+
+  it("falls back to the task's section when it has no target", () => {
+    const model = buildTaskCanvas(
+      charter([
+        card("T-001"),
+        card("T-002", { section: "in-progress" }),
+        card("T-003", { done: true, section: "done" }),
+      ]),
+      empty,
+    );
+    expect(model.nodes.map((n) => n.groupKey)).toEqual(["Backlog", "In progress", "Done"]);
+  });
+
+  it("links a card to its own task page", () => {
+    const model = buildTaskCanvas(charter([card("T-001", { subs: [sub("T-001.1")] })]), empty);
+    expect(model.nodes[0].href).toBe("/projects/bot/tasks/T-001");
+    expect(model.nodes[1].href).toBe("/projects/bot/tasks/T-001.1");
+  });
+
+  it("carries no body, because task detail is a file per task", () => {
+    expect(buildTaskCanvas(charter([card("T-001")]), empty).nodes[0].body).toBeNull();
+  });
+
+  it("honours a saved position", () => {
+    const model = buildTaskCanvas(
+      charter([card("T-001")]),
+      file({ nodes: [{ ref: "T-001", x: 700, y: 500, extra: [] }] }),
+    );
+    expect(model.nodes[0]).toMatchObject({ x: 700, y: 500, placed: "saved" });
+  });
+
+  it("reports a stored task that no longer exists", () => {
+    const model = buildTaskCanvas(
+      charter([card("T-001")]),
+      file({ nodes: [{ ref: "T-404", x: 0, y: 0, extra: [] }] }),
+    );
+    expect(model.orphans).toEqual(["T-404"]);
+  });
+
+  it("survives a charter with no tasks", () => {
+    const model = buildTaskCanvas(charter([]), empty);
+    expect(model.nodes).toEqual([]);
+    expect(model.bounds).toEqual({ x: 0, y: 0, w: 0, h: 0 });
   });
 });
 
