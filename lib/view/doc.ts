@@ -51,16 +51,27 @@ function uniqueId(slug: string, seen: Map<string, number>): string {
   return n === 0 ? slug : `${slug}-${n + 1}`;
 }
 
+export interface Heading extends TocEntry {
+  /** 1-based source line, which is what a markdown AST reports. */
+  line: number;
+}
+
 /**
  * Headings outside fenced code blocks only — a `## ` inside a fence is sample
  * text, not a section of this document.
+ *
+ * The one scan behind both the on-this-page index and the ids the renderer
+ * puts on the headings themselves: derived separately they could disagree, and
+ * an index that scrolls nowhere is worse than no index.
  */
-export function tocOf(body: string): TocEntry[] {
+export function headingsOf(body: string): Heading[] {
   const seen = new Map<string, number>();
-  const out: TocEntry[] = [];
+  const out: Heading[] = [];
   let fenced = false;
 
-  for (const line of body.replace(/\r\n/g, "\n").split("\n")) {
+  const lines = body.replace(/\r\n/g, "\n").split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     if (FENCE_RE.test(line)) {
       fenced = !fenced;
       continue;
@@ -74,9 +85,25 @@ export function tocOf(body: string): TocEntry[] {
       id: uniqueId(slugifyHeading(text), seen),
       text,
       depth: m[1].length === 2 ? 2 : 3,
+      line: i + 1,
     });
   }
   return out;
+}
+
+export function tocOf(body: string): TocEntry[] {
+  return headingsOf(body).map(({ id, text, depth }) => ({ id, text, depth }));
+}
+
+/**
+ * Heading id by source line. Keyed by position rather than counted as the
+ * renderer walks, because React renders a subtree more than once — under
+ * StrictMode in development, and whenever it re-renders — and a mutable
+ * counter would hand the same heading a different id the second time, which
+ * surfaces as a hydration mismatch.
+ */
+export function headingIdsByLine(body: string): Map<number, string> {
+  return new Map(headingsOf(body).map((h) => [h.line, h.id]));
 }
 
 export function noteRefsIn(body: string): string[] {

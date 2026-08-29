@@ -2,7 +2,7 @@ import Link from "next/link";
 import { isValidElement, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { slugifyHeading } from "@/lib/view/doc";
+import { headingIdsByLine, slugifyHeading } from "@/lib/view/doc";
 import { isInternalHref } from "@/lib/view/task";
 
 function textOf(node: ReactNode): string {
@@ -16,35 +16,37 @@ function textOf(node: ReactNode): string {
 }
 
 /**
- * Heading ids must match the anchors `tocOf` produces, and duplicates are
- * numbered the same way, so the on-this-page index always lands somewhere.
- * The counter is per render, so it lives in a factory rather than a constant.
+ * Heading ids must match the anchors `tocOf` produces, so both come from one
+ * scan of the source and are looked up by the heading's own line number.
  */
-function anchorFor(children: ReactNode, seen: Map<string, number>): string {
-  const slug = slugifyHeading(textOf(children));
-  const n = seen.get(slug) ?? 0;
-  seen.set(slug, n + 1);
-  return n === 0 ? slug : `${slug}-${n + 1}`;
+function anchorFor(
+  node: { position?: { start?: { line?: number } } } | undefined,
+  children: ReactNode,
+  ids: Map<number, string>,
+): string {
+  const line = node?.position?.start?.line;
+  const byLine = line === undefined ? undefined : ids.get(line);
+  return byLine ?? slugifyHeading(textOf(children));
 }
 
-function components(seen: Map<string, number>): Components {
+function components(ids: Map<number, string>): Components {
   return {
   h1: ({ children }) => (
     <h1 className="mt-5 mb-2 text-[17px] font-semibold tracking-[-0.02em] text-ink first:mt-0">
       {children}
     </h1>
   ),
-  h2: ({ children }) => (
+  h2: ({ children, node }) => (
     <h2
-      id={anchorFor(children, seen)}
+      id={anchorFor(node, children, ids)}
       className="mt-6 mb-2 scroll-mt-6 text-[16px] font-semibold tracking-[-0.02em] text-ink first:mt-0"
     >
       {children}
     </h2>
   ),
-  h3: ({ children }) => (
+  h3: ({ children, node }) => (
     <h3
-      id={anchorFor(children, seen)}
+      id={anchorFor(node, children, ids)}
       className="mt-5 mb-1.5 scroll-mt-6 text-[13.5px] font-semibold tracking-[-0.01em] text-ink first:mt-0"
     >
       {children}
@@ -127,7 +129,7 @@ export default function Markdown({
 }) {
   return (
     <div className={className}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components(new Map())}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components(headingIdsByLine(children))}>
         {children}
       </ReactMarkdown>
     </div>

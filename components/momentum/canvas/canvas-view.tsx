@@ -14,7 +14,9 @@ import {
   type Point,
   type Rect,
 } from "@/lib/view/canvas-layout";
+import { cardExcerpt, cardTier, clampSize, type CardTier } from "@/lib/view/canvas-card";
 import { Bar, Mono } from "../primitives";
+import Markdown from "../markdown";
 import CanvasPopup from "./canvas-popup";
 
 interface Viewport {
@@ -23,9 +25,15 @@ interface Viewport {
   k: number;
 }
 
+interface Size {
+  w: number;
+  h: number;
+}
+
 type Drag =
   | { kind: "pan"; startX: number; startY: number; tx: number; ty: number }
-  | { kind: "card"; id: string; startX: number; startY: number; from: Point; moved: boolean };
+  | { kind: "card"; id: string; startX: number; startY: number; from: Point; moved: boolean }
+  | { kind: "resize"; id: string; startX: number; startY: number; from: Size; moved: boolean };
 
 const MOVE_THRESHOLD = 4;
 
@@ -71,7 +79,10 @@ export default function CanvasView({
   const [edit, setEdit] = useState(false);
   const [local, setLocal] = useState<Record<string, Point>>({});
   const [dirty, setDirty] = useState<Record<string, Point>>({});
+  const [localSize, setLocalSize] = useState<Record<string, Size>>({});
+  const [dirtySize, setDirtySize] = useState<Record<string, Size>>({});
   const [openId, setOpenId] = useState<string | null>(null);
+  const [frontId, setFrontId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [linkFrom, setLinkFrom] = useState<string | null>(null);
   const [linkKind, setLinkKind] = useState<LinkKind>("requires");
@@ -101,8 +112,8 @@ export default function CanvasView({
   }, []);
 
   const nodes = useMemo(
-    () => model.nodes.map((n) => ({ ...n, ...(local[n.id] ?? {}) })),
-    [model.nodes, local],
+    () => model.nodes.map((n) => ({ ...n, ...(local[n.id] ?? {}), ...(localSize[n.id] ?? {}) })),
+    [model.nodes, local, localSize],
   );
   const rectById = useMemo(() => new Map(nodes.map((n) => [n.id, n as Rect])), [nodes]);
 
@@ -120,6 +131,14 @@ export default function CanvasView({
   );
 
   const bounds = useMemo(() => boundsOf(nodes), [nodes]);
+
+  // Biggest first, so a card that has been enlarged sits behind the small ones
+  // it now overlaps and every card keeps a visible corner. Ties break on id so
+  // the order cannot depend on the model's array order.
+  const painted = useMemo(
+    () => [...nodes].sort((a, b) => b.w * b.h - a.w * a.h || a.id.localeCompare(b.id)),
+    [nodes],
+  );
 
   const fit = useCallback(() => {
     const r = stage.current?.getBoundingClientRect();
@@ -139,11 +158,27 @@ export default function CanvasView({
     // Inside a scrollable card body the event is the card's: capturing it here
     // would steal text selection and scrollbar drags.
     if (scrollAncestor(target)) return;
+    const resizeId = edit
+      ? target.closest<HTMLElement>("[data-resize-ref]")?.dataset.resizeRef
+      : null;
     const cardId = edit ? target.closest<HTMLElement>("[data-drag-ref]")?.dataset.dragRef : null;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    if (cardId) {
+    if (resizeId) {
+      const node = nodes.find((n) => n.id === resizeId);
+      if (!node) return;
+      setFrontId(resizeId);
+      drag.current = {
+        kind: "resize",
+        id: resizeId,
+        startX: e.clientX,
+        startY: e.clientY,
+        from: { w: node.w, h: node.h },
+        moved: false,
+      };
+    } else if (cardId) {
       const node = nodes.find((n) => n.id === cardId);
       if (!node) return;
+      setFrontId(cardId);
       drag.current = {
         kind: "card",
         id: cardId,
@@ -169,7 +204,15 @@ export default function CanvasView({
     }
     if (!d.moved && Math.hypot(dx, dy) < MOVE_THRESHOLD) return;
     d.moved = true;
-    // Canvas deltas: dragging IS divided by k, or cards drift when zoomed.
+    // Canvas deltas: resizing and dragging ARE divided by k, or the card drifts
+    // away from the cursor when zoomed.
+    if (d.kind === "resize") {
+      setLocalSize((cur) => ({
+        ...cur,
+        [d.id]: clampSize(d.from.w + dx / vp.k, d.from.h + dy / vp.k),
+      }));
+      return;
+    }
     setLocal((cur) => ({
       ...cur,
       [d.id]: { x: Math.round(d.from.x + dx / vp.k), y: Math.round(d.from.y + dy / vp.k) },
@@ -182,9 +225,16 @@ export default function CanvasView({
     if (d?.kind === "card" && d.moved) {
       setDirty((cur) => ({ ...cur, [d.id]: local[d.id] ?? d.from }));
     }
+    if (d?.kind === "resize" && d.moved) {
+      setDirtySize((cur) => ({ ...cur, [d.id]: localSize[d.id] ?? d.from }));
+    }
   };
 
-  const pendingCount = Object.keys(dirty).length;
+  const pendingRefs = useMemo(
+    () => [...new Set([...Object.keys(dirty), ...Object.keys(dirtySize)])],
+    [dirty, dirtySize],
+  );
+  const pendingCount = pendingRefs.length;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -231,7 +281,10 @@ export default function CanvasView({
 
   // Stable identities, or the memo on CanvasCard is defeated by a fresh arrow
   // function per node per render.
-  const openCard = useCallback((id: string) => setOpenId(id), []);
+  const openCard = useCallback((id: string) => {
+    setOpenId(id);
+    setFrontId(id);
+  }, []);
   const startLink = useCallback((id: string) => setLinkFrom(id), []);
 
   const deleteSelected = () => {
@@ -245,7 +298,14 @@ export default function CanvasView({
     if (pendingCount === 0 || saving) return;
     setSaving(true);
     try {
-      const moves = Object.entries(dirty).map(([ref, p]) => ({ ref, x: p.x, y: p.y }));
+      // Position and size flush together: a ref whose size moved still has to
+      // carry its x/y, since the writer merges a whole node line.
+      const moves = pendingRefs.map((ref) => {
+        const n = nodes.find((x) => x.id === ref);
+        const p = dirty[ref] ?? { x: n?.x ?? 0, y: n?.y ?? 0 };
+        const size = dirtySize[ref];
+        return size ? { ref, x: p.x, y: p.y, w: size.w, h: size.h } : { ref, x: p.x, y: p.y };
+      });
       const res = await fetch("/api/canvas", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -253,6 +313,7 @@ export default function CanvasView({
       });
       if (!res.ok) return;
       setDirty({});
+      setDirtySize({});
       router.refresh();
     } finally {
       setSaving(false);
@@ -419,10 +480,12 @@ export default function CanvasView({
             </div>
           ))}
 
-          {nodes.map((n) => (
+          {painted.map((n) => (
             <CanvasCard
               key={n.id}
               node={n}
+              tier={cardTier(n.w, n.h, vp.k)}
+              front={frontId === n.id}
               edit={edit}
               linking={linkFrom !== null}
               isSource={linkFrom === n.id}
@@ -471,6 +534,8 @@ export default function CanvasView({
 
 interface CardProps {
   node: CanvasNodeModel;
+  tier: CardTier;
+  front: boolean;
   edit: boolean;
   linking: boolean;
   isSource: boolean;
@@ -482,6 +547,8 @@ interface CardProps {
 
 function CanvasCardBase({
   node,
+  tier,
+  front,
   edit,
   linking,
   isSource,
@@ -490,12 +557,16 @@ function CanvasCardBase({
   onStartLink,
   onPickTarget,
 }: CardProps) {
+  const summary = node.preview || cardExcerpt(node.body ?? "", "summary");
+  const body = tier === "body" ? cardExcerpt(node.body ?? "", "body") : "";
+  const scrolls = !edit && tier === "body" && body !== "";
+
   return (
     <div
       // Not draggable while picking a link target, or the click becomes a drag.
       data-drag-ref={linking ? undefined : node.id}
       onPointerDown={linking && !isSource ? () => onPickTarget(node.id) : undefined}
-      className={`absolute overflow-hidden rounded-[14px] border bg-surf px-3.5 py-3 ${
+      className={`absolute flex flex-col overflow-hidden rounded-[14px] border bg-surf ${
         isSource ? "border-ink" : edit ? "border-edge" : "border-edge2"
       } ${linking && !isSource ? "cursor-crosshair" : edit ? "cursor-grab" : ""}`}
       style={{
@@ -503,6 +574,9 @@ function CanvasCardBase({
         top: node.y,
         width: node.w,
         height: node.h,
+        // Last card touched comes forward, or an enlarged card reads as though
+        // it were behind the neighbours it now overlaps.
+        zIndex: front ? 30 : 10,
         borderLeft: `3px solid ${node.color}`,
       }}
     >
@@ -510,20 +584,52 @@ function CanvasCardBase({
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => (linking ? onPickTarget(node.id) : onOpen(node.id))}
-        className="mb-1.5 block w-full pr-6 text-left text-[13px] font-semibold leading-[1.3] tracking-[-0.01em] hover:underline"
+        className="block w-full shrink-0 px-3.5 pt-3 pr-9 pb-1.5 text-left text-[13px] font-semibold leading-[1.3] tracking-[-0.01em] hover:underline"
       >
         {node.title}
       </button>
-      <p className="m-0 overflow-hidden text-[11.5px] leading-[1.45] text-dim">{node.preview}</p>
-      {node.progress?.linked && (
-        <div className="absolute inset-x-3.5 bottom-[22px]">
-          <Bar pct={node.progress.pct} color={node.color} height={3} />
-          <Mono className="mt-1 block text-[8.5px] text-faint">
-            {node.progress.done}/{node.progress.total} TASKS
-          </Mono>
+
+      {tier !== "chip" && (
+        <div
+          // A scroll container only where there is something to scroll: out of
+          // ARRANGE mode, on a card big enough to hold prose. Marking every card
+          // would cost the two gestures that share the pointer -- dragging to
+          // arrange, and dragging the background to pan -- across most of the
+          // board, for summary cards that show a single line anyway.
+          data-card-scroll={scrolls ? "" : undefined}
+          className={`min-h-0 flex-1 px-3.5 ${scrolls ? "touch-auto overflow-y-auto" : "overflow-hidden"}`}
+        >
+          {tier === "body" && body ? (
+            <Markdown className="text-[11.5px] leading-[1.6] text-ink">{body}</Markdown>
+          ) : (
+            <p className="m-0 text-[11.5px] leading-[1.45] text-dim">{summary}</p>
+          )}
         </div>
       )}
-      <Mono className="absolute bottom-2 right-3 text-[8.5px] text-faint">{node.id}</Mono>
+
+      <div className="shrink-0 px-3.5 pt-1.5 pb-2">
+        {node.progress?.linked && (
+          <>
+            <Bar pct={node.progress.pct} color={node.color} height={3} />
+            <Mono className="mt-1 mb-1 block text-[8.5px] text-faint">
+              {node.progress.done}/{node.progress.total} TASKS
+            </Mono>
+          </>
+        )}
+        <Mono className="block text-right text-[8.5px] text-faint">{node.id}</Mono>
+      </div>
+
+      {edit && !linking && (
+        <div
+          data-resize-ref={node.id}
+          aria-hidden
+          className="absolute right-0 bottom-0 h-4 w-4 cursor-nwse-resize"
+          style={{
+            background:
+              "linear-gradient(135deg, transparent 55%, var(--color-edge) 55%, var(--color-edge) 68%, transparent 68%, transparent 78%, var(--color-edge) 78%, var(--color-edge) 91%, transparent 91%)",
+          }}
+        />
+      )}
 
       {canDraw && edit && !linking && (
         <button
@@ -554,6 +660,9 @@ const CanvasCard = memo(
     a.node.h === b.node.h &&
     a.node.title === b.node.title &&
     a.node.preview === b.node.preview &&
+    a.node.body === b.node.body &&
+    a.tier === b.tier &&
+    a.front === b.front &&
     a.node.color === b.node.color &&
     a.node.progress?.pct === b.node.progress?.pct &&
     a.node.progress?.done === b.node.progress?.done &&

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildDocPage,
   docHref,
+  headingIdsByLine,
+  headingsOf,
   linkifyNoteRefs,
   noteRefsIn,
   slugifyHeading,
@@ -168,5 +170,48 @@ describe("buildDocPage", () => {
     expect(m.prev).toBeNull();
     expect(m.next).toBeNull();
     expect(m.backlinks[0].href).toBe("/knowledge/K-002");
+  });
+});
+
+describe("headingIdsByLine", () => {
+  const body = ["intro", "## Notes", "a", "### Deep", "## Notes", "b"].join("\n");
+
+  it("keys every heading id by its 1-based source line", () => {
+    expect([...headingIdsByLine(body)]).toEqual([
+      [2, "notes"],
+      [4, "deep"],
+      [5, "notes-2"],
+    ]);
+  });
+
+  it("agrees with tocOf, which is the whole point of one scan", () => {
+    expect([...headingIdsByLine(body).values()]).toEqual(tocOf(body).map((t) => t.id));
+  });
+
+  it("is stable across repeated calls, unlike a counter walked per render", () => {
+    expect([...headingIdsByLine(body)]).toEqual([...headingIdsByLine(body)]);
+  });
+
+  it("skips headings inside a fence, so sample markdown gets no anchor", () => {
+    const fenced = ["## Real", "```", "## Sample", "```", "## Also real"].join("\n");
+    expect([...headingIdsByLine(fenced).values()]).toEqual(["real", "also-real"]);
+  });
+
+  it("reports the line a heading actually sits on after a fence", () => {
+    const fenced = ["```", "## Sample", "```", "## Real"].join("\n");
+    expect(headingIdsByLine(fenced).get(4)).toBe("real");
+  });
+
+  it("has no entry for an empty body", () => {
+    expect(headingIdsByLine("").size).toBe(0);
+  });
+});
+
+describe("headingsOf", () => {
+  it("carries text and depth alongside the id", () => {
+    expect(headingsOf("## One\n### Two")).toEqual([
+      { id: "one", text: "One", depth: 2, line: 1 },
+      { id: "two", text: "Two", depth: 3, line: 2 },
+    ]);
   });
 });
