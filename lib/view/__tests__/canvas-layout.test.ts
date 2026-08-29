@@ -12,11 +12,8 @@ import {
   snapToSlot,
   toCanvas,
   zoomAbout,
-  TASK_CHIP_H,
-  TASK_CHIP_W,
   cellKey,
   cellsCovered,
-  fanOut,
   packAround,
   ringSlots,
   type Placeable,
@@ -391,45 +388,6 @@ describe("packAround", () => {
     for (const p of out.values()) {
       expect(Number.isInteger(p.x)).toBe(true);
       expect(Number.isInteger(p.y)).toBe(true);
-    }
-  });
-});
-
-describe("fanOut", () => {
-  const anchor = { x: 0, y: 0, w: 240, h: 132 };
-
-  it("is deterministic", () => {
-    expect(fanOut(anchor, 5, 2)).toEqual(fanOut(anchor, 5, 2));
-  });
-
-  it("returns integers", () => {
-    const p = fanOut(anchor, 5, 2);
-    expect(Number.isInteger(p.x)).toBe(true);
-    expect(Number.isInteger(p.y)).toBe(true);
-  });
-
-  it("puts a lone chip level with the card's middle", () => {
-    const p = fanOut(anchor, 1, 0);
-    expect(p.y).toBe(Math.round(anchor.h / 2 - TASK_CHIP_H / 2));
-    expect(p.x).toBeGreaterThan(anchor.w);
-  });
-
-  it("spreads chips apart rather than stacking them", () => {
-    const a = fanOut(anchor, 4, 0);
-    const b = fanOut(anchor, 4, 3);
-    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(TASK_CHIP_H);
-  });
-
-  it("survives a count of zero without dividing by it", () => {
-    const p = fanOut(anchor, 0, 0);
-    expect(Number.isFinite(p.x)).toBe(true);
-    expect(Number.isFinite(p.y)).toBe(true);
-  });
-
-  it("keeps every chip clear of the card it fans from", () => {
-    for (let i = 0; i < 6; i++) {
-      const p = fanOut(anchor, 6, i);
-      expect(overlaps({ ...p, w: TASK_CHIP_W, h: TASK_CHIP_H }, anchor)).toBe(false);
     }
   });
 });

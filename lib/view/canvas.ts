@@ -5,6 +5,7 @@ import { milestonesOf } from "./targets";
 import { edgeKey } from "@/lib/core/canvas";
 import { hueOf } from "@/lib/ui/momentum";
 import { noteRefsIn } from "./doc";
+import { taskHrefFromScope } from "./task";
 import {
   arrowHead,
   autoLayout,
@@ -37,6 +38,15 @@ export interface CanvasNodeModel extends Rect {
   tags: string[];
   /** Set on a system canvas: the work delegated from this component. */
   progress: { done: number; total: number; pct: number; linked: boolean } | null;
+  /** The tasks naming this note, so the card can list and link them. */
+  tasks: ComponentTask[];
+}
+
+export interface ComponentTask {
+  id: string;
+  title: string;
+  done: boolean;
+  href: string;
 }
 
 export interface CanvasEdgeModel {
@@ -74,6 +84,8 @@ export interface NoteCanvasOptions {
   grid?: LayoutGrid;
   /** Charter tasks, so a component card can show the work delegated from it. */
   tasks?: NoteLinkable[];
+  /** "<slug>" or "area:<slug>", used to build task links. */
+  taskScope?: string;
   /** Present on a charter map: what the whole thing is for, in the middle. */
   core?: CanvasCore;
 }
@@ -154,6 +166,7 @@ export function buildCoreNode(core: CanvasCore, file: CanvasFile): CanvasNodeMod
     pin: stored?.pin === true,
     tags: [],
     progress: null,
+    tasks: [],
   };
 }
 
@@ -233,6 +246,7 @@ export function buildNoteCanvas(
       pin: stored?.pin === true,
       tags: n.tags,
       progress: opts.tasks ? noteProgress(n.id, opts.tasks) : null,
+      tasks: componentTasks(n.id, opts.tasks ?? [], opts.taskScope),
     };
   });
 
@@ -452,6 +466,7 @@ export function buildTaskCanvas(
       pin: stored?.pin === true,
       tags: [],
       progress: null,
+      tasks: [],
     };
   });
 
@@ -506,7 +521,31 @@ export function buildTaskCanvas(
   return { nodes, edges, groups, bounds: boundsOf(groups.map((g) => g.rect)), orphans };
 }
 
+/**
+ * The tasks doing a component's work, open first. Derived every render from
+ * the note: field on the task line, which is the only record of the link --
+ * nothing about it is written to the canvas file.
+ */
+export function componentTasks(
+  noteId: string,
+  tasks: NoteLinkable[],
+  scope?: string,
+): ComponentTask[] {
+  return tasks
+    .filter((t) => t.note === noteId && t.id)
+    .map((t) => ({
+      id: t.id!,
+      title: t.title ?? t.id!,
+      done: t.done,
+      href: scope ? taskHrefFromScope(scope, t.id!) : "",
+    }))
+    .sort((a, b) => Number(a.done) - Number(b.done) || a.id.localeCompare(b.id, "en", { numeric: true }));
+}
+
 export interface NoteLinkable {
+  /** Optional so the progress-only callers keep working unchanged. */
+  id?: string;
+  title?: string;
   note?: string;
   done: boolean;
 }

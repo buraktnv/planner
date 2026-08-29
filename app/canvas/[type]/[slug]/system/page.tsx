@@ -42,6 +42,7 @@ export default async function SystemCanvasPage({
     scopeKey,
     charterNames,
     tasks,
+    taskScope: scopeKey,
     core: {
       title: charter.name,
       why: charter.why,
@@ -62,6 +63,9 @@ export default async function SystemCanvasPage({
         drawEdges
         delegate={{ type, slug }}
         createScope={scopeKey}
+        unlinkedTasks={tasks
+          .filter((t) => !t.note && !t.done)
+          .map((t) => ({ id: t.id, title: t.title }))}
       />
     </div>
   );

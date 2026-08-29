@@ -64,6 +64,7 @@ export default function CanvasView({
   drawEdges = false,
   delegate,
   createScope,
+  unlinkedTasks,
 }: {
   model: CanvasModel;
   surface: Record<string, unknown>;
@@ -78,6 +79,8 @@ export default function CanvasView({
    * only ever be filled from the Knowledge page, which is why they start empty.
    */
   createScope?: string;
+  /** Open tasks in this charter with no component yet, offered for linking. */
+  unlinkedTasks?: { id: string; title: string }[];
 }) {
   const router = useRouter();
   const stage = useRef<HTMLDivElement | null>(null);
@@ -93,6 +96,7 @@ export default function CanvasView({
     { at: Point; screen: Point; title: string; busy: boolean } | null
   >(null);
   const [saving, setSaving] = useState(false);
+  const [linkingTaskFor, setLinkingTaskFor] = useState<string | null>(null);
   const [linkFrom, setLinkFrom] = useState<string | null>(null);
   const [linkKind, setLinkKind] = useState<LinkKind>("requires");
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
@@ -211,6 +215,66 @@ export default function CanvasView({
       setDraft(null);
     }
   };
+
+  /**
+   * The note: field on the task line is the only record of this link, so it is
+   * written straight through the task route. The canvas API deliberately has
+   * no part in it: it accepts a knowledge surface too, where there is no
+   * charter and no tasks.md to write.
+   */
+  const writeTaskNote = useCallback(
+    async (taskId: string, noteId: string) => {
+      if (!delegate) return;
+      setSaving(true);
+      setError(null);
+      try {
+        const base = delegate.type === "area" ? "areas" : "projects";
+        const res = await fetch(`/api/${base}/${delegate.slug}/tasks`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: taskId, note: noteId }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          setError(body.error ?? "Could not link that task.");
+          return;
+        }
+        router.refresh();
+      } catch {
+        setError("Could not reach the server.");
+      } finally {
+        setSaving(false);
+      }
+    },
+    [delegate, router],
+  );
+
+  const createTask = useCallback(
+    async (noteId: string, title: string) => {
+      if (!delegate) return;
+      setSaving(true);
+      setError(null);
+      try {
+        const base = delegate.type === "area" ? "areas" : "projects";
+        const res = await fetch(`/api/${base}/${delegate.slug}/tasks`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ title, size: "M", note: noteId }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          setError(body.error ?? "Could not add that task.");
+          return;
+        }
+        router.refresh();
+      } catch {
+        setError("Could not reach the server.");
+      } finally {
+        setSaving(false);
+      }
+    },
+    [delegate, router],
+  );
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -548,6 +612,13 @@ export default function CanvasView({
               node={n}
               tier={cardTier(n.w, n.h, vp.k)}
               front={frontId === n.id}
+              canDelegate={delegate !== undefined && !n.id.startsWith("group:")}
+              unlinked={unlinkedTasks}
+              linkOpen={linkingTaskFor === n.id}
+              onToggleLink={setLinkingTaskFor}
+              onCreateTask={createTask}
+              onLinkTask={writeTaskNote}
+              busy={saving}
               edit={edit}
               linking={linkFrom !== null}
               isSource={linkFrom === n.id}
@@ -632,6 +703,13 @@ interface CardProps {
   tier: CardTier;
   front: boolean;
   edit: boolean;
+  canDelegate: boolean;
+  unlinked?: { id: string; title: string }[];
+  linkOpen: boolean;
+  busy: boolean;
+  onToggleLink: (id: string | null) => void;
+  onCreateTask: (noteId: string, title: string) => void;
+  onLinkTask: (taskId: string, noteId: string) => void;
   linking: boolean;
   isSource: boolean;
   canDraw: boolean;
@@ -645,6 +723,13 @@ function CanvasCardBase({
   tier,
   front,
   edit,
+  canDelegate,
+  unlinked,
+  linkOpen,
+  busy,
+  onToggleLink,
+  onCreateTask,
+  onLinkTask,
   linking,
   isSource,
   canDraw,
@@ -703,6 +788,18 @@ function CanvasCardBase({
           ) : (
             <p className="m-0 text-[11.5px] leading-[1.45] text-dim">{summary}</p>
           )}
+
+          {tier === "body" && canDelegate && (
+            <ComponentWork
+              node={node}
+              unlinked={unlinked}
+              linkOpen={linkOpen}
+              busy={busy}
+              onToggleLink={onToggleLink}
+              onCreateTask={onCreateTask}
+              onLinkTask={onLinkTask}
+            />
+          )}
         </div>
       )}
 
@@ -748,6 +845,96 @@ function CanvasCardBase({
 }
 
 /**
+ * The work delegated from a component, on the card itself: what is already
+ * linked, a row to add another, and a picker for a task that exists but has
+ * no component yet. Both write the task's note: field, which is the only
+ * record of the link -- no canvas edge is written for it, or the same
+ * relationship would be stored twice and could disagree with itself.
+ */
+function ComponentWork({
+  node,
+  unlinked,
+  linkOpen,
+  busy,
+  onToggleLink,
+  onCreateTask,
+  onLinkTask,
+}: {
+  node: CanvasNodeModel;
+  unlinked?: { id: string; title: string }[];
+  linkOpen: boolean;
+  busy: boolean;
+  onToggleLink: (id: string | null) => void;
+  onCreateTask: (noteId: string, title: string) => void;
+  onLinkTask: (taskId: string, noteId: string) => void;
+}) {
+  const [adding, setAdding] = useState("");
+  const stop = (e: React.PointerEvent) => e.stopPropagation();
+  const row =
+    "block w-full truncate rounded-[7px] px-1.5 py-1 text-left text-[11px] transition-colors hover:bg-soft";
+
+  return (
+    <div className="mt-3 border-t border-edge2 pt-2" onPointerDown={stop}>
+      <Mono className="mb-1.5 block text-[8.5px] tracking-[0.1em] text-faint">WORK</Mono>
+
+      {node.tasks.length === 0 && (
+        <p className="m-0 mb-1 text-[11px] text-faint">Nothing delegated yet.</p>
+      )}
+      {node.tasks.map((t) => (
+        <Link key={t.id} href={t.href} className={`${row} ${t.done ? "text-faint line-through" : "text-ink"}`}>
+          <span className="font-mono text-[9px] text-faint">{t.id}</span> {t.title}
+        </Link>
+      ))}
+
+      <input
+        value={adding}
+        disabled={busy}
+        placeholder="+ add a task…"
+        onChange={(e) => setAdding(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          const title = adding.trim();
+          if (!title) return;
+          setAdding("");
+          onCreateTask(node.id, title);
+        }}
+        className="mt-1 w-full rounded-[7px] border border-edge2 px-1.5 py-1 text-[11px] outline-none placeholder:text-faint focus:border-faint"
+      />
+
+      {unlinked && unlinked.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => onToggleLink(linkOpen ? null : node.id)}
+            className="mt-1.5 font-mono text-[8.5px] tracking-[0.1em] text-faint transition-colors hover:text-ink"
+          >
+            {linkOpen ? "CLOSE" : `LINK EXISTING · ${unlinked.length}`}
+          </button>
+          {linkOpen && (
+            <div className="mt-1 max-h-[140px] overflow-y-auto rounded-[8px] bg-soft p-1">
+              {unlinked.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    onToggleLink(null);
+                    onLinkTask(t.id, node.id);
+                  }}
+                  className={`${row} disabled:opacity-40`}
+                >
+                  <span className="font-mono text-[9px] text-faint">{t.id}</span> {t.title}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
  * Moving one card rebuilds every node object, so without this every card
  * re-rendered on every pointermove frame.
  */
@@ -764,6 +951,14 @@ const CanvasCard = memo(
     a.node.body === b.node.body &&
     a.tier === b.tier &&
     a.front === b.front &&
+    a.node.tasks === b.node.tasks &&
+    a.linkOpen === b.linkOpen &&
+    a.busy === b.busy &&
+    a.unlinked === b.unlinked &&
+    a.canDelegate === b.canDelegate &&
+    a.onCreateTask === b.onCreateTask &&
+    a.onLinkTask === b.onLinkTask &&
+    a.onToggleLink === b.onToggleLink &&
     a.node.color === b.node.color &&
     a.node.progress?.pct === b.node.progress?.pct &&
     a.node.progress?.done === b.node.progress?.done &&

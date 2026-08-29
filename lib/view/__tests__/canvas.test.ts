@@ -7,6 +7,7 @@ import { buildNoteCanvas, buildTaskCanvas, canvasNote, noteProgress,
   CORE_REF,
   CORE_W,
   buildCoreNode,
+  componentTasks,
   coreMarkdown,
 } from "../canvas";
 
@@ -536,5 +537,56 @@ describe("buildNoteCanvas with a core", () => {
     const m = buildNoteCanvas([n("K-001")], empty, {});
     expect(m.nodes.map((x) => x.id)).toEqual(["K-001"]);
     expect(m.groups.length).toBe(1);
+  });
+});
+
+describe("componentTasks", () => {
+  const tasks = [
+    { id: "T-002", title: "Wire the shutter", note: "K-001", done: true },
+    { id: "T-010", title: "Pan and tilt", note: "K-001", done: false },
+    { id: "T-003", title: "Something else", note: "K-002", done: false },
+    { id: "T-004", title: "Unlinked", done: false },
+  ];
+
+  it("takes only the tasks naming this note", () => {
+    expect(componentTasks("K-001", tasks).map((t) => t.id)).toEqual(["T-010", "T-002"]);
+  });
+
+  it("puts open work before done work", () => {
+    expect(componentTasks("K-001", tasks).map((t) => t.done)).toEqual([false, true]);
+  });
+
+  it("orders ids numerically, so T-010 does not sort before T-002", () => {
+    const open = [
+      { id: "T-010", title: "b", note: "K-001", done: false },
+      { id: "T-002", title: "a", note: "K-001", done: false },
+    ];
+    expect(componentTasks("K-001", open).map((t) => t.id)).toEqual(["T-002", "T-010"]);
+  });
+
+  it("builds a project task link from the scope", () => {
+    expect(componentTasks("K-001", tasks, "responsive-bot")[0].href).toBe(
+      "/projects/responsive-bot/tasks/T-010",
+    );
+  });
+
+  it("builds an area task link from the scope", () => {
+    expect(componentTasks("K-001", tasks, "area:health")[0].href).toBe(
+      "/areas/health/tasks/T-010",
+    );
+  });
+
+  it("is empty for a note nothing names", () => {
+    expect(componentTasks("K-999", tasks)).toEqual([]);
+  });
+
+  it("ignores a task with no id, which cannot be linked to", () => {
+    expect(componentTasks("K-001", [{ note: "K-001", done: false }])).toEqual([]);
+  });
+
+  it("falls back to the id when a task has no title", () => {
+    expect(componentTasks("K-001", [{ id: "T-001", note: "K-001", done: false }])[0].title).toBe(
+      "T-001",
+    );
   });
 });
