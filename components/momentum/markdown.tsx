@@ -4,6 +4,8 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { headingIdsByLine, slugifyHeading } from "@/lib/view/doc";
 import { rewriteAssetSrc } from "@/lib/view/markdown-assets";
+import { isMermaidFence } from "@/lib/view/mermaid";
+import Mermaid from "./mermaid";
 import { isInternalHref } from "@/lib/view/task";
 
 function textOf(node: ReactNode): string {
@@ -30,7 +32,7 @@ function anchorFor(
   return byLine ?? slugifyHeading(textOf(children));
 }
 
-function components(ids: Map<number, string>): Components {
+function components(ids: Map<number, string>, diagrams: boolean): Components {
   return {
   h1: ({ children }) => (
     <h1 className="mt-5 mb-2 text-[17px] font-semibold tracking-[-0.02em] text-ink first:mt-0">
@@ -87,11 +89,30 @@ function components(ids: Map<number, string>): Components {
     </blockquote>
   ),
   hr: () => <hr className="my-4 border-0 border-t border-edge2" />,
-  pre: ({ children }) => (
-    <pre className="mb-2.5 overflow-x-auto rounded-[8px] bg-soft p-3 font-mono text-[11.5px] leading-[1.55] last:mb-0">
-      {children}
-    </pre>
-  ),
+  // A fenced block arrives here wrapping its <code>, which is where the
+  // language lives — and where a diagram has to be caught, since rendering one
+  // from the <code> override would nest a <div> inside a <pre>.
+  pre: ({ children }) => {
+    const inner = isValidElement(children)
+      ? (children.props as { className?: string; children?: ReactNode })
+      : null;
+    if (inner && isMermaidFence(inner.className)) {
+      const source = textOf(inner.children).replace(/\n$/, "");
+      if (!diagrams) {
+        return (
+          <span className="my-1.5 inline-flex items-center gap-1.5 rounded-[7px] border border-edge2 px-2 py-1 font-mono text-[9px] tracking-[0.1em] text-faint">
+            ◇ DIAGRAM
+          </span>
+        );
+      }
+      return <Mermaid source={source} />;
+    }
+    return (
+      <pre className="mb-2.5 overflow-x-auto rounded-[8px] bg-soft p-3 font-mono text-[11.5px] leading-[1.55] last:mb-0">
+        {children}
+      </pre>
+    );
+  },
   code: ({ className, children }) => {
     const text = String(children ?? "");
     const block = (className ?? "").includes("language-") || text.includes("\n");
@@ -141,13 +162,23 @@ function components(ids: Map<number, string>): Components {
 export default function Markdown({
   children,
   className = "text-[13px] leading-[1.65] text-ink",
+  diagrams = true,
 }: {
   children: string;
   className?: string;
+  /**
+   * Off on a canvas card, where a mermaid block becomes a chip. Rendering one
+   * per card would be a parse and layout pass each, through a module-global
+   * singleton, on the main thread.
+   */
+  diagrams?: boolean;
 }) {
   return (
     <div className={className}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components(headingIdsByLine(children))}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={components(headingIdsByLine(children), diagrams)}
+      >
         {children}
       </ReactMarkdown>
     </div>

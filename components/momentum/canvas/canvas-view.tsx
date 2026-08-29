@@ -784,7 +784,9 @@ function CanvasCardBase({
           className={`min-h-0 flex-1 px-3.5 ${scrolls ? "touch-auto overflow-y-auto" : "overflow-hidden"}`}
         >
           {tier === "body" && body ? (
-            <Markdown className="text-[11.5px] leading-[1.6] text-ink">{body}</Markdown>
+            <Markdown className="text-[11.5px] leading-[1.6] text-ink" diagrams={false}>
+              {body}
+            </Markdown>
           ) : (
             <p className="m-0 text-[11.5px] leading-[1.45] text-dim">{summary}</p>
           )}
