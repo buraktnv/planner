@@ -36,6 +36,20 @@ export function taskHref(type: ProjectType, slug: string, taskId: string): strin
   return `/${base}/${slug}/tasks/${taskId}`;
 }
 
+/**
+ * A task href from the scope string the AI layer speaks ("<slug>" or
+ * "area:<slug>"), so a proposal row can link without knowing the type.
+ */
+export function taskHrefFromScope(
+  scope: string,
+  taskId: string,
+  from?: string | null,
+): string {
+  const isArea = scope.startsWith("area:");
+  const href = taskHref(isArea ? "area" : "project", isArea ? scope.slice(5) : scope, taskId);
+  return from ? `${href}?from=${encodeURIComponent(from)}` : href;
+}
+
 export function charterHref(type: ProjectType, slug: string): string {
   return `/${type === "area" ? "areas" : "projects"}/${slug}`;
 }
@@ -47,6 +61,17 @@ export function findSub(subs: SubModel[], id: string): SubModel | null {
     if (deeper) return deeper;
   }
   return null;
+}
+
+function subIds(subs: SubModel[]): string[] {
+  return subs.flatMap((s) => [s.id, ...subIds(s.subs)]);
+}
+
+/** Every id in one charter, branches and leaves alike — what a mention may resolve to. */
+export function taskIdsOf(cards: CardModel[], type: ProjectType, slug: string): string[] {
+  return cards
+    .filter((c) => c.type === type && c.slug === slug)
+    .flatMap((c) => [c.id, ...subIds(c.subs)]);
 }
 
 function nodeOfCard(card: CardModel): TaskNode {
@@ -124,6 +149,14 @@ export function safeBackPath(from: string | null | undefined): string | null {
   if (!from) return null;
   if (!from.startsWith("/") || from.startsWith("//")) return null;
   return from;
+}
+
+/**
+ * An href that stays inside the app. Used to decide whether a rendered
+ * markdown link navigates here or opens a new tab.
+ */
+export function isInternalHref(href: string | undefined): boolean {
+  return !!href && href.startsWith("/") && !href.startsWith("//");
 }
 
 export function backLabelFor(path: string | null, fallback: string): string {

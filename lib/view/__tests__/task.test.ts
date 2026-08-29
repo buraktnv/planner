@@ -5,10 +5,13 @@ import {
   buildTaskPage,
   charterHref,
   findSub,
+  isInternalHref,
   parentIdOf,
   rootIdOf,
   safeBackPath,
   taskHref,
+  taskHrefFromScope,
+  taskIdsOf,
 } from "../task";
 
 function sub(id: string, subs: SubModel[] = []): SubModel {
@@ -68,6 +71,18 @@ describe("hrefs", () => {
     expect(taskHref("area", "admin", "T-001.2")).toBe("/areas/admin/tasks/T-001.2");
     expect(charterHref("area", "admin")).toBe("/areas/admin");
   });
+
+  it("reads the AI layer's scope string, area prefix included", () => {
+    expect(taskHrefFromScope("demo", "T-001")).toBe("/projects/demo/tasks/T-001");
+    expect(taskHrefFromScope("area:admin", "T-001")).toBe("/areas/admin/tasks/T-001");
+  });
+
+  it("appends an encoded from only when one is given", () => {
+    expect(taskHrefFromScope("demo", "T-001", "/board")).toBe(
+      "/projects/demo/tasks/T-001?from=%2Fboard",
+    );
+    expect(taskHrefFromScope("demo", "T-001", null)).toBe("/projects/demo/tasks/T-001");
+  });
 });
 
 describe("findSub", () => {
@@ -110,6 +125,24 @@ describe("buildTaskPage", () => {
   });
 });
 
+describe("taskIdsOf", () => {
+  const cards = [card("T-001", [sub("T-001.1", [sub("T-001.1.1")])]), card("T-002")];
+
+  it("lists branches and every leaf beneath them", () => {
+    expect(taskIdsOf(cards, "project", "demo")).toEqual([
+      "T-001",
+      "T-001.1",
+      "T-001.1.1",
+      "T-002",
+    ]);
+  });
+
+  it("is scoped to one charter", () => {
+    expect(taskIdsOf(cards, "area", "demo")).toEqual([]);
+    expect(taskIdsOf(cards, "project", "other")).toEqual([]);
+  });
+});
+
 describe("safeBackPath", () => {
   it("keeps an in-app path", () => {
     expect(safeBackPath("/board")).toBe("/board");
@@ -122,6 +155,21 @@ describe("safeBackPath", () => {
     expect(safeBackPath("javascript:alert(1)")).toBeNull();
     expect(safeBackPath("")).toBeNull();
     expect(safeBackPath(null)).toBeNull();
+  });
+});
+
+describe("isInternalHref", () => {
+  it("accepts an in-app path", () => {
+    expect(isInternalHref("/projects/demo/tasks/T-001")).toBe(true);
+    expect(isInternalHref("/knowledge/K-001")).toBe(true);
+  });
+
+  it("rejects anything that leaves the app", () => {
+    expect(isInternalHref("https://example.com")).toBe(false);
+    expect(isInternalHref("//example.com")).toBe(false);
+    expect(isInternalHref("mailto:a@b.c")).toBe(false);
+    expect(isInternalHref("#anchor")).toBe(false);
+    expect(isInternalHref(undefined)).toBe(false);
   });
 });
 

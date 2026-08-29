@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { ProjectType } from "@/lib/core/types";
+import { taskHref } from "@/lib/view/task";
+import { linkifyTaskRefs } from "@/lib/view/task-refs";
 import { Mono } from "./primitives";
 import Markdown from "./markdown";
 
@@ -10,12 +12,16 @@ export default function TaskPlan({
   slug,
   taskId,
   color,
+  knownIds = [],
+  from,
   onSaved,
 }: {
   type: ProjectType;
   slug: string;
   taskId: string;
   color: string;
+  knownIds?: string[];
+  from?: string | null;
   onSaved?: (hasPlan: boolean) => void;
 }) {
   const [body, setBody] = useState<string | null>(null);
@@ -25,6 +31,12 @@ export default function TaskPlan({
   const [error, setError] = useState<string | null>(null);
 
   const url = `/api/tasks/${type}/${slug}/${taskId}/detail`;
+
+  /** The task being read links nowhere — it is already on screen. */
+  const hrefForRef = (id: string) => {
+    if (id === taskId || !knownIds.includes(id)) return null;
+    return `${taskHref(type, slug, id)}${from ? `?from=${encodeURIComponent(from)}` : ""}`;
+  };
 
   useEffect(() => {
     let live = true;
@@ -134,7 +146,7 @@ export default function TaskPlan({
         <Mono className="block text-[10px] text-faint">LOADING…</Mono>
       ) : body.trim() ? (
         <div className="rounded-[13px] bg-soft p-[13px]">
-          <Markdown>{body.trim()}</Markdown>
+          <Markdown>{linkifyTaskRefs(body.trim(), hrefForRef)}</Markdown>
         </div>
       ) : (
         <button

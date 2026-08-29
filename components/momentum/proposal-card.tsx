@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import type { Proposal } from "@/lib/ai/schemas";
 import { LANES } from "@/lib/ui/momentum";
+import { taskHrefFromScope } from "@/lib/view/task";
 import { Mono } from "./primitives";
 
 export type ProposalStatus = "idle" | "applying" | "applied" | "discarded" | "error";
@@ -53,7 +55,19 @@ export default function ProposalCard({
           return (
             <div key={`${row.id}-${i}`} className="flex flex-col gap-[3px]">
               <div className="flex items-center gap-[9px]">
-                <Mono className="shrink-0 text-[9px] text-faint">{row.id}</Mono>
+                {row.scope ? (
+                  <Link
+                    href={taskHrefFromScope(row.scope, row.id)}
+                    aria-label={`Open ${row.id}`}
+                    className="shrink-0"
+                  >
+                    <Mono className="text-[9px] text-faint transition-colors hover:text-ink hover:underline">
+                      {row.id}
+                    </Mono>
+                  </Link>
+                ) : (
+                  <Mono className="shrink-0 text-[9px] text-faint">{row.id}</Mono>
+                )}
                 <span className="min-w-0 flex-1 truncate text-[12.5px] text-dim">{row.title}</span>
                 <Mono
                   className="shrink-0 rounded-[5px] px-1.5 py-[3px] text-[8.5px] tracking-[0.08em]"

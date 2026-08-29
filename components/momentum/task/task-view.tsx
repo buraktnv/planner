@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { SubModel } from "@/lib/view/workspace";
 import type { TaskPageModel } from "@/lib/view/task";
 import { taskHref } from "@/lib/view/task";
-import type { TaskLane, TaskSection } from "@/lib/core/types";
+import type { TaskLane, TaskSection, TaskSize } from "@/lib/core/types";
 import { LANES, LANE_KEYS, shortDate } from "@/lib/ui/momentum";
 import { Bar, Mono, Tick } from "../primitives";
 import TaskPlan from "../task-plan";
@@ -24,12 +24,14 @@ export default function TaskView({
   backLabel,
   charterHref,
   from,
+  knownIds,
 }: {
   model: TaskPageModel;
   backHref: string;
   backLabel: string;
   charterHref: string;
   from: string | null;
+  knownIds: string[];
 }) {
   const { card, node } = model;
   const router = useRouter();
@@ -39,6 +41,8 @@ export default function TaskView({
   const [waitsOn, setWaitsOn] = useState(card.waitsOn ?? "");
   const [busy, setBusy] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  const [newSub, setNewSub] = useState("");
+  const [newSize, setNewSize] = useState<TaskSize>("S");
 
   const base = card.type === "project" ? "/api/projects" : "/api/areas";
   const query = from ? `?from=${encodeURIComponent(from)}` : "";
@@ -86,6 +90,25 @@ export default function TaskView({
   const setCardLane = async (next: TaskLane) => {
     setLane(next);
     await patch({ id: card.id, lane: next });
+  };
+
+  /** A subtask of a subtask is legal — the parent is whatever is on screen. */
+  const addSubtask = async () => {
+    const title = newSub.trim();
+    if (!title) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`${base}/${card.slug}/tasks`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, size: newSize, parentId: node.id }),
+      });
+      if (!res.ok) return;
+      setNewSub("");
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const saveWaitsOn = async () => {
@@ -285,6 +308,8 @@ export default function TaskView({
         slug={card.slug}
         taskId={node.id}
         color={card.color}
+        knownIds={knownIds}
+        from={from}
         onSaved={() => router.refresh()}
       />
 
@@ -320,7 +345,7 @@ export default function TaskView({
       </Mono>
       {subs.length === 0 ? (
         <p className="m-0 text-[13px] text-faint">
-          No subtasks. Break this down from the task list or ask the assistant to split it.
+          No subtasks yet. Add the first step below, or ask the assistant to split this up.
         </p>
       ) : (
         <div className="flex flex-col">
@@ -340,6 +365,40 @@ export default function TaskView({
           )}
         </div>
       )}
+
+      <div className="mt-3 flex gap-2">
+        <input
+          value={newSub}
+          onChange={(e) => setNewSub(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void addSubtask();
+            }
+          }}
+          placeholder="Add a subtask…"
+          aria-label={`Add a subtask to ${node.id}`}
+          className="min-w-0 flex-1 rounded-[11px] border border-edge bg-bg px-3 py-2 text-[12.5px] outline-none placeholder:text-faint"
+        />
+        <select
+          value={newSize}
+          onChange={(e) => setNewSize(e.target.value as TaskSize)}
+          aria-label="Size"
+          className="rounded-[11px] border border-edge bg-bg px-2 py-2 font-mono text-[9.5px] tracking-[0.08em] text-dim outline-none"
+        >
+          <option value="S">S</option>
+          <option value="M">M</option>
+          <option value="L">L</option>
+        </select>
+        <button
+          type="button"
+          disabled={busy || newSub.trim() === ""}
+          onClick={addSubtask}
+          className="rounded-[11px] border border-edge px-3 py-2 font-mono text-[9.5px] tracking-[0.08em] text-dim transition-colors hover:text-ink disabled:opacity-40"
+        >
+          ADD
+        </button>
+      </div>
     </div>
   );
 }

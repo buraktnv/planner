@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { isValidElement, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { slugifyHeading } from "@/lib/view/doc";
+import { isInternalHref } from "@/lib/view/task";
 
 function textOf(node: ReactNode): string {
   if (node === null || node === undefined || typeof node === "boolean") return "";
@@ -61,16 +63,19 @@ function components(seen: Map<string, number>): Components {
     <ol className="mb-2.5 flex list-decimal flex-col gap-1 pl-[18px] last:mb-0">{children}</ol>
   ),
   li: ({ children }) => <li className="leading-[1.6]">{children}</li>,
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer noopener"
-      className="text-dim underline underline-offset-2 transition-colors hover:text-ink"
-    >
-      {children}
-    </a>
-  ),
+  a: ({ href, children }) => {
+    const style = "text-dim underline underline-offset-2 transition-colors hover:text-ink";
+    // A link into the app navigates here; only the outside world gets a new tab.
+    return isInternalHref(href) ? (
+      <Link href={href!} className={style}>
+        {children}
+      </Link>
+    ) : (
+      <a href={href} target="_blank" rel="noreferrer noopener" className={style}>
+        {children}
+      </a>
+    );
+  },
   strong: ({ children }) => <strong className="font-semibold text-ink">{children}</strong>,
   em: ({ children }) => <em className="italic">{children}</em>,
   blockquote: ({ children }) => (

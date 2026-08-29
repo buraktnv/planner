@@ -7,6 +7,7 @@ import {
   charterHref,
   parentIdOf,
   safeBackPath,
+  taskIdsOf,
 } from "@/lib/view/task";
 import TaskView from "./task-view";
 
@@ -41,6 +42,7 @@ export default async function TaskScreen({
       }
       charterHref={home}
       from={back}
+      knownIds={taskIdsOf(ws.cards, type, slug)}
     />
   );
 }

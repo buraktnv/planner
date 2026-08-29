@@ -117,6 +117,7 @@ async function previewRow(
             : "update",
       charterName: tone.name,
       color: tone.color,
+      ...(existing ? { scope: action.project } : {}),
     };
   }
   if (action.kind === "decompose_task") {
@@ -131,6 +132,7 @@ async function previewRow(
       note: `${action.subtasks.length} subtasks`,
       charterName: tone.name,
       color: tone.color,
+      ...(existing ? { scope: action.project } : {}),
     };
   }
   if (action.kind === "move_to_parking_lot") {

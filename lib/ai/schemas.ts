@@ -152,6 +152,8 @@ export interface ProposalPreviewRow {
   detail?: string;
   charterName: string;
   color: string;
+  /** Charter the row's task lives in ("<slug>" or "area:<slug>"). Absent when the row is not a task, or when the task does not exist yet. */
+  scope?: string;
 }
 
 export interface Proposal {
