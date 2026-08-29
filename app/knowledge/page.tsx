@@ -27,9 +27,11 @@ export default async function KnowledgePage() {
 
   return (
     <div className="mx-auto max-w-[820px] px-[36px] pt-[52px] pb-[90px]">
-      <AssistantNote className="mb-4">{knowledgeNote(model)}</AssistantNote>
-      <DistillPanel status={distill} />
-      <KnowledgeView model={model} />
+      <KnowledgeView
+        model={model}
+        note={<AssistantNote className="mb-3">{knowledgeNote(model)}</AssistantNote>}
+        distill={<DistillPanel status={distill} />}
+      />
     </div>
   );
 }

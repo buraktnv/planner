@@ -3,10 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Empty, Mono, PageTitle, Panel } from "../primitives";
-import NoteDetail from "./note-detail";
 import NoteEditor, { type EditorValue } from "./note-editor";
 import type { KnowledgeModel, KnowledgeRow } from "@/lib/view/knowledge";
-import type { KnowledgeHit, KnowledgeNote } from "@/lib/core/types";
+import type { KnowledgeHit } from "@/lib/core/types";
 import { Chip, RowCard } from "./note-row";
 
 const EMPTY_EDITOR: EditorValue = {
@@ -18,19 +17,15 @@ const EMPTY_EDITOR: EditorValue = {
   source: "",
 };
 
-function editorFor(note: KnowledgeNote): EditorValue {
-  return {
-    id: note.id,
-    title: note.title,
-    summary: note.summary,
-    body: note.body,
-    scope: note.scope.join(", "),
-    tags: note.tags.join(", "),
-    source: note.source ?? "",
-  };
-}
-
-export default function KnowledgeView({ model }: { model: KnowledgeModel }) {
+export default function KnowledgeView({
+  model,
+  note,
+  distill,
+}: {
+  model: KnowledgeModel;
+  note?: React.ReactNode;
+  distill?: React.ReactNode;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const scope = searchParams.get("scope");
@@ -49,7 +44,6 @@ export default function KnowledgeView({ model }: { model: KnowledgeModel }) {
 
   const [tags, setTags] = useState<string[]>([]);
   const [result, setResult] = useState<{ key: string; hits: KnowledgeHit[] } | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorValue | null>(null);
 
   const trimmed = query.trim();
@@ -96,7 +90,6 @@ export default function KnowledgeView({ model }: { model: KnowledgeModel }) {
 
   const afterSave = useCallback(() => {
     setEditor(null);
-    setOpenId(null);
     setResult(null);
     setQuery("");
     router.refresh();
@@ -117,6 +110,9 @@ export default function KnowledgeView({ model }: { model: KnowledgeModel }) {
           Note
         </button>
       </PageTitle>
+
+      {note}
+      {distill}
 
       <input
         value={query}
@@ -188,7 +184,7 @@ export default function KnowledgeView({ model }: { model: KnowledgeModel }) {
                 scope={h.scope}
                 tags={h.tags}
                 updated={h.updated}
-                onOpen={() => setOpenId(h.id)}
+                href={`/knowledge/${h.id}`}
               />
             ))
           : null}
@@ -203,7 +199,7 @@ export default function KnowledgeView({ model }: { model: KnowledgeModel }) {
                 scope={r.scope.map((s) => s.key)}
                 tags={r.tags}
                 updated={r.updated}
-                onOpen={() => setOpenId(r.id)}
+                href={`/knowledge/${r.id}`}
               />
             ))
           : null}
@@ -220,15 +216,6 @@ export default function KnowledgeView({ model }: { model: KnowledgeModel }) {
           </Panel>
         ) : null}
       </div>
-
-      {openId && !editor ? (
-        <NoteDetail
-          id={openId}
-          onClose={() => setOpenId(null)}
-          onEdit={(n) => setEditor(editorFor(n))}
-          onOpen={(id) => setOpenId(id)}
-        />
-      ) : null}
 
       {editor ? (
         <NoteEditor initial={editor} onClose={() => setEditor(null)} onSaved={afterSave} />

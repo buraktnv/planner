@@ -1,19 +1,50 @@
+import { isValidElement, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { slugifyHeading } from "@/lib/view/doc";
 
-const COMPONENTS: Components = {
+function textOf(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (isValidElement(node)) {
+    return textOf((node.props as { children?: ReactNode }).children);
+  }
+  return "";
+}
+
+/**
+ * Heading ids must match the anchors `tocOf` produces, and duplicates are
+ * numbered the same way, so the on-this-page index always lands somewhere.
+ * The counter is per render, so it lives in a factory rather than a constant.
+ */
+function anchorFor(children: ReactNode, seen: Map<string, number>): string {
+  const slug = slugifyHeading(textOf(children));
+  const n = seen.get(slug) ?? 0;
+  seen.set(slug, n + 1);
+  return n === 0 ? slug : `${slug}-${n + 1}`;
+}
+
+function components(seen: Map<string, number>): Components {
+  return {
   h1: ({ children }) => (
     <h1 className="mt-5 mb-2 text-[17px] font-semibold tracking-[-0.02em] text-ink first:mt-0">
       {children}
     </h1>
   ),
   h2: ({ children }) => (
-    <h2 className="mt-5 mb-2 text-[15px] font-semibold tracking-[-0.02em] text-ink first:mt-0">
+    <h2
+      id={anchorFor(children, seen)}
+      className="mt-6 mb-2 scroll-mt-6 text-[16px] font-semibold tracking-[-0.02em] text-ink first:mt-0"
+    >
       {children}
     </h2>
   ),
   h3: ({ children }) => (
-    <h3 className="mt-4 mb-1.5 text-[13.5px] font-semibold tracking-[-0.01em] text-ink first:mt-0">
+    <h3
+      id={anchorFor(children, seen)}
+      className="mt-5 mb-1.5 scroll-mt-6 text-[13.5px] font-semibold tracking-[-0.01em] text-ink first:mt-0"
+    >
       {children}
     </h3>
   ),
@@ -76,15 +107,22 @@ const COMPONENTS: Components = {
     </th>
   ),
   td: ({ children }) => <td className="border border-edge2 px-2 py-1 align-top">{children}</td>,
-  input: ({ checked }) => (
-    <input type="checkbox" checked={checked} readOnly className="mr-1.5 align-middle" />
-  ),
-};
+    input: ({ checked }) => (
+      <input type="checkbox" checked={checked} readOnly className="mr-1.5 align-middle" />
+    ),
+  };
+}
 
-export default function Markdown({ children }: { children: string }) {
+export default function Markdown({
+  children,
+  className = "text-[13px] leading-[1.65] text-ink",
+}: {
+  children: string;
+  className?: string;
+}) {
   return (
-    <div className="text-[13px] leading-[1.65] text-ink">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
+    <div className={className}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components(new Map())}>
         {children}
       </ReactMarkdown>
     </div>

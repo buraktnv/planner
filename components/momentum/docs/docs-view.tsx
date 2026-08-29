@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Empty, Mono, PageTitle, Panel } from "../primitives";
-import NoteDetail from "../knowledge/note-detail";
 import NoteEditor, { type EditorValue } from "../knowledge/note-editor";
 import { Chip, RowCard } from "../knowledge/note-row";
 import type { DocsModel } from "@/lib/view/docs";
-import type { KnowledgeHit, KnowledgeNote } from "@/lib/core/types";
+import { docHref } from "@/lib/view/doc";
+import type { KnowledgeHit } from "@/lib/core/types";
 
 const STARTERS = [
   ["architecture", "How it is put together — the pieces and how they talk."],
@@ -17,24 +17,11 @@ const STARTERS = [
   ["runbook", "How to run, deploy, and recover it when it breaks."],
 ];
 
-function editorFor(note: KnowledgeNote): EditorValue {
-  return {
-    id: note.id,
-    title: note.title,
-    summary: note.summary,
-    body: note.body,
-    scope: note.scope.join(", "),
-    tags: note.tags.join(", "),
-    source: note.source ?? "",
-  };
-}
-
 export default function DocsView({ model, backHref }: { model: DocsModel; backHref: string }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [result, setResult] = useState<{ key: string; hits: KnowledgeHit[] } | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorValue | null>(null);
 
   const trimmed = query.trim();
@@ -84,7 +71,6 @@ export default function DocsView({ model, backHref }: { model: DocsModel; backHr
 
   const afterSave = useCallback(() => {
     setEditor(null);
-    setOpenId(null);
     setResult(null);
     setQuery("");
     router.refresh();
@@ -196,7 +182,8 @@ export default function DocsView({ model, backHref }: { model: DocsModel; backHr
                 scope={h.scope}
                 tags={h.tags}
                 updated={h.updated}
-                onOpen={() => setOpenId(h.id)}
+                href={docHref(h.id, model.scopeKey)}
+                hideScope={[model.scopeKey]}
               />
             ))}
             {hits && hits.length === 0 ? (
@@ -226,7 +213,9 @@ export default function DocsView({ model, backHref }: { model: DocsModel; backHr
                     scope={r.scope.map((s) => s.key)}
                     tags={r.tags}
                     updated={r.updated}
-                    onOpen={() => setOpenId(r.id)}
+                    href={docHref(r.id, model.scopeKey)}
+                    hideScope={[model.scopeKey]}
+                    hideTag={g.tag}
                   />
                 ))}
               </div>
@@ -239,15 +228,6 @@ export default function DocsView({ model, backHref }: { model: DocsModel; backHr
           ) : null}
         </div>
       )}
-
-      {openId && !editor ? (
-        <NoteDetail
-          id={openId}
-          onClose={() => setOpenId(null)}
-          onEdit={(n) => setEditor(editorFor(n))}
-          onOpen={(id) => setOpenId(id)}
-        />
-      ) : null}
 
       {editor ? (
         <NoteEditor

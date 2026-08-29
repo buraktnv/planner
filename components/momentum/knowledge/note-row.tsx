@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Mono } from "../primitives";
 import { scopeChip } from "@/lib/view/knowledge";
 
@@ -44,7 +45,9 @@ export function RowCard({
   scope,
   tags,
   updated,
-  onOpen,
+  href,
+  hideScope,
+  hideTag,
 }: {
   id: string;
   title: string;
@@ -53,13 +56,19 @@ export function RowCard({
   scope: string[];
   tags: string[];
   updated: string;
-  onOpen: () => void;
+  href: string;
+  /** Scope keys already implied by the page, so repeating them is noise. */
+  hideScope?: string[];
+  /** A tag already stated by the group heading above this row. */
+  hideTag?: string;
 }) {
+  const shownScope = hideScope ? scope.filter((s) => !hideScope.includes(s)) : scope;
+  const shownTags = hideTag ? tags.filter((t) => t !== hideTag) : tags;
+  const meta = shownScope.length > 0 || shownTags.length > 0;
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="w-full rounded-[14px] border border-edge bg-surf px-[15px] py-[13px] text-left transition-colors hover:border-ink"
+    <Link
+      href={href}
+      className="block w-full rounded-[14px] border border-edge bg-surf px-[15px] py-[11px] text-left transition-colors hover:border-ink"
     >
       <div className="flex items-baseline gap-2.5">
         <Mono className="text-[9.5px] tracking-[0.1em] text-faint">{id}</Mono>
@@ -74,8 +83,9 @@ export function RowCard({
           {snippet}
         </p>
       ) : null}
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {scope.map((key) => {
+      {meta ? (
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {shownScope.map((key) => {
           const chip = scopeChip(key);
           return (
             <Mono
@@ -87,7 +97,7 @@ export function RowCard({
             </Mono>
           );
         })}
-        {tags.map((tag) => (
+        {shownTags.map((tag) => (
           <Mono
             key={tag}
             className="rounded-[5px] bg-soft px-[6px] py-[2px] text-[8px] tracking-[0.08em] text-dim"
@@ -96,6 +106,7 @@ export function RowCard({
           </Mono>
         ))}
       </div>
-    </button>
+      ) : null}
+    </Link>
   );
 }
