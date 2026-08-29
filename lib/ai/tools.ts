@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import type { Charter, ProjectType, Task, TaskLane, TaskSize } from "../core/types";
 import {
   listCharters,
@@ -23,6 +24,7 @@ import type {
   ProposalPreviewRow,
 } from "./schemas";
 import { deriveTitle, listNotes, readNote, searchNotes, updateNote } from "../core/knowledge";
+import { saveAsset } from "../core/assets";
 import { readCanvas } from "../core/canvas";
 import { noteProgress } from "../view/canvas";
 import { readDetail, writeDetail } from "../core/details";
@@ -584,6 +586,36 @@ export const toolImpls = {
     if (!input.id) throw new Error("updateNote requires a note id");
     const { id, ...patch } = input;
     return updateNote(id, patch);
+  },
+
+  /**
+   * Copy an image the agent can already see into the data repo and, when a note
+   * is named, link it from that note's body.
+   *
+   * The path is read on the agent's own machine rather than sent as bytes over
+   * HTTP: an MCP client is already trusted with the filesystem, so this adds no
+   * reach it did not have. What it must not do is let the path decide the
+   * stored name — saveAsset derives that from the bytes.
+   */
+  async attachImage(input: {
+    path: string;
+    noteId?: string;
+    alt?: string;
+  }): Promise<{ ref: string; name: string; bytes: number; deduped: boolean; noteId?: string }> {
+    if (!input.path) throw new Error("attachImage requires a path");
+    const bytes = await fs.readFile(input.path).catch(() => null);
+    if (!bytes) throw new Error(`Could not read ${input.path}`);
+
+    const saved = await saveAsset(new Uint8Array(bytes));
+    if (!input.noteId) return { ...saved };
+
+    const { note } = await readNote(input.noteId);
+    const alt = (input.alt ?? "").replace(/[\[\]]/g, "");
+    const body = note.body.trimEnd();
+    await updateNote(input.noteId, {
+      body: `${body}${body === "" ? "" : "\n\n"}![${alt}](${saved.ref})\n`,
+    });
+    return { ...saved, noteId: input.noteId };
   },
 
   async weeklySummary(): Promise<{

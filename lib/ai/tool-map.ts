@@ -27,6 +27,7 @@ export const toolImplMap: Record<ToolName, ImplFn> = {
   write_task_detail: toolImpls.writeTaskDetail as ImplFn,
   add_note: toolImpls.addNote as ImplFn,
   update_note: toolImpls.updateNote as ImplFn,
+  attach_image: toolImpls.attachImage as ImplFn,
   next_actions: () => toolImpls.nextActions(),
   list_targets: (a) => toolImpls.listTargets(a as { project?: string }),
   list_components: (a) => toolImpls.listComponents(a as { project: string }),

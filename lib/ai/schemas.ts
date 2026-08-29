@@ -126,6 +126,11 @@ const baseShapes = {
     tags: z.array(z.string()).optional(),
     source: z.string().optional(),
   },
+  attach_image: {
+    path: z.string(),
+    noteId: z.string().optional(),
+    alt: z.string().optional(),
+  },
   next_actions: {},
   list_targets: { project: z.string().optional() },
   list_components: { project: z.string() },
@@ -240,6 +245,8 @@ export const toolDescriptions: Record<ToolName, string> = {
     "File a knowledge note. summary must be a single line stating the conclusion, not the topic — it is the only text loaded into context until someone searches. title is optional and is derived from the summary when omitted. Leave scope empty and it is categorised automatically into the right area or project; pass it only when you are certain.",
   update_note:
     "Amend a knowledge note. Only the fields you pass change; updated is bumped. Pass source as an empty string to clear it.",
+  attach_image:
+    "Copy an image file into the data repo and optionally append it to a knowledge note. path is read from the filesystem this server runs on. Use it for a screenshot or diagram that belongs with a note; the file is committed, so it survives and works on another machine. PNG, JPEG, GIF, WebP and AVIF only, up to 2 MB — SVG is refused. Identical images are stored once.",
   next_actions: "Get the prioritized list of next actions across the workspace.",
   list_targets:
     "List the goals (targets) on a charter, with their G- ids, milestone grouping and progress. Read this before setting target: on a task — an id that does not exist simply shows no link.",

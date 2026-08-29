@@ -3,6 +3,7 @@ import { isValidElement, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { headingIdsByLine, slugifyHeading } from "@/lib/view/doc";
+import { rewriteAssetSrc } from "@/lib/view/markdown-assets";
 import { isInternalHref } from "@/lib/view/task";
 
 function textOf(node: ReactNode): string {
@@ -114,6 +115,23 @@ function components(ids: Map<number, string>): Components {
     </th>
   ),
   td: ({ children }) => <td className="border border-edge2 px-2 py-1 align-top">{children}</td>,
+    img: ({ src, alt, title }) => {
+      const resolved = rewriteAssetSrc(typeof src === "string" ? src : undefined);
+      // An unresolvable source renders nothing rather than a broken-image icon:
+      // the reference is the bug, and a missing picture says so more quietly.
+      if (!resolved) return null;
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={resolved}
+          alt={alt ?? ""}
+          title={title}
+          loading="lazy"
+          decoding="async"
+          className="my-2.5 h-auto max-w-full rounded-[10px] border border-edge2"
+        />
+      );
+    },
     input: ({ checked }) => (
       <input type="checkbox" checked={checked} readOnly className="mr-1.5 align-middle" />
     ),

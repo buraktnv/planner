@@ -35,6 +35,7 @@ export const WRITE_TOOLS: ToolName[] = [
   "add_note",
   "update_note",
   "write_task_detail",
+  "attach_image",
 ];
 
 export const OWNER_ONLY_TOOLS: ToolName[] = ["create_project", "create_area"];
