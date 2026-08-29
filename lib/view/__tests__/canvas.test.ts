@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { KnowledgeNote } from "@/lib/core/types";
 import type { CanvasFile } from "@/lib/core/canvas";
 import type { CardModel, SubModel } from "../workspace";
-import { buildNoteCanvas, buildTaskCanvas, canvasNote, noteProgress } from "../canvas";
+import { buildNoteCanvas, buildTaskCanvas, canvasNote, noteProgress,
+  CORE_H,
+  CORE_REF,
+  CORE_W,
+  buildCoreNode,
+  coreMarkdown,
+} from "../canvas";
 
 function note(partial: Partial<KnowledgeNote> & { id: string }): KnowledgeNote {
   return {
@@ -387,5 +393,148 @@ describe("canvasNote", () => {
       file({ nodes: [{ ref: "K-404", x: 0, y: 0, extra: [] }] }),
     );
     expect(canvasNote(model)).toContain("1 stale reference");
+  });
+});
+
+describe("coreMarkdown", () => {
+  it("leads with the motivation", () => {
+    expect(coreMarkdown("Because the BT needs eyes.", [])).toBe("Because the BT needs eyes.");
+  });
+
+  it("re-emits targets as a task list, not their stored pipe form", () => {
+    const out = coreMarkdown("Why.", [
+      "### M1 — first light",
+      "- [ ] G-001 | Camera control — by 30 SEP",
+      "- [x] G-002 | YOLO nano",
+    ]);
+    expect(out).toContain("### M1 — first light");
+    expect(out).toContain("- [ ] Camera control — by 30 SEP");
+    expect(out).toContain("- [x] YOLO nano");
+    expect(out).not.toContain("|");
+    expect(out).not.toContain("G-001");
+  });
+
+  it("omits the scope heading when there are no targets", () => {
+    expect(coreMarkdown("Why.", [])).not.toContain("What done looks like");
+  });
+
+  it("survives an empty charter without throwing", () => {
+    expect(coreMarkdown("", [])).toBe("");
+  });
+});
+
+describe("buildCoreNode", () => {
+  const core = {
+    title: "Responsive-Bot",
+    why: "The bot has to see.\nSecond line.",
+    mvpScope: [],
+    href: "/projects/responsive-bot",
+    color: "#123456",
+    tint: "#abcdef",
+  };
+
+  it("uses a group: ref, so it is never pruned and never an orphan", () => {
+    expect(CORE_REF.startsWith("group:")).toBe(true);
+    expect(buildCoreNode(core, { nodes: [], edges: [], unknown: [] }).id).toBe(CORE_REF);
+  });
+
+  it("centres itself on the origin when nothing is stored", () => {
+    const n = buildCoreNode(core, { nodes: [], edges: [], unknown: [] });
+    expect(n).toMatchObject({ x: -CORE_W / 2, y: -CORE_H / 2, w: CORE_W, h: CORE_H });
+    expect(n.placed).toBe("auto");
+  });
+
+  it("prefers a stored position and size", () => {
+    const n = buildCoreNode(core, {
+      nodes: [{ ref: CORE_REF, x: 40, y: 50, w: 600, h: 400, extra: [] }],
+      edges: [],
+      unknown: [],
+    });
+    expect(n).toMatchObject({ x: 40, y: 50, w: 600, h: 400, placed: "saved" });
+  });
+
+  it("previews the first real line of the why", () => {
+    expect(buildCoreNode(core, { nodes: [], edges: [], unknown: [] }).preview).toBe(
+      "The bot has to see.",
+    );
+  });
+});
+
+describe("buildNoteCanvas with a core", () => {
+  const core = {
+    title: "Responsive-Bot",
+    why: "Why it exists.",
+    mvpScope: [],
+    href: "/projects/responsive-bot",
+    color: "#123456",
+    tint: "#abcdef",
+  };
+  const empty = { nodes: [], edges: [], unknown: [] };
+
+  function n(id: string, over: Partial<KnowledgeNote> = {}): KnowledgeNote {
+    return {
+      id,
+      title: id,
+      summary: "s",
+      scope: ["responsive-bot"],
+      tags: [],
+      created: "2026-01-01",
+      updated: "2026-01-01",
+      body: "",
+      ...over,
+    };
+  }
+
+  it("puts the core first, so it is the card everything reads from", () => {
+    const m = buildNoteCanvas([n("K-001")], empty, { core });
+    expect(m.nodes[0].id).toBe(CORE_REF);
+  });
+
+  it("draws no group bands: a charter map is one scope by definition", () => {
+    expect(buildNoteCanvas([n("K-001"), n("K-002")], empty, { core }).groups).toEqual([]);
+  });
+
+  it("still has usable bounds with no groups", () => {
+    const m = buildNoteCanvas([n("K-001")], empty, { core });
+    expect(m.bounds.w).toBeGreaterThan(0);
+    expect(m.bounds.h).toBeGreaterThan(0);
+  });
+
+  it("branches every root off the core", () => {
+    const m = buildNoteCanvas([n("K-001"), n("K-002")], empty, { core });
+    const fromCore = m.edges.filter((e) => e.from === CORE_REF).map((e) => e.to);
+    expect(fromCore.sort()).toEqual(["K-001", "K-002"]);
+  });
+
+  it("skips a note something else already points at", () => {
+    const notes = [n("K-001", { body: "see [[K-002]]" }), n("K-002")];
+    const m = buildNoteCanvas(notes, empty, { core });
+    const fromCore = m.edges.filter((e) => e.from === CORE_REF).map((e) => e.to);
+    expect(fromCore).toEqual(["K-001"]);
+  });
+
+  it("falls back to every note when the links form a cycle", () => {
+    const notes = [n("K-001", { body: "[[K-002]]" }), n("K-002", { body: "[[K-001]]" })];
+    const m = buildNoteCanvas(notes, empty, { core });
+    const fromCore = m.edges.filter((e) => e.from === CORE_REF).map((e) => e.to);
+    expect(fromCore.sort()).toEqual(["K-001", "K-002"]);
+  });
+
+  it("never places a note on top of the core", () => {
+    const notes = Array.from({ length: 14 }, (_, i) => n(`K-${100 + i}`));
+    const m = buildNoteCanvas(notes, empty, { core });
+    const c = m.nodes.find((x) => x.id === CORE_REF)!;
+    for (const node of m.nodes) {
+      if (node.id === CORE_REF) continue;
+      const hit =
+        node.x < c.x + c.w && c.x < node.x + node.w && node.y < c.y + c.h && c.y < node.y + node.h;
+      expect(hit).toBe(false);
+    }
+  });
+
+  it("is unchanged without a core, so the knowledge canvas keeps its bands", () => {
+    const m = buildNoteCanvas([n("K-001")], empty, {});
+    expect(m.nodes.map((x) => x.id)).toEqual(["K-001"]);
+    expect(m.groups.length).toBe(1);
   });
 });

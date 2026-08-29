@@ -13,6 +13,7 @@ import {
   CARD_W,
   DEFAULT_GRID,
   edgePath,
+  packAround,
   type LayoutGrid,
   type Placeable,
   type Point,
@@ -73,6 +74,87 @@ export interface NoteCanvasOptions {
   grid?: LayoutGrid;
   /** Charter tasks, so a component card can show the work delegated from it. */
   tasks?: NoteLinkable[];
+  /** Present on a charter map: what the whole thing is for, in the middle. */
+  core?: CanvasCore;
+}
+
+/**
+ * The centre of a charter's map. Not a note and not a new record: it is the
+ * charter's own Why and MVP scope, which already exist and are already edited
+ * on the charter page.
+ */
+export interface CanvasCore {
+  title: string;
+  why: string;
+  mvpScope: string[];
+  href: string;
+  color: string;
+  tint: string;
+}
+
+/**
+ * A group: ref, so it needs no id of its own, is never pruned, and is already
+ * skipped by orphan detection — the same three properties that made group:
+ * refs part of the grammar in the first place.
+ */
+export const CORE_REF = "group:core";
+export const CORE_W = 400;
+export const CORE_H = 280;
+
+function firstLine(text: string): string {
+  for (const line of (text ?? "").split("\n")) {
+    const t = line.trim();
+    if (t) return t.replace(/^#+\s*/, "");
+  }
+  return "";
+}
+
+/**
+ * The centre card's body: the motivation, then what finishing looks like.
+ * Targets are re-emitted as a markdown task list rather than their stored
+ * pipe-delimited form, which is a storage format and reads like one.
+ */
+export function coreMarkdown(why: string, mvpScope: string[]): string {
+  const parts: string[] = [];
+  const w = (why ?? "").trim();
+  if (w) parts.push(w);
+
+  const lines: string[] = [];
+  for (const m of milestonesOf(mvpScope ?? [])) {
+    if (m.name) lines.push(`### ${m.name}`);
+    for (const t of m.targets) {
+      lines.push(`- [${t.done ? "x" : " "}] ${t.title}${t.by ? ` — by ${t.by}` : ""}`);
+    }
+  }
+  if (lines.length > 0) parts.push(["## What done looks like", ...lines].join("\n"));
+
+  return parts.join("\n\n");
+}
+
+export function buildCoreNode(core: CanvasCore, file: CanvasFile): CanvasNodeModel {
+  const stored = file.nodes.find((n) => n.ref === CORE_REF);
+  const w = stored?.w ?? CORE_W;
+  const h = stored?.h ?? CORE_H;
+  return {
+    id: CORE_REF,
+    title: core.title,
+    preview: firstLine(core.why),
+    body: coreMarkdown(core.why, core.mvpScope),
+    href: core.href,
+    groupKey: null,
+    groupLabel: "Core",
+    color: core.color,
+    tint: core.tint,
+    // Centred on the origin by default, so the ring around it is symmetric.
+    x: stored?.x ?? -Math.round(w / 2),
+    y: stored?.y ?? -Math.round(h / 2),
+    w,
+    h,
+    placed: stored ? "saved" : "auto",
+    pin: stored?.pin === true,
+    tags: [],
+    progress: null,
+  };
 }
 
 function labelForScope(key: string | null, names: Record<string, string>): string {
@@ -100,17 +182,33 @@ export function buildNoteCanvas(
 
   const savedByRef = new Map(file.nodes.map((n) => [n.ref, n]));
   const saved = new Map<string, Point>();
+  const savedRects = new Map<string, Rect>();
   for (const n of visible) {
     const at = savedByRef.get(n.id);
-    if (at) saved.set(n.id, { x: at.x, y: at.y });
+    if (!at) continue;
+    saved.set(n.id, { x: at.x, y: at.y });
+    savedRects.set(n.id, {
+      x: at.x,
+      y: at.y,
+      w: at.w ?? CARD_W,
+      h: at.h ?? CARD_H,
+    });
   }
+
+  const core = opts.core ? buildCoreNode(opts.core, file) : null;
 
   const placeables: Placeable[] = visible.map((n, i) => ({
     id: n.id,
     groupKey: n.scope[0] ?? null,
     order: i,
+    w: savedByRef.get(n.id)?.w,
+    h: savedByRef.get(n.id)?.h,
   }));
-  const auto = autoLayout(placeables, saved, grid);
+  // A charter map rings its cards around the centre; the whole knowledge base
+  // keeps the banded grid, where the bands are the charters themselves.
+  const auto = core
+    ? packAround(core, placeables, savedRects, grid)
+    : autoLayout(placeables, saved, grid);
 
   const nodes: CanvasNodeModel[] = visible.map((n) => {
     const groupKey = n.scope[0] ?? null;
@@ -137,6 +235,8 @@ export function buildNoteCanvas(
       progress: opts.tasks ? noteProgress(n.id, opts.tasks) : null,
     };
   });
+
+  if (core) nodes.unshift(core);
 
   const rectById = new Map(nodes.map((n) => [n.id, n]));
 
@@ -165,6 +265,21 @@ export function buildNoteCanvas(
   const edges: CanvasEdgeModel[] = [];
   const seen = new Set<string>();
 
+  // Everything on a charter map branches from the centre. Only the roots are
+  // wired to it — a card that something else already points at is reached
+  // through that arrow, so joining it to the core too would draw a starburst
+  // over the structure rather than showing it.
+  if (core) {
+    const pointedAt = new Set<string>();
+    for (const n of visible) for (const ref of noteRefsIn(n.body)) pointedAt.add(ref);
+    for (const e of file.edges) if (e.kind !== "rel") pointedAt.add(e.to);
+    const roots = visible.filter((n) => !pointedAt.has(n.id));
+    for (const n of roots.length > 0 ? roots : visible) {
+      const e = withGeometry(CORE_REF, n.id, "rel", "derived", null);
+      if (e) edges.push(e);
+    }
+  }
+
   // Derived first: a link written into the note text wins over a hand-drawn
   // copy of the same relationship, so drawing one that already exists is a
   // visual no-op rather than a double line.
@@ -188,7 +303,9 @@ export function buildNoteCanvas(
 
   const pad = groupPadding(grid);
   const byGroup = new Map<string | null, CanvasNodeModel[]>();
-  for (const n of nodes) {
+  // A charter map is one scope by definition, so a band around it would frame
+  // the whole board and say nothing.
+  for (const n of core ? [] : nodes) {
     const list = byGroup.get(n.groupKey);
     if (list) list.push(n);
     else byGroup.set(n.groupKey, [n]);
@@ -218,7 +335,7 @@ export function buildNoteCanvas(
     nodes,
     edges,
     groups,
-    bounds: boundsOf(groups.map((g) => g.rect)),
+    bounds: boundsOf(groups.length > 0 ? groups.map((g) => g.rect) : nodes),
     orphans: [...orphanSet].sort(),
   };
 }

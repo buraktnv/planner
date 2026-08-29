@@ -63,6 +63,7 @@ export default function CanvasView({
   backHref,
   drawEdges = false,
   delegate,
+  createScope,
 }: {
   model: CanvasModel;
   surface: Record<string, unknown>;
@@ -72,6 +73,11 @@ export default function CanvasView({
   drawEdges?: boolean;
   /** Where a delegated task is created. Absent on the knowledge canvas. */
   delegate?: { type: string; slug: string };
+  /**
+   * Scope a note created here is filed under. Without it a charter's map could
+   * only ever be filled from the Knowledge page, which is why they start empty.
+   */
+  createScope?: string;
 }) {
   const router = useRouter();
   const stage = useRef<HTMLDivElement | null>(null);
@@ -83,6 +89,9 @@ export default function CanvasView({
   const [dirtySize, setDirtySize] = useState<Record<string, Size>>({});
   const [openId, setOpenId] = useState<string | null>(null);
   const [frontId, setFrontId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<
+    { at: Point; screen: Point; title: string; busy: boolean } | null
+  >(null);
   const [saving, setSaving] = useState(false);
   const [linkFrom, setLinkFrom] = useState<string | null>(null);
   const [linkKind, setLinkKind] = useState<LinkKind>("requires");
@@ -151,6 +160,57 @@ export default function CanvasView({
     // Only on mount: refitting on every change would fight the user's panning.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const onDoubleClick = (e: React.MouseEvent) => {
+    if (!createScope) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-drag-ref]")) return;
+    const r = stage.current?.getBoundingClientRect();
+    if (!r) return;
+    const screen = { x: e.clientX - r.left, y: e.clientY - r.top };
+    setDraft({
+      at: toCanvas({ x: e.clientX, y: e.clientY }, vp, { x: r.left, y: r.top }),
+      screen,
+      title: "",
+      busy: false,
+    });
+  };
+
+  const createNote = async () => {
+    if (!draft || !createScope) return;
+    const title = draft.title.trim();
+    if (!title) return;
+    setDraft({ ...draft, busy: true });
+    setError(null);
+    try {
+      const res = await fetch("/api/knowledge", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, summary: title, scope: [createScope] }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+      if (!res.ok || !body.id) {
+        setError(body.error ?? "Could not create that note.");
+        setDraft(null);
+        return;
+      }
+      // Place it where the click landed, so it appears where it was asked for
+      // rather than wherever the layout would have put it.
+      await fetch("/api/canvas", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          surface,
+          moves: [{ ref: body.id, x: Math.round(draft.at.x), y: Math.round(draft.at.y) }],
+        }),
+      });
+      setDraft(null);
+      router.refresh();
+    } catch {
+      setError("Could not reach the server.");
+      setDraft(null);
+    }
+  };
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -241,6 +301,7 @@ export default function CanvasView({
       if (e.key !== "Escape") return;
       setLinkFrom(null);
       setSelectedEdge(null);
+      setDraft(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -414,6 +475,7 @@ export default function CanvasView({
 
       <div
         ref={stage}
+        onDoubleClick={onDoubleClick}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -497,9 +559,42 @@ export default function CanvasView({
           ))}
         </div>
 
-        {nodes.length === 0 && (
+        {nodes.length === 0 && !draft && (
           <div className="absolute inset-0 grid place-items-center">
-            <p className="m-0 text-[13px] text-faint">Nothing to map yet.</p>
+            <p className="m-0 max-w-[280px] text-center text-[13px] text-faint">
+              {createScope
+                ? "Nothing here yet. Double-click anywhere to add the first component."
+                : "Nothing to map yet."}
+            </p>
+          </div>
+        )}
+
+        {draft && (
+          // Outside the canvas transform: an input inside it would be scaled
+          // with the board and blur or overflow at anything but 100%.
+          <div
+            className="absolute z-50 w-[240px] rounded-[12px] border border-ink bg-surf p-2 shadow-sm"
+            style={{
+              left: Math.max(8, draft.screen.x - 120),
+              top: Math.max(8, draft.screen.y - 20),
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <input
+              autoFocus
+              value={draft.title}
+              disabled={draft.busy}
+              placeholder="Name this component…"
+              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void createNote();
+                if (e.key === "Escape") setDraft(null);
+              }}
+              className="w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
+            />
+            <Mono className="mt-1.5 block text-[8.5px] tracking-[0.08em] text-faint">
+              {draft.busy ? "CREATING…" : "ENTER TO ADD · ESC TO CANCEL"}
+            </Mono>
           </div>
         )}
 
@@ -557,7 +652,11 @@ function CanvasCardBase({
   onStartLink,
   onPickTarget,
 }: CardProps) {
-  const summary = node.preview || cardExcerpt(node.body ?? "", "summary");
+  // A note whose summary is still its title would otherwise print it twice.
+  const preview = node.preview.trim() === node.title.trim() ? "" : node.preview;
+  const summary = preview || cardExcerpt(node.body ?? "", "summary");
+  // group: refs are internal — the core card has no id worth showing.
+  const showId = !node.id.startsWith("group:");
   const body = tier === "body" ? cardExcerpt(node.body ?? "", "body") : "";
   const scrolls = !edit && tier === "body" && body !== "";
 
@@ -616,7 +715,9 @@ function CanvasCardBase({
             </Mono>
           </>
         )}
-        <Mono className="block text-right text-[8.5px] text-faint">{node.id}</Mono>
+        {showId && (
+          <Mono className="block text-right text-[8.5px] text-faint">{node.id}</Mono>
+        )}
       </div>
 
       {edit && !linking && (

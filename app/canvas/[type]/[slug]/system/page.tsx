@@ -4,6 +4,7 @@ import { getCharter, listCharters, listTasks } from "@/lib/core/store";
 import { readCanvas } from "@/lib/core/canvas";
 import type { ProjectType } from "@/lib/core/types";
 import { buildNoteCanvas } from "@/lib/view/canvas";
+import { hueOf } from "@/lib/ui/momentum";
 import CanvasView from "@/components/momentum/canvas/canvas-view";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,20 @@ export default async function SystemCanvasPage({
   for (const p of projects) charterNames[p.id] = p.name;
   for (const a of areas) charterNames[`area:${a.id}`] = a.name;
 
-  const model = buildNoteCanvas(notes, file, { scopeKey, charterNames, tasks });
+  const tone = hueOf(charter.id);
+  const model = buildNoteCanvas(notes, file, {
+    scopeKey,
+    charterNames,
+    tasks,
+    core: {
+      title: charter.name,
+      why: charter.why,
+      mvpScope: charter.mvpScope,
+      href: type === "project" ? `/projects/${slug}` : `/areas/${slug}`,
+      color: tone.color,
+      tint: tone.tint,
+    },
+  });
 
   return (
     <div className="h-full">
@@ -47,6 +61,7 @@ export default async function SystemCanvasPage({
         backHref={type === "project" ? `/projects/${slug}` : `/areas/${slug}`}
         drawEdges
         delegate={{ type, slug }}
+        createScope={scopeKey}
       />
     </div>
   );

@@ -12,8 +12,16 @@ import {
   snapToSlot,
   toCanvas,
   zoomAbout,
+  TASK_CHIP_H,
+  TASK_CHIP_W,
+  cellKey,
+  cellsCovered,
+  fanOut,
+  packAround,
+  ringSlots,
   type Placeable,
   type Point,
+  type Rect,
 } from "../canvas-layout";
 
 const G = DEFAULT_GRID;
@@ -201,5 +209,227 @@ describe("viewport maths", () => {
 
   it("does not divide by zero on empty bounds", () => {
     expect(fitTo({ x: 0, y: 0, w: 0, h: 0 }, 800, 600).k).toBe(1);
+  });
+});
+
+const CORE: Rect = { x: 0, y: 0, w: 360, h: 240 };
+
+function sat(id: string, over: Partial<Placeable> = {}): Placeable {
+  return { id, groupKey: null, order: 0, ...over };
+}
+
+function overlaps(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+describe("cellKey", () => {
+  it("keeps a negative coordinate in a negative cell rather than clamping", () => {
+    expect(cellKey({ x: -10, y: -10 })).toBe("-1,-1");
+    expect(cellKey({ x: -1000, y: 0 })).not.toBe(cellKey({ x: 0, y: 0 }));
+  });
+
+  it("puts the origin in cell 0,0", () => {
+    expect(cellKey({ x: 0, y: 0 })).toBe("0,0");
+  });
+});
+
+describe("cellsCovered", () => {
+  it("gives a default-sized card exactly one cell", () => {
+    expect(cellsCovered({ x: 0, y: 0, w: G.colW, h: G.rowH })).toEqual(["0,0"]);
+  });
+
+  it("gives an enlarged card every cell it overlaps -- the regression", () => {
+    const cells = cellsCovered({ x: 0, y: 0, w: 720, h: 400 });
+    expect(cells.length).toBeGreaterThanOrEqual(9);
+    expect(new Set(cells).size).toBe(cells.length);
+  });
+
+  it("claims negative columns for a card left of the origin, never column 0", () => {
+    const cells = cellsCovered({ x: -300, y: 0, w: 100, h: 100 });
+    expect(cells).toContain("-2,0");
+    expect(cells).not.toContain("0,0");
+  });
+
+  it("spans both cells when a card straddles a boundary", () => {
+    const pitch = DEFAULT_GRID.colW + DEFAULT_GRID.gap;
+    expect(cellsCovered({ x: pitch - 10, y: 0, w: 20, h: 10 })).toEqual(["0,0", "1,0"]);
+  });
+
+  it("never returns nothing, even for a degenerate rect", () => {
+    expect(cellsCovered({ x: 0, y: 0, w: 0, h: 0 })).toEqual(["0,0"]);
+  });
+});
+
+describe("ringSlots", () => {
+  const opts = { r0: 300, dr: 180, perRing: 8 };
+
+  it("is empty for a zero count", () => {
+    expect(ringSlots(0, opts)).toEqual([]);
+  });
+
+  it("returns exactly the count asked for", () => {
+    expect(ringSlots(19, opts)).toHaveLength(19);
+  });
+
+  it("is deterministic", () => {
+    expect(ringSlots(30, opts)).toEqual(ringSlots(30, opts));
+  });
+
+  it("returns integers, because positions are stored as integers", () => {
+    for (const p of ringSlots(30, opts)) {
+      expect(Number.isInteger(p.x)).toBe(true);
+      expect(Number.isInteger(p.y)).toBe(true);
+    }
+  });
+
+  it("puts the first card directly above the centre", () => {
+    const [first] = ringSlots(1, opts);
+    expect(first.x).toBe(0);
+    expect(first.y).toBe(-300);
+  });
+
+  it("pushes later rings further out than the first", () => {
+    const slots = ringSlots(40, opts);
+    const r = (p: Point) => Math.hypot(p.x, p.y);
+    expect(r(slots[slots.length - 1])).toBeGreaterThan(r(slots[0]));
+  });
+});
+
+describe("packAround", () => {
+  it("returns nothing for a satellite that already has a position", () => {
+    const saved = new Map([["K-001", { x: 999, y: 999, w: G.colW, h: G.rowH }]]);
+    expect(packAround(CORE, [sat("K-001")], saved).has("K-001")).toBe(false);
+  });
+
+  it("places every unsaved satellite", () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `K-${100 + i}`);
+    const out = packAround(CORE, ids.map((id) => sat(id)), new Map());
+    expect([...out.keys()].sort()).toEqual([...ids].sort());
+  });
+
+  it("never places a satellite on a cell the core covers", () => {
+    const coreCells = new Set(cellsCovered(CORE));
+    const out = packAround(
+      CORE,
+      Array.from({ length: 20 }, (_, i) => sat(`K-${100 + i}`)),
+      new Map(),
+    );
+    for (const p of out.values()) {
+      const cells = cellsCovered({ ...p, w: G.colW, h: G.rowH });
+      for (const c of cells) expect(coreCells.has(c)).toBe(false);
+    }
+  });
+
+  it("never places a satellite under a saved OVERSIZED card", () => {
+    const big = { x: 400, y: -100, w: 720, h: 400 };
+    const saved = new Map([["K-BIG", big]]);
+    const sats = [sat("K-BIG"), ...Array.from({ length: 16 }, (_, i) => sat(`K-${100 + i}`))];
+    const out = packAround(CORE, sats, saved);
+    for (const p of out.values()) {
+      expect(overlaps({ ...p, w: G.colW, h: G.rowH }, big)).toBe(false);
+    }
+  });
+
+  it("does not depend on the order of the input array", () => {
+    const ids = Array.from({ length: 15 }, (_, i) => `K-${100 + i}`);
+    const forward = packAround(CORE, ids.map((id) => sat(id)), new Map());
+    const backward = packAround(CORE, [...ids].reverse().map((id) => sat(id)), new Map());
+    expect([...forward.entries()].sort()).toEqual([...backward.entries()].sort());
+  });
+
+  it("honours order before id", () => {
+    const out = packAround(
+      CORE,
+      [sat("K-999", { order: 0 }), sat("K-001", { order: 5 })],
+      new Map(),
+    );
+    const first = ringSlots(1, {
+      r0: Math.round(Math.max(CORE.w, CORE.h) / 2 + Math.max(G.colW, G.rowH) * 0.8 + G.gap),
+      dr: G.rowH + G.gap * 2,
+      perRing: 8,
+    })[0];
+    expect(out.get("K-999")).toEqual({
+      x: Math.round(CORE.x + CORE.w / 2 + first.x - G.colW / 2),
+      y: Math.round(CORE.y + CORE.h / 2 + first.y - G.rowH / 2),
+    });
+  });
+
+  it("lays out 40 satellites with no two overlapping", () => {
+    const sats = Array.from({ length: 40 }, (_, i) => sat(`K-${100 + i}`));
+    const out = packAround(CORE, sats, new Map());
+    const rects = [...out.values()].map((p) => ({ ...p, w: G.colW, h: G.rowH }));
+    expect(rects).toHaveLength(40);
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        expect(overlaps(rects[i], rects[j])).toBe(false);
+      }
+    }
+  });
+
+  it("respects a satellite's own size when claiming space", () => {
+    const sats = [sat("K-100", { w: 700, h: 420 }), ...Array.from({ length: 10 }, (_, i) => sat(`K-${200 + i}`))];
+    const out = packAround(CORE, sats, new Map());
+    const rects = [...out.entries()].map(([id, at]) => {
+      const found = sats.find((x) => x.id === id)!;
+      return { ...at, w: found.w ?? G.colW, h: found.h ?? G.rowH };
+    });
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        expect(overlaps(rects[i], rects[j])).toBe(false);
+      }
+    }
+  });
+
+  it("treats a satellite with no size as one default cell", () => {
+    const a = packAround(CORE, [sat("K-100")], new Map());
+    const b = packAround(CORE, [sat("K-100", { w: G.colW, h: G.rowH })], new Map());
+    expect(a).toEqual(b);
+  });
+
+  it("returns integer positions", () => {
+    const out = packAround(CORE, [sat("K-100"), sat("K-101")], new Map());
+    for (const p of out.values()) {
+      expect(Number.isInteger(p.x)).toBe(true);
+      expect(Number.isInteger(p.y)).toBe(true);
+    }
+  });
+});
+
+describe("fanOut", () => {
+  const anchor = { x: 0, y: 0, w: 240, h: 132 };
+
+  it("is deterministic", () => {
+    expect(fanOut(anchor, 5, 2)).toEqual(fanOut(anchor, 5, 2));
+  });
+
+  it("returns integers", () => {
+    const p = fanOut(anchor, 5, 2);
+    expect(Number.isInteger(p.x)).toBe(true);
+    expect(Number.isInteger(p.y)).toBe(true);
+  });
+
+  it("puts a lone chip level with the card's middle", () => {
+    const p = fanOut(anchor, 1, 0);
+    expect(p.y).toBe(Math.round(anchor.h / 2 - TASK_CHIP_H / 2));
+    expect(p.x).toBeGreaterThan(anchor.w);
+  });
+
+  it("spreads chips apart rather than stacking them", () => {
+    const a = fanOut(anchor, 4, 0);
+    const b = fanOut(anchor, 4, 3);
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(TASK_CHIP_H);
+  });
+
+  it("survives a count of zero without dividing by it", () => {
+    const p = fanOut(anchor, 0, 0);
+    expect(Number.isFinite(p.x)).toBe(true);
+    expect(Number.isFinite(p.y)).toBe(true);
+  });
+
+  it("keeps every chip clear of the card it fans from", () => {
+    for (let i = 0; i < 6; i++) {
+      const p = fanOut(anchor, 6, i);
+      expect(overlaps({ ...p, w: TASK_CHIP_W, h: TASK_CHIP_H }, anchor)).toBe(false);
+    }
   });
 });
