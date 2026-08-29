@@ -26,6 +26,7 @@ export async function POST(req: Request, { params }: Ctx) {
       due?: unknown;
       lane?: unknown;
       target?: unknown;
+      note?: unknown;
       waitsOn?: unknown;
     };
     const title = typeof body.title === "string" ? body.title.trim() : "";
@@ -41,6 +42,7 @@ export async function POST(req: Request, { params }: Ctx) {
       est: typeof body.est === "string" ? body.est : undefined,
       due: typeof body.due === "string" ? body.due : undefined,
       target: typeof body.target === "string" && body.target.trim() ? body.target.trim() : undefined,
+      note: typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined,
       waitsOn: typeof body.waitsOn === "string" && body.waitsOn.trim() ? body.waitsOn.trim() : undefined,
     });
     return NextResponse.json(task);
@@ -63,6 +65,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       due?: unknown;
       lane?: unknown;
       target?: unknown;
+      note?: unknown;
       waitsOn?: unknown;
     };
     const id = typeof body.id === "string" ? body.id : "";
@@ -76,6 +79,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (typeof body.due === "string") patch.due = body.due;
     if (isLane(body.lane)) patch.lane = body.lane;
     if (typeof body.target === "string") patch.target = body.target.trim();
+    if (typeof body.note === "string") patch.note = body.note.trim();
     if (typeof body.waitsOn === "string") patch.waitsOn = body.waitsOn.trim();
     const task = await updateTask("project", slug, id, patch);
     return NextResponse.json(task);

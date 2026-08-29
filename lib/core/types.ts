@@ -31,6 +31,8 @@ export interface Task {
   est?: string;
   due?: string;
   target?: string;
+  /** Knowledge note this task does the work of (a component on a system canvas). */
+  note?: string;
   waitsOn?: string;
   parentId?: string | null;
 }

@@ -38,8 +38,18 @@ const TASK_SECTION_HEADER: Record<TaskSection, string> = {
   "in-progress": "## In progress",
   done: "## Done",
 };
-const TASK_FIELD_KEYS = new Set(["created", "done", "est", "due", "lane", "target", "waits"]);
+const TASK_FIELD_KEYS = new Set([
+  "created",
+  "done",
+  "est",
+  "due",
+  "lane",
+  "target",
+  "note",
+  "waits",
+]);
 const TARGET_REF_RE = /^G-\d{3,}$/;
+const NOTE_REF_RE = /^K-\d{3,}$/;
 const TASK_LANE_VALUES: TaskLane[] = ["quick", "deep", "wait", "some"];
 const TASK_SIZE_VALUES: TaskSize[] = ["S", "M", "L"];
 
@@ -133,6 +143,7 @@ export function parseTasks(raw: string): Task[] {
     let due: string | undefined;
     let lane: TaskLane | undefined;
     let target: string | undefined;
+    let note: string | undefined;
     let waitsOn: string | undefined;
     for (const field of parts.slice(3)) {
       const colon = field.indexOf(":");
@@ -165,6 +176,15 @@ export function parseTasks(raw: string): Task[] {
           );
         }
         target = value;
+      } else if (key === "note") {
+        // Shape only, for the same reason as target: notes live in
+        // knowledge/, so an unknown id must not make this file unparseable.
+        if (!NOTE_REF_RE.test(value)) {
+          throw new TaskParseError(
+            `Line ${lineNo}: task ${id} has invalid note "${value}"; expected K- followed by at least 3 digits`,
+          );
+        }
+        note = value;
       } else if (key === "waits") {
         if (value === "") {
           throw new TaskParseError(`Line ${lineNo}: task ${id} has an empty waits: value: ${line}`);
@@ -198,6 +218,7 @@ export function parseTasks(raw: string): Task[] {
       est,
       due,
       target,
+      note,
       waitsOn,
       parentId,
     });
@@ -247,6 +268,7 @@ export function serializeTasks(tasks: Task[]): string {
       if (t.due) fields.push(`due:${t.due}`);
       if (t.lane) fields.push(`lane:${t.lane}`);
       if (t.target) fields.push(`target:${t.target}`);
+      if (t.note) fields.push(`note:${t.note}`);
       if (t.waitsOn) fields.push(`waits:${t.waitsOn}`);
       if (t.doneDate) fields.push(`done:${t.doneDate}`);
       const fieldStr = fields.length ? ` | ${fields.join(" | ")}` : "";

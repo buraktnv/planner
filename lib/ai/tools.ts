@@ -22,7 +22,9 @@ import type {
   ProposalInput,
   ProposalPreviewRow,
 } from "./schemas";
-import { deriveTitle, readNote, searchNotes, updateNote } from "../core/knowledge";
+import { deriveTitle, listNotes, readNote, searchNotes, updateNote } from "../core/knowledge";
+import { readCanvas } from "../core/canvas";
+import { noteProgress } from "../view/canvas";
 import { readDetail, writeDetail } from "../core/details";
 import { fileNote, type FileNoteResult } from "./file-note";
 import type { KnowledgeHit, KnowledgeNote } from "../core/types";
@@ -271,6 +273,7 @@ export const toolImpls = {
     title: string;
     size: TaskSize;
     target?: string;
+    note?: string;
     waitsOn?: string;
   }): Promise<Task> {
     if (!input.project) throw new Error("createTask requires a project (slug or area:<slug>)");
@@ -281,6 +284,7 @@ export const toolImpls = {
       title: input.title,
       size,
       target: input.target,
+      note: input.note,
       waitsOn: input.waitsOn,
     });
   },
@@ -294,13 +298,14 @@ export const toolImpls = {
     est?: string;
     due?: string;
     target?: string;
+    note?: string;
     waitsOn?: string;
     complete?: boolean;
   }): Promise<Task> {
     if (!input.project) throw new Error("updateTask requires a project (slug or area:<slug>)");
     if (!input.id) throw new Error("updateTask requires an id");
     const scope = parseScope(input.project);
-    const { title, size, section, est, due, target, waitsOn, complete } = input;
+    const { title, size, section, est, due, target, note, waitsOn, complete } = input;
     return updateTask(scope.type, scope.slug, input.id, {
       title,
       size,
@@ -308,6 +313,7 @@ export const toolImpls = {
       est,
       due,
       target,
+      note,
       waitsOn,
       complete,
     });
@@ -455,6 +461,55 @@ export const toolImpls = {
       }
     }
     return out;
+  },
+
+  /**
+   * The system map as data. An arrow saying "camera control must exist before
+   * YOLO nano is worth building" is knowledge, not decoration — and knowledge
+   * only the canvas can see is knowledge the assistant cannot use.
+   */
+  async listComponents(input: { project: string }): Promise<
+    {
+      id: string;
+      title: string;
+      summary: string;
+      requires: string[];
+      requiredBy: string[];
+      triggers: string[];
+      triggeredBy: string[];
+      tasks: { done: number; total: number };
+    }[]
+  > {
+    if (!input.project) throw new Error("listComponents requires a project or area");
+    const { type, slug } = parseScope(input.project);
+    const scopeKey = type === "area" ? `area:${slug}` : slug;
+    const [notes, file, tasks] = await Promise.all([
+      listNotes(),
+      readCanvas({ kind: "system", type, slug }),
+      listTasks(type, slug).catch(() => []),
+    ]);
+
+    const scoped = notes.filter((n) => n.scope.includes(scopeKey));
+    const live = new Set(scoped.map((n) => n.id));
+    const pick = (kind: string, dir: "from" | "to", id: string) =>
+      file.edges
+        .filter((e) => e.kind === kind && e[dir] === id)
+        .map((e) => (dir === "from" ? e.to : e.from))
+        .filter((ref) => live.has(ref));
+
+    return scoped.map((n) => {
+      const p = noteProgress(n.id, tasks);
+      return {
+        id: n.id,
+        title: n.title,
+        summary: n.summary,
+        requires: pick("requires", "from", n.id),
+        requiredBy: pick("requires", "to", n.id),
+        triggers: pick("triggers", "from", n.id),
+        triggeredBy: pick("triggers", "to", n.id),
+        tasks: { done: p.done, total: p.total },
+      };
+    });
   },
 
   async nextActions(): Promise<NextAction[]> {

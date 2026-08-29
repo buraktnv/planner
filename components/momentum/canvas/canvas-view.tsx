@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CanvasModel, CanvasNodeModel } from "@/lib/view/canvas";
 import {
@@ -13,7 +14,7 @@ import {
   type Point,
   type Rect,
 } from "@/lib/view/canvas-layout";
-import { Mono } from "../primitives";
+import { Bar, Mono } from "../primitives";
 import CanvasPopup from "./canvas-popup";
 
 interface Viewport {
@@ -28,14 +29,24 @@ type Drag =
 
 const MOVE_THRESHOLD = 4;
 
+type LinkKind = "requires" | "triggers";
+
 export default function CanvasView({
   model,
   surface,
   title,
+  backHref,
+  drawEdges = false,
+  delegate,
 }: {
   model: CanvasModel;
   surface: Record<string, unknown>;
   title: string;
+  backHref?: string;
+  /** System canvases let you draw requires/triggers arrows; the knowledge one does not. */
+  drawEdges?: boolean;
+  /** Where a delegated task is created. Absent on the knowledge canvas. */
+  delegate?: { type: string; slug: string };
 }) {
   const router = useRouter();
   const stage = useRef<HTMLDivElement | null>(null);
@@ -45,6 +56,10 @@ export default function CanvasView({
   const [dirty, setDirty] = useState<Record<string, Point>>({});
   const [openId, setOpenId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [linkFrom, setLinkFrom] = useState<string | null>(null);
+  const [linkKind, setLinkKind] = useState<LinkKind>("requires");
+  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
 
   // React's onWheel cannot reliably preventDefault, so the page would scroll
@@ -149,6 +164,53 @@ export default function CanvasView({
 
   const pendingCount = Object.keys(dirty).length;
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setLinkFrom(null);
+      setSelectedEdge(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const post = async (method: "POST" | "DELETE", edge: Record<string, unknown>) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/canvas", {
+        method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ surface, edge }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(body.error ?? "Could not save that connection.");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Could not reach the server.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Two clicks rather than a rubber band: far more robust at any zoom. */
+  const pickTarget = (to: string) => {
+    const from = linkFrom;
+    setLinkFrom(null);
+    if (!from || from === to) return;
+    void post("POST", { from, to, kind: linkKind });
+  };
+
+  const deleteSelected = () => {
+    const edge = edges.find((e) => e.key === selectedEdge);
+    setSelectedEdge(null);
+    if (!edge || edge.source === "derived") return;
+    void post("DELETE", { from: edge.from, to: edge.to, kind: edge.kind });
+  };
+
   const save = async () => {
     if (pendingCount === 0 || saving) return;
     setSaving(true);
@@ -175,6 +237,14 @@ export default function CanvasView({
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-[7px] px-9 pt-[26px] pb-3">
+        {backHref && (
+          <Link
+            href={backHref}
+            className="mr-1 font-mono text-[9.5px] tracking-[0.1em] text-faint transition-colors hover:text-ink"
+          >
+            ←
+          </Link>
+        )}
         <h1 className="m-0 mr-2 text-2xl font-semibold tracking-[-0.03em]">{title}</h1>
         <button
           type="button"
@@ -210,6 +280,36 @@ export default function CanvasView({
             {saving ? "SAVING…" : `SAVE ${pendingCount}`}
           </button>
         )}
+
+        {drawEdges && edit && (
+          <>
+            <span className="mx-1 h-4 w-px bg-edge" />
+            {(["requires", "triggers"] as LinkKind[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setLinkKind(k)}
+                className={`${button} ${
+                  linkKind === k ? "border-ink text-ink" : "border-edge text-faint hover:text-dim"
+                }`}
+              >
+                {k.toUpperCase()}
+              </button>
+            ))}
+          </>
+        )}
+
+        {selectedEdge && (
+          <button
+            type="button"
+            onClick={deleteSelected}
+            disabled={saving}
+            className={`${button} border-wait-ink text-wait-ink disabled:opacity-40`}
+          >
+            DELETE ARROW
+          </button>
+        )}
+
         <div className="flex-1" />
         {model.orphans.length > 0 && (
           <Mono className="text-[9px] tracking-[0.08em] text-faint">
@@ -240,19 +340,38 @@ export default function CanvasView({
             style={{ left: 0, top: 0, width: 1, height: 1 }}
             aria-hidden
           >
-            {edges.map((e) => (
-              <g key={e.key}>
-                <path
-                  d={e.d}
-                  fill="none"
-                  stroke="var(--color-edge)"
-                  strokeWidth={e.source === "derived" ? 1.2 : 1.8}
-                  strokeDasharray={e.kind === "triggers" ? "5 5" : undefined}
-                  vectorEffect="non-scaling-stroke"
-                />
-                <path d={e.head} fill="var(--color-edge)" />
-              </g>
-            ))}
+            {edges.map((e) => {
+              const on = selectedEdge === e.key;
+              const stroke = on ? "var(--color-ink)" : "var(--color-edge)";
+              return (
+                <g key={e.key}>
+                  <path
+                    d={e.d}
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth={e.source === "derived" ? 1.2 : 1.8}
+                    strokeDasharray={e.kind === "triggers" ? "5 5" : undefined}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <path d={e.head} fill={stroke} />
+                  {edit && e.source === "canvas" && (
+                    // A fat transparent twin: a 1px line is impossible to hit.
+                    <path
+                      d={e.d}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={14}
+                      vectorEffect="non-scaling-stroke"
+                      className="pointer-events-auto cursor-pointer"
+                      onPointerDown={(ev) => {
+                        ev.stopPropagation();
+                        setSelectedEdge(on ? null : e.key);
+                      }}
+                    />
+                  )}
+                </g>
+              );
+            })}
           </svg>
 
           {model.groups.map((g) => (
@@ -271,13 +390,37 @@ export default function CanvasView({
           ))}
 
           {nodes.map((n) => (
-            <CanvasCard key={n.id} node={n} edit={edit} onOpen={() => setOpenId(n.id)} />
+            <CanvasCard
+              key={n.id}
+              node={n}
+              edit={edit}
+              linking={linkFrom !== null}
+              isSource={linkFrom === n.id}
+              canDraw={drawEdges}
+              onOpen={() => setOpenId(n.id)}
+              onStartLink={() => setLinkFrom(n.id)}
+              onPickTarget={() => pickTarget(n.id)}
+            />
           ))}
         </div>
 
         {nodes.length === 0 && (
           <div className="absolute inset-0 grid place-items-center">
             <p className="m-0 text-[13px] text-faint">Nothing to map yet.</p>
+          </div>
+        )}
+
+        {(linkFrom || error) && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+            <Mono
+              className={`rounded-[9px] px-3 py-2 text-[9.5px] tracking-[0.08em] ${
+                error ? "bg-clay-tint text-clay-ink" : "bg-soft text-dim"
+              }`}
+            >
+              {error
+                ? error.toUpperCase()
+                : `PICK WHAT ${titleOf(linkFrom!).toUpperCase()} ${linkKind.toUpperCase()} — ESC TO CANCEL`}
+            </Mono>
           </div>
         )}
       </div>
@@ -287,6 +430,7 @@ export default function CanvasView({
           node={open}
           edges={edges}
           titleOf={titleOf}
+          delegate={delegate}
           onClose={() => setOpenId(null)}
           onOpenNode={(id) => setOpenId(id)}
         />
@@ -298,18 +442,30 @@ export default function CanvasView({
 function CanvasCard({
   node,
   edit,
+  linking,
+  isSource,
+  canDraw,
   onOpen,
+  onStartLink,
+  onPickTarget,
 }: {
   node: CanvasNodeModel;
   edit: boolean;
+  linking: boolean;
+  isSource: boolean;
+  canDraw: boolean;
   onOpen: () => void;
+  onStartLink: () => void;
+  onPickTarget: () => void;
 }) {
   return (
     <div
-      data-drag-ref={node.id}
+      // Not draggable while picking a link target, or the click becomes a drag.
+      data-drag-ref={linking ? undefined : node.id}
+      onPointerDown={linking && !isSource ? () => onPickTarget() : undefined}
       className={`absolute overflow-hidden rounded-[14px] border bg-surf px-3.5 py-3 ${
-        edit ? "cursor-grab border-edge" : "border-edge2"
-      }`}
+        isSource ? "border-ink" : edit ? "border-edge" : "border-edge2"
+      } ${linking && !isSource ? "cursor-crosshair" : edit ? "cursor-grab" : ""}`}
       style={{
         left: node.x,
         top: node.y,
@@ -321,13 +477,33 @@ function CanvasCard({
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
-        onClick={onOpen}
-        className="mb-1.5 block w-full text-left text-[13px] font-semibold leading-[1.3] tracking-[-0.01em] hover:underline"
+        onClick={linking ? onPickTarget : onOpen}
+        className="mb-1.5 block w-full pr-6 text-left text-[13px] font-semibold leading-[1.3] tracking-[-0.01em] hover:underline"
       >
         {node.title}
       </button>
       <p className="m-0 overflow-hidden text-[11.5px] leading-[1.45] text-dim">{node.preview}</p>
+      {node.progress?.linked && (
+        <div className="absolute inset-x-3.5 bottom-[22px]">
+          <Bar pct={node.progress.pct} color={node.color} height={3} />
+          <Mono className="mt-1 block text-[8.5px] text-faint">
+            {node.progress.done}/{node.progress.total} TASKS
+          </Mono>
+        </div>
+      )}
       <Mono className="absolute bottom-2 right-3 text-[8.5px] text-faint">{node.id}</Mono>
+
+      {canDraw && edit && !linking && (
+        <button
+          type="button"
+          aria-label={`Draw an arrow from ${node.title}`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onStartLink}
+          className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-[7px] border border-edge bg-bg font-mono text-[11px] leading-none text-faint transition-colors hover:text-ink"
+        >
+          →
+        </button>
+      )}
     </div>
   );
 }

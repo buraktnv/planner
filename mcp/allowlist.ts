@@ -14,6 +14,7 @@ export const READ_TOOLS: ToolName[] = [
   "get_daily",
   "next_actions",
   "list_targets",
+  "list_components",
   "weekly_summary",
   "search_knowledge",
   "read_note",

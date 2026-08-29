@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { KnowledgeNote } from "@/lib/core/types";
 import type { CanvasFile } from "@/lib/core/canvas";
-import { buildNoteCanvas, canvasNote } from "../canvas";
+import { buildNoteCanvas, canvasNote, noteProgress } from "../canvas";
 
 function note(partial: Partial<KnowledgeNote> & { id: string }): KnowledgeNote {
   return {
@@ -201,6 +201,44 @@ describe("determinism and empty input", () => {
     expect(model.nodes).toEqual([]);
     expect(model.bounds).toEqual({ x: 0, y: 0, w: 0, h: 0 });
     expect(canvasNote(model)).toContain("Nothing to map yet");
+  });
+});
+
+describe("noteProgress", () => {
+  const tasks = [
+    { note: "K-020", done: true },
+    { note: "K-020", done: false },
+    { note: "K-020", done: false },
+    { note: "K-021", done: true },
+    { done: false },
+  ];
+
+  it("counts the tasks that name the component", () => {
+    expect(noteProgress("K-020", tasks)).toEqual({ done: 1, total: 3, pct: 33, linked: true });
+  });
+
+  it("reports nothing linked rather than a misleading zero", () => {
+    expect(noteProgress("K-099", tasks)).toEqual({ done: 0, total: 0, pct: 0, linked: false });
+  });
+
+  it("reaches 100 percent without closing the component", () => {
+    expect(noteProgress("K-021", tasks)).toMatchObject({ pct: 100, linked: true });
+  });
+});
+
+describe("delegation progress on cards", () => {
+  it("is null unless tasks are supplied, so the knowledge canvas stays clean", () => {
+    expect(buildNoteCanvas([note({ id: "K-001" })], empty).nodes[0].progress).toBeNull();
+  });
+
+  it("shows the work delegated from a component", () => {
+    const model = buildNoteCanvas([note({ id: "K-001" })], empty, {
+      tasks: [
+        { note: "K-001", done: true },
+        { note: "K-001", done: false },
+      ],
+    });
+    expect(model.nodes[0].progress).toEqual({ done: 1, total: 2, pct: 50, linked: true });
   });
 });
 

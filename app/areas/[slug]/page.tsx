@@ -74,6 +74,12 @@ export default async function AreaPage({
         >
           DOCS · {docCount}
         </Link>
+        <Link
+          href={`/canvas/area/${area.id}/system`}
+          className="font-mono text-[10px] tracking-[0.12em] text-faint transition-colors hover:text-ink"
+        >
+          SYSTEM
+        </Link>
         <NewButton kind="branch" prefill={{ scopeKey: `area/${area.id}` }} variant="mono">
           + TASK
         </NewButton>

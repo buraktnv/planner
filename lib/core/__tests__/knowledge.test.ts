@@ -102,6 +102,37 @@ describe("parseNote", () => {
     expect(serializeNote(parseNote(serializeNote(once)))).toBe(serializeNote(once));
   });
 
+  it("survives a title containing a colon", () => {
+    // "BT: avoid branch" written raw is invalid YAML, which used to make the
+    // note unparseable and take down every page that lists notes.
+    const note = { ...parseNote(MINIMAL), title: "BT: avoid branch" };
+    const back = parseNote(serializeNote(note));
+    expect(back.title).toBe("BT: avoid branch");
+  });
+
+  it("survives the other characters YAML treats as syntax", () => {
+    const awkward = [
+      "Decision: use X",
+      "- leading dash",
+      "#hashtag first",
+      "quotes \"inside\" it",
+      "a # comment marker",
+      "{braces} and [brackets]",
+      "ends with colon:",
+    ];
+    for (const title of awkward) {
+      const note = { ...parseNote(MINIMAL), title, summary: title };
+      const back = parseNote(serializeNote(note));
+      expect(back.title).toBe(title);
+      expect(back.summary).toBe(title);
+    }
+  });
+
+  it("leaves an ordinary title unquoted, so files stay readable", () => {
+    const note = { ...parseNote(MINIMAL), title: "Camera control" };
+    expect(serializeNote(note)).toContain("title: Camera control\n");
+  });
+
   it("tolerates CRLF line endings", () => {
     const n = parseNote(FULL.replace(/\n/g, "\r\n"));
     expect(n.id).toBe("K-014");

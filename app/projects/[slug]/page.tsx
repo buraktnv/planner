@@ -45,6 +45,12 @@ export default async function ProjectDetailPage({
         >
           DOCS · {docCount}
         </Link>
+        <Link
+          href={`/canvas/project/${charter.id}/system`}
+          className="font-mono text-[10px] tracking-[0.12em] text-faint transition-colors hover:text-ink"
+        >
+          SYSTEM
+        </Link>
         <NewButton kind="target" prefill={{ scopeKey }} variant="mono">
           + TARGET
         </NewButton>

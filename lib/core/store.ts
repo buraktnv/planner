@@ -43,6 +43,16 @@ function cleanTarget(value: string | undefined): string | undefined {
   return trimmed;
 }
 
+function cleanNote(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (trimmed === "") return undefined;
+  if (!/^K-\d{3,}$/.test(trimmed)) {
+    throw new Error(`A note: value must look like K-001, got "${trimmed}"`);
+  }
+  return trimmed;
+}
+
 function dataDir(type: ProjectType): string {
   return type === "project" ? "projects" : "areas";
 }
@@ -165,6 +175,7 @@ export async function addTask(
     est?: string;
     due?: string;
     target?: string;
+    note?: string;
     waitsOn?: string;
   },
 ): Promise<Task> {
@@ -195,6 +206,7 @@ export async function addTask(
       est: input.est,
       due: input.due,
       target: cleanTarget(input.target),
+      note: cleanNote(input.note),
       waitsOn: cleanWaitsOn(input.waitsOn),
       parentId: input.parentId,
       section: parentSection,
@@ -217,6 +229,7 @@ export async function addTask(
       est: input.est,
       due: input.due,
       target: cleanTarget(input.target),
+      note: cleanNote(input.note),
       waitsOn: cleanWaitsOn(input.waitsOn),
       parentId: null,
     };
@@ -234,7 +247,10 @@ export async function updateTask(
   slug: string,
   taskId: string,
   patch: Partial<
-    Pick<Task, "title" | "size" | "section" | "est" | "due" | "lane" | "target" | "waitsOn">
+    Pick<
+      Task,
+      "title" | "size" | "section" | "est" | "due" | "lane" | "target" | "note" | "waitsOn"
+    >
   > & {
     complete?: boolean;
   },
@@ -249,6 +265,7 @@ export async function updateTask(
   if (patch.due !== undefined) t.due = patch.due;
   if (patch.lane !== undefined) t.lane = patch.lane;
   if (patch.target !== undefined) t.target = cleanTarget(patch.target);
+  if (patch.note !== undefined) t.note = cleanNote(patch.note);
   if (patch.waitsOn !== undefined) t.waitsOn = cleanWaitsOn(patch.waitsOn);
   if (patch.complete) {
     t.done = true;

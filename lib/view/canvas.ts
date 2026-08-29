@@ -32,6 +32,8 @@ export interface CanvasNodeModel extends Rect {
   placed: "saved" | "auto";
   pin: boolean;
   tags: string[];
+  /** Set on a system canvas: the work delegated from this component. */
+  progress: { done: number; total: number; pct: number; linked: boolean } | null;
 }
 
 export interface CanvasEdgeModel {
@@ -67,6 +69,8 @@ export interface NoteCanvasOptions {
   scopeKey?: string | null;
   charterNames?: Record<string, string>;
   grid?: LayoutGrid;
+  /** Charter tasks, so a component card can show the work delegated from it. */
+  tasks?: NoteLinkable[];
 }
 
 function labelForScope(key: string | null, names: Record<string, string>): string {
@@ -128,6 +132,7 @@ export function buildNoteCanvas(
       placed: saved.has(n.id) ? "saved" : "auto",
       pin: stored?.pin === true,
       tags: n.tags,
+      progress: opts.tasks ? noteProgress(n.id, opts.tasks) : null,
     };
   });
 
@@ -213,6 +218,31 @@ export function buildNoteCanvas(
     groups,
     bounds: boundsOf(groups.map((g) => g.rect)),
     orphans: [...orphanSet].sort(),
+  };
+}
+
+export interface NoteLinkable {
+  note?: string;
+  done: boolean;
+}
+
+/**
+ * How much of a component's work is finished, counted from the tasks that name
+ * it. Mirrors targetProgress: a component with nothing linked reports no
+ * progress rather than 0%, and is never auto-completed when its tasks finish —
+ * doing the tasks you thought of is evidence, not proof.
+ */
+export function noteProgress(
+  noteId: string,
+  tasks: NoteLinkable[],
+): { done: number; total: number; pct: number; linked: boolean } {
+  const mine = tasks.filter((t) => t.note === noteId);
+  const done = mine.filter((t) => t.done).length;
+  return {
+    done,
+    total: mine.length,
+    pct: mine.length === 0 ? 0 : Math.round((done / mine.length) * 100),
+    linked: mine.length > 0,
   };
 }
 

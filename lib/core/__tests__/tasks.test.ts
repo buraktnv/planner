@@ -222,6 +222,41 @@ describe("target: field", () => {
   });
 });
 
+describe("note: field", () => {
+  const line = (fields: string) => `## Backlog\n- [ ] T-001 | M | Camera control${fields}\n`;
+
+  it("parses a note reference", () => {
+    expect(parseTasks(line(" | note:K-020"))[0].note).toBe("K-020");
+  });
+
+  it("is absent when not written", () => {
+    expect(parseTasks(line(""))[0].note).toBeUndefined();
+  });
+
+  it("round-trips in fixed field order, between target: and waits:", () => {
+    const raw =
+      "## Backlog\n- [ ] T-001 | M | Camera control | created:2026-08-29 | lane:deep | target:G-001 | note:K-020 | waits:T-002\n";
+    const once = serializeTasks(parseTasks(raw));
+    expect(once).toContain(
+      "- [ ] T-001 | M | Camera control | created:2026-08-29 | lane:deep | target:G-001 | note:K-020 | waits:T-002",
+    );
+    expect(serializeTasks(parseTasks(once))).toBe(once);
+  });
+
+  it("tolerates a note that does not exist — notes live in another file", () => {
+    expect(parseTasks(line(" | note:K-999"))[0].note).toBe("K-999");
+  });
+
+  it("rejects a malformed note value", () => {
+    expect(() => parseTasks(line(" | note:nonsense"))).toThrow(/invalid note/);
+    expect(() => parseTasks(line(" | note:K-1"))).toThrow(/invalid note/);
+  });
+
+  it("still rejects an unknown key, so the grammar stays closed", () => {
+    expect(() => parseTasks(line(" | notes:K-020"))).toThrow(/unknown field key/);
+  });
+});
+
 describe("nextTaskId", () => {
   it("returns T-008 after T-007", () => {
     const tasks = parseTasks(`## Backlog

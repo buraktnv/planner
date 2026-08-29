@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import type { CanvasEdgeModel, CanvasNodeModel } from "@/lib/view/canvas";
-import { Mono } from "../primitives";
+import { Bar, Mono } from "../primitives";
 import Markdown from "../markdown";
 import Dialog from "../dialog";
 
@@ -20,17 +22,51 @@ export default function CanvasPopup({
   node,
   edges,
   titleOf,
+  delegate,
   onClose,
   onOpenNode,
 }: {
   node: CanvasNodeModel;
   edges: CanvasEdgeModel[];
   titleOf: (id: string) => string;
+  delegate?: { type: string; slug: string };
   onClose: () => void;
   onOpenNode: (id: string) => void;
 }) {
+  const router = useRouter();
+  const [title, setTitle] = useState("");
+  const [size, setSize] = useState<"S" | "M" | "L">("M");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
   const out = edges.filter((e) => e.from === node.id);
   const into = edges.filter((e) => e.to === node.id);
+
+  /** Turns a component into work: a task carrying note:K-nnn back to this card. */
+  const delegateTask = async () => {
+    const text = title.trim();
+    if (!delegate || !text || busy) return;
+    setBusy(true);
+    setFailed(false);
+    try {
+      const base = delegate.type === "project" ? "/api/projects" : "/api/areas";
+      const res = await fetch(`${base}/${delegate.slug}/tasks`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: text, size, note: node.id }),
+      });
+      if (!res.ok) {
+        setFailed(true);
+        return;
+      }
+      setTitle("");
+      router.refresh();
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const neighbour = (id: string, label: string, source: string) => (
     <button
@@ -99,6 +135,60 @@ export default function CanvasPopup({
               {into.map((e) =>
                 neighbour(e.from, `${KIND_LABEL[e.kind] ?? e.kind} ←`, e.source),
               )}
+            </div>
+          </div>
+        )}
+
+        {delegate && (
+          <div className="mb-4 border-t border-edge2 pt-4">
+            <Mono className="mb-2 block text-[9px] tracking-[0.1em] text-faint">
+              WORK ON THIS
+              {node.progress?.linked
+                ? ` · ${node.progress.done}/${node.progress.total} DONE`
+                : ""}
+            </Mono>
+            {node.progress?.linked && (
+              <div className="mb-2.5">
+                <Bar pct={node.progress.pct} color={node.color} />
+              </div>
+            )}
+            {failed && (
+              <Mono className="mb-2 block text-[10px] text-wait-ink">
+                COULD NOT CREATE THAT TASK
+              </Mono>
+            )}
+            <div className="flex gap-2">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void delegateTask();
+                  }
+                }}
+                placeholder="Delegate a task…"
+                aria-label={`Delegate a task from ${node.title}`}
+                className="min-w-0 flex-1 rounded-[11px] border border-edge bg-bg px-3 py-2 text-[12.5px] outline-none placeholder:text-faint"
+              />
+              <select
+                value={size}
+                onChange={(e) => setSize(e.target.value as "S" | "M" | "L")}
+                aria-label="Size"
+                className="rounded-[11px] border border-edge bg-bg px-2 py-2 font-mono text-[9.5px] tracking-[0.08em] text-dim outline-none"
+              >
+                <option value="S">S</option>
+                <option value="M">M</option>
+                <option value="L">L</option>
+              </select>
+              <button
+                type="button"
+                disabled={busy || title.trim() === ""}
+                onClick={delegateTask}
+                className="rounded-[11px] border border-edge px-3 py-2 font-mono text-[9.5px] tracking-[0.08em] text-dim transition-colors hover:text-ink disabled:opacity-40"
+              >
+                {busy ? "…" : "ADD"}
+              </button>
             </div>
           </div>
         )}

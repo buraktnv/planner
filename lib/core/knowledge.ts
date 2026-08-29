@@ -115,12 +115,33 @@ export function parseNote(raw: string, where = "note"): KnowledgeNote {
   return note;
 }
 
+/**
+ * Quote a frontmatter scalar when YAML would otherwise misread it.
+ *
+ * Titles and summaries are free text written by a person or the assistant, and
+ * "BT: avoid branch" is a perfectly ordinary title — but written raw it is
+ * invalid YAML, which makes the note unparseable and takes down every page
+ * that lists notes. Cheap to prevent, expensive to discover.
+ */
+function yamlScalar(value: string): string {
+  const v = value ?? "";
+  const risky =
+    v === "" ||
+    /^[\s]|[\s]$/.test(v) ||
+    /: |:$/.test(v) ||
+    / #/.test(v) ||
+    /^[-?:,[\]{}#&*!|>'"%@`]/.test(v) ||
+    /[\n\r]/.test(v);
+  if (!risky) return v;
+  return `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[\n\r]+/g, " ")}"`;
+}
+
 export function serializeNote(note: KnowledgeNote): string {
   const lines = [
     "---",
     `id: ${note.id}`,
-    `title: ${note.title}`,
-    `summary: ${note.summary}`,
+    `title: ${yamlScalar(note.title)}`,
+    `summary: ${yamlScalar(note.summary)}`,
   ];
   if (note.scope.length) {
     lines.push("scope:");
@@ -131,7 +152,7 @@ export function serializeNote(note: KnowledgeNote): string {
     for (const t of note.tags) lines.push(`  - ${t}`);
   }
   lines.push(`created: ${note.created}`, `updated: ${note.updated}`);
-  if (note.source) lines.push(`source: ${note.source}`);
+  if (note.source) lines.push(`source: ${yamlScalar(note.source)}`);
   lines.push("---", "");
   const body = note.body.trim();
   return `${lines.join("\n")}\n${body}${body ? "\n" : ""}`;
