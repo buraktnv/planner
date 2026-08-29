@@ -78,6 +78,44 @@ describe("listArchivedTasks", () => {
   });
 });
 
+describe("listArchivedDetailIds", () => {
+  it("sees the plans that moved into the archive with their charter", async () => {
+    const { archiveCharter, addTask, listArchivedDetailIds } = await import("../store");
+    const { writeDetail } = await import("../details");
+    await seedProject("Ftbot");
+    await addTask("project", "ftbot", { title: "Second", size: "S", parentId: "T-001" });
+    await writeDetail("project", "ftbot", "T-001", "branch plan");
+    await writeDetail("project", "ftbot", "T-001.1", "leaf plan");
+
+    await archiveCharter("project", "ftbot");
+
+    expect((await listArchivedDetailIds("project", "ftbot")).sort()).toEqual([
+      "T-001",
+      "T-001.1",
+    ]);
+  });
+
+  it("returns [] when the charter had no plans, and when it does not exist", async () => {
+    const { archiveCharter, listArchivedDetailIds } = await import("../store");
+    await seedProject("Ftbot");
+    await archiveCharter("project", "ftbot");
+    expect(await listArchivedDetailIds("project", "ftbot")).toEqual([]);
+    expect(await listArchivedDetailIds("project", "never-existed")).toEqual([]);
+  });
+
+  it("ignores files that are not task ids", async () => {
+    const { archiveCharter, listArchivedDetailIds } = await import("../store");
+    const { writeDetail } = await import("../details");
+    await seedProject("Ftbot");
+    await writeDetail("project", "ftbot", "T-001", "real plan");
+    await fs.writeFile(path.join(tmp, "projects", "ftbot", "details", "notes.md"), "stray", "utf8");
+
+    await archiveCharter("project", "ftbot");
+
+    expect(await listArchivedDetailIds("project", "ftbot")).toEqual(["T-001"]);
+  });
+});
+
 describe("restoreCharter", () => {
   it("moves the charter and its task directory back, and journals", async () => {
     const { archiveCharter, restoreCharter, listCharters, listTasks } = await import("../store");

@@ -57,6 +57,12 @@ export interface CardModel {
   subTotal: number;
   subs: SubModel[];
   priority: string;
+  /**
+   * True when the card came from a charter in archive/. Its slug is the
+   * archivedAs name, so it has no live task page — the UI must route it to
+   * the archived charter instead.
+   */
+  archived?: boolean;
 }
 
 export interface CharterModel {

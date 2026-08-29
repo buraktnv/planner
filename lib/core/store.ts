@@ -377,6 +377,27 @@ export async function listArchivedTasks(type: ProjectType, name: string): Promis
   }
 }
 
+/**
+ * Detail files move with their charter when it is archived, so an archived
+ * task can still have a plan. Without this the archive reader had no way to
+ * see them and every archived task claimed it had none.
+ */
+export async function listArchivedDetailIds(
+  type: ProjectType,
+  name: string,
+): Promise<string[]> {
+  let names: string[];
+  try {
+    names = await fs.readdir(path.join(archiveDir(type), name, "details"));
+  } catch {
+    return [];
+  }
+  return names
+    .filter((n) => n.endsWith(".md"))
+    .map((n) => n.slice(0, -3))
+    .filter((id) => /^T-\d+(\.\d+)*$/.test(id));
+}
+
 export async function restoreCharter(
   type: ProjectType,
   name: string,

@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DoneModel } from "@/lib/view/done";
+import type { ArchiveModel } from "@/lib/view/archive";
 import type { CardModel } from "@/lib/view/workspace";
 import { shortDate } from "@/lib/ui/momentum";
 import { Empty, Mono, Rule, Tick } from "../primitives";
@@ -10,10 +12,12 @@ import { useMomentum } from "../context";
 
 export default function DoneView({
   model,
+  archive,
   archivedCount,
   includeArchived,
 }: {
   model: DoneModel;
+  archive: ArchiveModel;
   archivedCount: number;
   includeArchived: boolean;
 }) {
@@ -33,19 +37,18 @@ export default function DoneView({
     [model.buckets, slug],
   );
 
-  const row = (card: CardModel) => (
-    <button
-      key={card.key}
-      type="button"
-      onClick={() => openCard(card)}
-      className="grid w-full grid-cols-[16px_1fr_auto] items-center gap-3 border-b border-edge2 py-3 text-left transition-colors hover:bg-soft"
-    >
+  const rowClass =
+    "grid w-full grid-cols-[16px_1fr_auto] items-center gap-3 border-b border-edge2 py-3 text-left transition-colors hover:bg-soft";
+
+  const rowBody = (card: CardModel) => (
+    <>
       <Tick done color={card.color} size={15} />
       <span className="min-w-0">
         <span className="block truncate text-[13.5px] text-dim">{card.title}</span>
         <Mono className="mt-1 flex items-center gap-1.5 text-[9.5px] tracking-[0.08em] text-faint">
           <span className="h-[6px] w-[6px] rounded-[2px]" style={{ background: card.color }} />
           {card.charterName.toUpperCase()}
+          {card.archived ? " · ARCHIVED" : ""}
           {card.hasDetail ? " · PLAN" : ""}
           {card.subTotal > 0 ? ` · ${card.subDone}/${card.subTotal}` : ""}
         </Mono>
@@ -53,7 +56,51 @@ export default function DoneView({
       <Mono className="text-[9.5px] text-faint">
         {card.doneDate ? shortDate(card.doneDate) : "—"}
       </Mono>
-    </button>
+    </>
+  );
+
+  /** An archived task has no live page — its slug names a charter in archive/. */
+  const row = (card: CardModel) =>
+    card.archived ? (
+      <Link
+        key={card.key}
+        href={`/archive/${card.type}/${card.slug}`}
+        className={rowClass}
+      >
+        {rowBody(card)}
+      </Link>
+    ) : (
+      <button key={card.key} type="button" onClick={() => openCard(card)} className={rowClass}>
+        {rowBody(card)}
+      </button>
+    );
+
+  const archivedSection = archive.total === 0 ? null : (
+    <div className="mt-10">
+      <Rule label={`ARCHIVED · ${archive.total}`} />
+      <div className="flex flex-col">
+        {[...archive.projects, ...archive.areas].map((r) => (
+          <Link
+            key={r.key}
+            href={`/archive/${r.type}/${r.archivedAs}`}
+            className="grid grid-cols-[16px_1fr_auto] items-center gap-3 border-b border-edge2 py-3 transition-colors hover:bg-soft"
+          >
+            <span className="h-[9px] w-[9px] rounded-[3px]" style={{ background: r.color }} />
+            <span className="min-w-0">
+              <span className="block truncate text-[13.5px] text-dim">{r.name}</span>
+              <Mono className="mt-1 block text-[9.5px] tracking-[0.08em] text-faint">
+                {r.type === "project" ? "PROJECT" : "AREA"}
+                {r.total > 0 ? ` · ${r.done}/${r.total} DONE` : " · NO TASKS"}
+              </Mono>
+            </span>
+            <Mono className="text-[9.5px] text-faint">{shortDate(r.archivedAt)}</Mono>
+          </Link>
+        ))}
+      </div>
+      <Mono className="mt-3 block text-[9.5px] tracking-[0.08em] text-faint">
+        NOTHING HERE WAS DELETED — OPEN ONE TO RESTORE IT
+      </Mono>
+    </div>
   );
 
   return (
@@ -109,6 +156,8 @@ export default function DoneView({
           </div>
         ))
       )}
+
+      {archivedSection}
     </>
   );
 }
