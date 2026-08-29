@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CanvasModel, CanvasNodeModel } from "@/lib/view/canvas";
@@ -28,6 +28,23 @@ type Drag =
   | { kind: "card"; id: string; startX: number; startY: number; from: Point; moved: boolean };
 
 const MOVE_THRESHOLD = 4;
+
+/**
+ * Whether a scrollable card body can still absorb this wheel delta. Without the
+ * exhaustion check the canvas becomes unzoomable whenever the cursor happens to
+ * sit over a card.
+ */
+function canScroll(el: HTMLElement, deltaY: number): boolean {
+  if (el.scrollHeight <= el.clientHeight) return false;
+  if (deltaY < 0) return el.scrollTop > 0;
+  return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+}
+
+function scrollAncestor(target: EventTarget | null): HTMLElement | null {
+  return target instanceof Element
+    ? target.closest<HTMLElement>("[data-card-scroll]")
+    : null;
+}
 
 type LinkKind = "requires" | "triggers";
 
@@ -68,6 +85,8 @@ export default function CanvasView({
     const el = stage.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      const sc = scrollAncestor(e.target);
+      if (sc && canScroll(sc, e.deltaY)) return;
       e.preventDefault();
       const r = el.getBoundingClientRect();
       setVp((cur) => {
@@ -117,6 +136,9 @@ export default function CanvasView({
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
+    // Inside a scrollable card body the event is the card's: capturing it here
+    // would steal text selection and scrollbar drags.
+    if (scrollAncestor(target)) return;
     const cardId = edit ? target.closest<HTMLElement>("[data-drag-ref]")?.dataset.dragRef : null;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     if (cardId) {
@@ -174,7 +196,7 @@ export default function CanvasView({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const post = async (method: "POST" | "DELETE", edge: Record<string, unknown>) => {
+  const post = useCallback(async (method: "POST" | "DELETE", edge: Record<string, unknown>) => {
     setSaving(true);
     setError(null);
     try {
@@ -194,15 +216,23 @@ export default function CanvasView({
     } finally {
       setSaving(false);
     }
-  };
+  }, [surface, router]);
 
   /** Two clicks rather than a rubber band: far more robust at any zoom. */
-  const pickTarget = (to: string) => {
-    const from = linkFrom;
-    setLinkFrom(null);
-    if (!from || from === to) return;
-    void post("POST", { from, to, kind: linkKind });
-  };
+  const pickTarget = useCallback(
+    (to: string) => {
+      const from = linkFrom;
+      setLinkFrom(null);
+      if (!from || from === to) return;
+      void post("POST", { from, to, kind: linkKind });
+    },
+    [linkFrom, linkKind, post],
+  );
+
+  // Stable identities, or the memo on CanvasCard is defeated by a fresh arrow
+  // function per node per render.
+  const openCard = useCallback((id: string) => setOpenId(id), []);
+  const startLink = useCallback((id: string) => setLinkFrom(id), []);
 
   const deleteSelected = () => {
     const edge = edges.find((e) => e.key === selectedEdge);
@@ -397,9 +427,9 @@ export default function CanvasView({
               linking={linkFrom !== null}
               isSource={linkFrom === n.id}
               canDraw={drawEdges}
-              onOpen={() => setOpenId(n.id)}
-              onStartLink={() => setLinkFrom(n.id)}
-              onPickTarget={() => pickTarget(n.id)}
+              onOpen={openCard}
+              onStartLink={startLink}
+              onPickTarget={pickTarget}
             />
           ))}
         </div>
@@ -439,7 +469,18 @@ export default function CanvasView({
   );
 }
 
-function CanvasCard({
+interface CardProps {
+  node: CanvasNodeModel;
+  edit: boolean;
+  linking: boolean;
+  isSource: boolean;
+  canDraw: boolean;
+  onOpen: (id: string) => void;
+  onStartLink: (id: string) => void;
+  onPickTarget: (id: string) => void;
+}
+
+function CanvasCardBase({
   node,
   edit,
   linking,
@@ -448,21 +489,12 @@ function CanvasCard({
   onOpen,
   onStartLink,
   onPickTarget,
-}: {
-  node: CanvasNodeModel;
-  edit: boolean;
-  linking: boolean;
-  isSource: boolean;
-  canDraw: boolean;
-  onOpen: () => void;
-  onStartLink: () => void;
-  onPickTarget: () => void;
-}) {
+}: CardProps) {
   return (
     <div
       // Not draggable while picking a link target, or the click becomes a drag.
       data-drag-ref={linking ? undefined : node.id}
-      onPointerDown={linking && !isSource ? () => onPickTarget() : undefined}
+      onPointerDown={linking && !isSource ? () => onPickTarget(node.id) : undefined}
       className={`absolute overflow-hidden rounded-[14px] border bg-surf px-3.5 py-3 ${
         isSource ? "border-ink" : edit ? "border-edge" : "border-edge2"
       } ${linking && !isSource ? "cursor-crosshair" : edit ? "cursor-grab" : ""}`}
@@ -477,7 +509,7 @@ function CanvasCard({
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
-        onClick={linking ? onPickTarget : onOpen}
+        onClick={() => (linking ? onPickTarget(node.id) : onOpen(node.id))}
         className="mb-1.5 block w-full pr-6 text-left text-[13px] font-semibold leading-[1.3] tracking-[-0.01em] hover:underline"
       >
         {node.title}
@@ -498,7 +530,7 @@ function CanvasCard({
           type="button"
           aria-label={`Draw an arrow from ${node.title}`}
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={onStartLink}
+          onClick={() => onStartLink(node.id)}
           className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-[7px] border border-edge bg-bg font-mono text-[11px] leading-none text-faint transition-colors hover:text-ink"
         >
           →
@@ -507,3 +539,30 @@ function CanvasCard({
     </div>
   );
 }
+
+/**
+ * Moving one card rebuilds every node object, so without this every card
+ * re-rendered on every pointermove frame.
+ */
+const CanvasCard = memo(
+  CanvasCardBase,
+  (a, b) =>
+    a.node.id === b.node.id &&
+    a.node.x === b.node.x &&
+    a.node.y === b.node.y &&
+    a.node.w === b.node.w &&
+    a.node.h === b.node.h &&
+    a.node.title === b.node.title &&
+    a.node.preview === b.node.preview &&
+    a.node.color === b.node.color &&
+    a.node.progress?.pct === b.node.progress?.pct &&
+    a.node.progress?.done === b.node.progress?.done &&
+    a.node.progress?.total === b.node.progress?.total &&
+    a.edit === b.edit &&
+    a.linking === b.linking &&
+    a.isSource === b.isSource &&
+    a.canDraw === b.canDraw &&
+    a.onOpen === b.onOpen &&
+    a.onStartLink === b.onStartLink &&
+    a.onPickTarget === b.onPickTarget,
+);
