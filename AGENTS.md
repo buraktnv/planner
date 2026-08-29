@@ -69,6 +69,7 @@ Journal distillation (`lib/ai/distill.ts`, `POST /api/knowledge/distill`) turns 
 - Before adding any dependency, check `package.json` and prefer what is already there
 - Approved libraries: `ai` (Vercel AI SDK), `@ai-sdk/anthropic`, `@ai-sdk/openai-compatible`, `@anthropic-ai/claude-agent-sdk`, `recharts`, `gray-matter`, `simple-git`, `vitest`, `@modelcontextprotocol/sdk`, `tsx`
 - Components: small, one purpose per file; page-specific components colocated under `app/<route>/`
+- A task opens as a **page**, not a dialog: `/projects/<slug>/tasks/<task-id>` and `/areas/<slug>/tasks/<task-id>`, subtasks included (`.../tasks/T-007.2`). `lib/view/task.ts` resolves one from `ws.cards` by reading the root id out of the dotted id, so a subtask is linkable without a card of its own. Every card click still goes through `openCard` in `shell.tsx`, which now navigates and stamps `?from=<current path>`; the page's back link uses that, falling back to the charter. `safeBackPath` rejects anything not starting with a single `/`, since `from` is attacker-controllable in a pasted URL. Dialogs remain for the composer only.
 
 ## Testing
 

@@ -1,8 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import type { CardModel } from "@/lib/view/workspace";
-import CardDetail from "./card-detail";
+import { taskHref } from "@/lib/view/task";
 import ChatRail from "./chat-rail";
 import Composer from "./composer";
 import Sidebar from "./sidebar";
@@ -30,12 +31,21 @@ export default function Shell({
     kind: ComposerKind;
     prefill?: ComposerPrefill;
   } | null>(null);
-  const [card, setCard] = useState<CardModel | null>(null);
+  const router = useRouter();
 
   const openComposer = useCallback((kind: ComposerKind, prefill?: ComposerPrefill) => {
     setComposer({ kind, prefill });
   }, []);
-  const openCard = useCallback((next: CardModel) => setCard(next), []);
+
+  const openCard = useCallback(
+    (next: CardModel) => {
+      const from = `${window.location.pathname}${window.location.search}`;
+      router.push(
+        `${taskHref(next.type, next.slug, next.id)}?from=${encodeURIComponent(from)}`,
+      );
+    },
+    [router],
+  );
 
   const api = useMemo(
     () => ({ openComposer, openCard, charters, chatScope, setChatScope }),
@@ -73,7 +83,6 @@ export default function Shell({
             onClose={() => setComposer(null)}
           />
         )}
-        {card && <CardDetail card={card} onClose={() => setCard(null)} />}
       </div>
     </MomentumContext.Provider>
   );
