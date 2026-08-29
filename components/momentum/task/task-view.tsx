@@ -10,6 +10,7 @@ import type { TaskLane, TaskSection } from "@/lib/core/types";
 import { LANES, LANE_KEYS, shortDate } from "@/lib/ui/momentum";
 import { Bar, Mono, Tick } from "../primitives";
 import TaskPlan from "../task-plan";
+import TaskIdLink from "../task-id";
 
 const FLOW: { key: TaskSection; label: string }[] = [
   { key: "backlog", label: "BACKLOG" },
@@ -108,7 +109,13 @@ export default function TaskView({
         >
           <Tick done={done} color={card.color} size={15} />
         </button>
-        <Mono className="text-[9.5px] text-faint">{s.id}</Mono>
+        <TaskIdLink
+          type={card.type}
+          slug={card.slug}
+          id={s.id}
+          from={from ?? undefined}
+          className="text-[9.5px] text-faint"
+        />
         <Link
           href={`${taskHref(card.type, card.slug, s.id)}${query}`}
           className="py-2.5 text-left"
@@ -201,7 +208,16 @@ export default function TaskView({
           >
             {isDone(node.id, node.done) ? "DONE" : "MARK DONE"}
           </button>
-          <Mono className="text-[9px] tracking-[0.08em] text-faint">SUBTASK OF {card.id}</Mono>
+          <span className="flex items-center gap-1.5">
+            <Mono className="text-[9px] tracking-[0.08em] text-faint">SUBTASK OF</Mono>
+            <TaskIdLink
+              type={card.type}
+              slug={card.slug}
+              id={card.id}
+              from={from ?? undefined}
+              className="text-[9px] tracking-[0.08em] text-faint"
+            />
+          </span>
         </div>
       )}
 

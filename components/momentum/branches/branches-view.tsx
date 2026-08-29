@@ -6,6 +6,7 @@ import type { CardModel } from "@/lib/view/workspace";
 import { LANES } from "@/lib/ui/momentum";
 import { Bar, Mono, Ring, Tick } from "@/components/momentum/primitives";
 import NewButton from "@/components/momentum/new-button";
+import TaskIdLink from "@/components/momentum/task-id";
 
 export interface BranchTarget {
   title: string;
@@ -90,7 +91,13 @@ function TrunkView({ cards }: { cards: CardModel[] }) {
             <div className="py-3.5 pl-4">
               <div className="rounded-[16px] border border-edge bg-surf px-[18px] py-4">
                 <div className="mb-3 flex flex-wrap items-center gap-[9px]">
-                  <Mono className="text-[10px] text-faint">{card.id}</Mono>
+                  <TaskIdLink
+                    type={card.type}
+                    slug={card.slug}
+                    id={card.id}
+                    from="/branches"
+                    className="text-[10px] text-faint"
+                  />
                   <span className="text-[15px] font-semibold tracking-[-0.02em]">
                     {card.title}
                   </span>
@@ -139,12 +146,9 @@ function TrunkView({ cards }: { cards: CardModel[] }) {
                 ) : (
                   <div className="flex flex-col">
                     {card.subs.map((s) => (
-                      <button
+                      <div
                         key={s.id}
-                        type="button"
-                        disabled={pending !== null}
-                        onClick={() => toggle(card, s.id, !s.done)}
-                        className="grid grid-cols-[14px_15px_50px_1fr] items-center gap-[9px] py-2 text-left disabled:opacity-60"
+                        className="grid grid-cols-[14px_15px_50px_1fr] items-center gap-[9px] py-2"
                       >
                         <svg
                           width="14"
@@ -157,16 +161,37 @@ function TrunkView({ cards }: { cards: CardModel[] }) {
                         >
                           <path d="M2 0v7a3 3 0 003 3h9" />
                         </svg>
-                        <Tick done={s.done} color={meta.color} size={14} />
-                        <Mono className="text-[9px] text-faint">{s.id}</Mono>
-                        <span
-                          className={`text-[13px] ${
-                            s.done ? "text-faint line-through" : "text-ink"
-                          }`}
+                        <button
+                          type="button"
+                          disabled={pending !== null}
+                          aria-label={s.done ? `Reopen ${s.id}` : `Complete ${s.id}`}
+                          onClick={() => toggle(card, s.id, !s.done)}
+                          className="disabled:opacity-60"
                         >
-                          {s.title}
-                        </span>
-                      </button>
+                          <Tick done={s.done} color={meta.color} size={14} />
+                        </button>
+                        <TaskIdLink
+                          type={card.type}
+                          slug={card.slug}
+                          id={s.id}
+                          from="/branches"
+                          className="text-[9px] text-faint"
+                        />
+                        <button
+                          type="button"
+                          disabled={pending !== null}
+                          onClick={() => toggle(card, s.id, !s.done)}
+                          className="text-left disabled:opacity-60"
+                        >
+                          <span
+                            className={`text-[13px] ${
+                              s.done ? "text-faint line-through" : "text-ink"
+                            }`}
+                          >
+                            {s.title}
+                          </span>
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -191,7 +216,14 @@ function FlowView({ cards }: { cards: CardModel[] }) {
             className="grid grid-cols-1 items-center gap-y-3.5 rounded-[18px] border border-edge bg-surf p-4 md:grid-cols-[minmax(0,230px)_34px_minmax(0,1fr)] md:gap-y-0"
           >
             <div className="pl-[13px]" style={{ borderLeft: `3px solid ${meta.color}` }}>
-              <Mono className="mb-1.5 block text-[9.5px] text-faint">{card.id}</Mono>
+              <div className="mb-1.5">
+                <TaskIdLink
+                  type={card.type}
+                  slug={card.slug}
+                  id={card.id}
+                  from="/branches"
+                />
+              </div>
               <div className="mb-2.5 text-[14.5px] font-semibold leading-[1.3] tracking-[-0.02em]">
                 {card.title}
               </div>
