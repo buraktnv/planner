@@ -109,9 +109,9 @@ describe("byRecency", () => {
 describe("knowledgeSection recall", () => {
   it("caps a large scope newest-first rather than oldest-first", async () => {
     for (let i = 0; i < 42; i++) {
-      await addNote({ summary: `Distinct fact number ${i} about widgets.`, scope: ["ftbot"] });
+      await addNote({ summary: `Distinct fact number ${i} about widgets.`, scope: ["acme-app"] });
     }
-    const section = await knowledgeSection("ftbot");
+    const section = await knowledgeSection("acme-app");
     expect(section).toContain("K-042");
     expect(section).not.toContain("K-001 ");
     expect(section).toContain("2 more in this scope");
@@ -128,9 +128,9 @@ describe("knowledgeSection recall", () => {
   });
 
   it("does not repeat a note already listed under the focused scope", async () => {
-    await addNote({ summary: "The retry loop needs a backoff.", scope: ["ftbot"] });
-    const section = await knowledgeSection("ftbot", "retry loop backoff");
-    expect(section).toContain("# Knowledge (scope ftbot)");
+    await addNote({ summary: "The retry loop needs a backoff.", scope: ["acme-app"] });
+    const section = await knowledgeSection("acme-app", "retry loop backoff");
+    expect(section).toContain("# Knowledge (scope acme-app)");
     expect(section).not.toContain("# Knowledge that may bear on this message");
   });
 

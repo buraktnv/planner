@@ -60,9 +60,9 @@ describe("buildNoteCanvas", () => {
   it("filters to one charter when given a scope", () => {
     const notes = [
       note({ id: "K-001", scope: ["planner"] }),
-      note({ id: "K-002", scope: ["responsive-bot"] }),
+      note({ id: "K-002", scope: ["acme-bot"] }),
     ];
-    const model = buildNoteCanvas(notes, empty, { scopeKey: "responsive-bot" });
+    const model = buildNoteCanvas(notes, empty, { scopeKey: "acme-bot" });
     expect(model.nodes.map((n) => n.id)).toEqual(["K-002"]);
   });
 
@@ -426,10 +426,10 @@ describe("coreMarkdown", () => {
 
 describe("buildCoreNode", () => {
   const core = {
-    title: "Responsive-Bot",
+    title: "Acme-Bot",
     why: "The bot has to see.\nSecond line.",
     mvpScope: [],
-    href: "/projects/responsive-bot",
+    href: "/projects/acme-bot",
     color: "#123456",
     tint: "#abcdef",
   };
@@ -463,10 +463,10 @@ describe("buildCoreNode", () => {
 
 describe("buildNoteCanvas with a core", () => {
   const core = {
-    title: "Responsive-Bot",
+    title: "Acme-Bot",
     why: "Why it exists.",
     mvpScope: [],
-    href: "/projects/responsive-bot",
+    href: "/projects/acme-bot",
     color: "#123456",
     tint: "#abcdef",
   };
@@ -477,7 +477,7 @@ describe("buildNoteCanvas with a core", () => {
       id,
       title: id,
       summary: "s",
-      scope: ["responsive-bot"],
+      scope: ["acme-bot"],
       tags: [],
       created: "2026-01-01",
       updated: "2026-01-01",
@@ -565,8 +565,8 @@ describe("componentTasks", () => {
   });
 
   it("builds a project task link from the scope", () => {
-    expect(componentTasks("K-001", tasks, "responsive-bot")[0].href).toBe(
-      "/projects/responsive-bot/tasks/T-010",
+    expect(componentTasks("K-001", tasks, "acme-bot")[0].href).toBe(
+      "/projects/acme-bot/tasks/T-010",
     );
   });
 

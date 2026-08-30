@@ -16,7 +16,7 @@ import {
 
 const CHARTERS: TabCharter[] = [
   { id: "planner", name: "Planner", type: "project", color: "#c98" },
-  { id: "responsive-bot", name: "Responsive-Bot", type: "project", color: "#8bc" },
+  { id: "acme-bot", name: "Acme-Bot", type: "project", color: "#8bc" },
   { id: "career", name: "Career", type: "area", color: "#9a8" },
 ];
 
@@ -74,7 +74,7 @@ describe("buildCanvasTabs", () => {
     expect(keys(tabs)).toEqual([
       ALL_TAB,
       "project/planner",
-      "project/responsive-bot",
+      "project/acme-bot",
       "area/career",
     ]);
     expect(tabs[1].label).toBe("Planner");
@@ -96,12 +96,12 @@ describe("applyTabOrder", () => {
   const tabs = buildCanvasTabs(CHARTERS, "system");
 
   it("uses the stored order", () => {
-    const out = applyTabOrder(tabs, ["area/career", "project/planner", ALL_TAB, "project/responsive-bot"]);
+    const out = applyTabOrder(tabs, ["area/career", "project/planner", ALL_TAB, "project/acme-bot"]);
     expect(keys(out)).toEqual([
       "area/career",
       "project/planner",
       ALL_TAB,
-      "project/responsive-bot",
+      "project/acme-bot",
     ]);
   });
 
@@ -115,7 +115,7 @@ describe("applyTabOrder", () => {
       "area/career",
       ALL_TAB,
       "project/planner",
-      "project/responsive-bot",
+      "project/acme-bot",
     ]);
   });
 
@@ -124,7 +124,7 @@ describe("applyTabOrder", () => {
     expect(keys(out)).toEqual([
       ALL_TAB,
       "project/planner",
-      "project/responsive-bot",
+      "project/acme-bot",
       "area/career",
     ]);
   });
@@ -134,7 +134,7 @@ describe("applyTabOrder", () => {
     expect(keys(out)).toEqual([
       "project/planner",
       ALL_TAB,
-      "project/responsive-bot",
+      "project/acme-bot",
       "area/career",
     ]);
     expect(new Set(keys(out)).size).toBe(out.length);

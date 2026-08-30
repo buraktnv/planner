@@ -21,7 +21,7 @@ function candidate(over: Partial<Candidate> = {}): Candidate {
     title: "Grid dies in trends",
     summary: "Fixed spacing cannot survive a breakout.",
     body: "Ran it three weeks.",
-    scope: ["ftbot"],
+    scope: ["acme-app"],
     tags: ["strategy"],
     source: "journal 2026-08-21",
     ...over,
@@ -173,7 +173,7 @@ describe("candidateToAction", () => {
       title: "Grid dies in trends",
       summary: "Fixed spacing cannot survive a breakout.",
       body: "Ran it three weeks.",
-      scope: ["ftbot"],
+      scope: ["acme-app"],
       tags: ["strategy"],
       source: "journal 2026-08-21",
     });
@@ -199,15 +199,15 @@ describe("candidateToAction", () => {
 describe("distillPrompt", () => {
   it("includes the digest, the known index and the valid scopes", () => {
     const prompt = distillPrompt({
-      journalDigest: "## 2026-08-27\n- 09:00 [ftbot] shipped",
-      indexLines: ["- K-001 | ftbot | - | Title | Summary."],
-      scopeKeys: ["ftbot", "area:daily"],
+      journalDigest: "## 2026-08-27\n- 09:00 [acme-app] shipped",
+      indexLines: ["- K-001 | acme-app | - | Title | Summary."],
+      scopeKeys: ["acme-app", "area:daily"],
       days: 7,
     });
     expect(prompt).toContain("last 7 days");
     expect(prompt).toContain("shipped");
     expect(prompt).toContain("K-001");
-    expect(prompt).toContain("ftbot, area:daily");
+    expect(prompt).toContain("acme-app, area:daily");
     expect(prompt).toContain("Propose at most 5");
   });
 
@@ -246,7 +246,7 @@ describe("proposal preview for note actions", () => {
     expect(row.title).toBe("Grid dies in trends");
     expect(row.note).toBe("note");
     expect(row.detail).toBe("Fixed spacing cannot survive a breakout.");
-    expect(row.charterName).toBe("ftbot");
+    expect(row.charterName).toBe("acme-app");
     expect(row.lane).toBeNull();
   });
 

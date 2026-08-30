@@ -68,13 +68,13 @@ Two resources are registered for cheap context:
 
 - `planner://next` — the same payload as `next_actions`.
 - `planner://context/{type}/{slug}` — the same payload as `get_context`, e.g.
-  `planner://context/project/responsive-bot`.
+  `planner://context/project/acme-bot`.
 
 Every **write** call appends a second journal line under the agent's own scope, so the trail is
 visible in the app:
 
 ```
-- 09:12 [agent:claude-code] create_task responsive-bot T-004
+- 09:12 [agent:claude-code] create_task acme-bot T-004
 ```
 
 Reads are not journaled. The Agents page (`/agents`) turns those lines into a Connected agents
@@ -93,11 +93,11 @@ client). Using `node` + `tsx` directly means the config does not depend on the w
     "planner": {
       "command": "node",
       "args": [
-        "C:/Users/user/Documents/GitHub/planner/node_modules/tsx/dist/cli.mjs",
-        "C:/Users/user/Documents/GitHub/planner/mcp/server.ts"
+        "/absolute/path/to/planner/node_modules/tsx/dist/cli.mjs",
+        "/absolute/path/to/planner/mcp/server.ts"
       ],
       "env": {
-        "PLANNER_DATA_DIR": "C:/Users/user/Documents/GitHub/planner-data",
+        "PLANNER_DATA_DIR": "/absolute/path/to/planner-data",
         "PLANNER_AGENT": "claude-code"
       }
     }

@@ -1,11 +1,33 @@
 # Planner
 
-Local-first planner web app. Tracks dev projects **and** life areas via markdown + git, surfaces "what to do next and why", and integrates AI (web chat with tool calls, plus an MCP server for coding agents — Phase 2).
+A local-first planner for people running several projects at once. It tracks
+dev projects **and** life areas as plain markdown in a git repo, always answers
+"what should I do next and why", and lets both a web chat and your coding agents
+work on the same plan.
 
-Two private repos:
+Why markdown and git rather than a database: a coding agent can read and write
+your plan directly with no schema to learn, "what happened last week" is
+`git log`, and a bad AI write is one `git reset` away. The costs are real and
+accepted — every mutation rewrites a file and makes a commit, and there are no
+transactions. See `docs/superpowers/specs/2026-08-27-planner-design.md`.
 
-- **`planner`** (this repo) — the app code only. May become open source later; it never contains personal data.
-- **`planner-data`** — all your markdown data (charters, tasks, journal, provider profiles). Stays private. Located via `PLANNER_DATA_DIR`.
+## Two repos, on purpose
+
+- **`planner`** (this repo) — application code. Contains no personal data, which
+  is what makes it publishable.
+- **`planner-data`** — *your* data: charters, tasks, journal, notes, provider
+  profiles. A separate repo you create and keep private, located via
+  `PLANNER_DATA_DIR`. Its schema contract lives in a `CLAUDE.md` at its root.
+
+You will not find a `planner-data` here. Create one — an empty git repo is
+enough to start; the app writes the structure as you use it.
+
+## Read this before you deploy it
+
+**There is no authentication.** This is a single-user app designed to run on
+your own machine, and it holds provider API keys in `.env.local` and can read
+and write your data repo. Do not expose it to the internet or to a shared
+network. `localhost`, or a machine only you reach, is the intended deployment.
 
 ## Setup
 
@@ -80,7 +102,7 @@ The assistant rail has four modes (Plan / Straight / Reflect / Target) that chan
 
 ## Architecture
 
-All data access goes through `lib/core`. `app/` pages and API routes call `lib/core` only. AI chat tools (`lib/ai/tools.ts`) also delegate to `lib/core`. This keeps the future MCP server (Phase 2) a thin wrapper.
+All data access goes through `lib/core`. `app/` pages and API routes call `lib/core` only. AI chat tools (`lib/ai/tools.ts`) also delegate to `lib/core`. The MCP server is a thin wrapper over the same layer.
 
 Presentation derives from two read-only view builders that sit on top of `lib/core` and hold no data access of their own: `lib/view/workspace.ts` (charters, cards, subtasks, progress) and `lib/view/focus.ts` (ranking and the reasons shown next to each task). Design tokens and shared helpers live in `lib/ui/momentum.ts`; screen-agnostic UI primitives in `components/momentum/primitives.tsx`.
 
@@ -88,4 +110,37 @@ Client components must never import `lib/core` (or anything that reaches it, suc
 
 ## Coding agents
 
-`planner-data/CLAUDE.md` is the schema contract — Claude Code (and any agent) can read/edit the plan directly. Phase 2 adds a stdio MCP server.
+`npm run mcp` starts a stdio MCP server exposing the same tool layer, so an
+agent working inside a project's own repo can ask what is next, create and
+complete tasks, read and file notes, and journal — without touching markdown by
+hand. `.mcp.json` wires it up for Claude Code in this repo; see
+[`docs/mcp.md`](docs/mcp.md) for other clients and for the allowlist.
+
+Two things make an agent useful here rather than merely connected:
+
+- **`mcp/instructions.ts`** is handed to every client at connect, so an agent
+  arrives knowing the rules it would otherwise break — search the knowledge base
+  before writing, update a note rather than filing a duplicate, attach every
+  task to a target or component, and never try to write a charter (no tool can).
+- **`.claude/skills/planner-sync/SKILL.md`** is the procedure for bringing a
+  project into the planner or bringing an existing one up to date. Copy it to
+  `~/.claude/skills/` to use it from any directory.
+
+The allowlist is deliberately narrower than the web app's: creating a project or
+an area is a human decision, and archiving is absent entirely. Set
+`PLANNER_MCP_READONLY=1` to drop every write tool.
+
+## Status
+
+Built by one person for their own use, in the open. It works and is used daily,
+but it makes assumptions a general tool would not: one user, one machine, your
+own git repo, and a schema that will change when the author needs it to. The
+task line grammar in particular is closed — an unknown field key is a **fatal**
+parse error, on purpose — so data written by a newer version can be unreadable
+to an older one.
+
+Issues and forks welcome; no promises about backwards compatibility.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

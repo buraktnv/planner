@@ -1,6 +1,6 @@
 # MCP server — coding agents talk to Planner
 
-Goal: Claude Code (and any MCP client — opencode, Cursor) working inside a project repo such as `Responsive-Bot-stable` can ask Planner "what's next", create/complete tasks, and journal — without touching the markdown by hand. The server is a thin stdio wrapper over the existing tool layer; **zero tool duplication**.
+Goal: Claude Code (and any MCP client — opencode, Cursor) working inside a project repo such as `acme-bot` can ask Planner "what's next", create/complete tasks, and journal — without touching the markdown by hand. The server is a thin stdio wrapper over the existing tool layer; **zero tool duplication**.
 
 Rules from `AGENTS.md` apply: `lib/core` is the only data gateway (the server calls `toolImplMap`, which calls `lib/core`), every write journals + commits, secrets never in data files.
 
@@ -20,7 +20,7 @@ Rules from `AGENTS.md` apply: `lib/core` is the only data gateway (the server ca
 - Never write to stdout except MCP frames (stdio transport); log to stderr only.
 
 ### Agent presence in the journal
-- On every **write** tool call the server appends a journal line under scope `agent:<PLANNER_AGENT>`: `- HH:mm [agent:claude-code] create_task responsive-bot T-004`. Reads are not journaled (noise). Use `appendJournal` from `lib/core/journal.ts` — the write tool itself already journals under the project scope; this second line is the agent's trail.
+- On every **write** tool call the server appends a journal line under scope `agent:<PLANNER_AGENT>`: `- HH:mm [agent:claude-code] create_task acme-bot T-004`. Reads are not journaled (noise). Use `appendJournal` from `lib/core/journal.ts` — the write tool itself already journals under the project scope; this second line is the agent's trail.
 - `lib/view/agents.ts` (new): `agentPresence(days: JournalDay[])` → per agent `{ name, lastSeen, calls, tools }` parsed from `agent:` scopes over the last 30 days.
 - `app/agents/page.tsx`: replace the "NO MCP SERVER YET" line with a **Connected agents** panel: one card per agent seen in the journal (name, last seen relative, call count, top tools), an empty state that shows the exact `.mcp.json` snippet to paste, and below it the existing Sources list. Keep the Momentum styling.
 
@@ -42,8 +42,8 @@ Rules from `AGENTS.md` apply: `lib/core` is the only data gateway (the server ca
   ```json
   "planner": {
     "command": "node",
-    "args": ["C:/Users/user/Documents/GitHub/planner/node_modules/tsx/dist/cli.mjs", "C:/Users/user/Documents/GitHub/planner/mcp/server.ts"],
-    "env": { "PLANNER_DATA_DIR": "C:/Users/user/Documents/GitHub/planner-data", "PLANNER_AGENT": "claude-code" }
+    "args": ["/absolute/path/to/planner/node_modules/tsx/dist/cli.mjs", "/absolute/path/to/planner/mcp/server.ts"],
+    "env": { "PLANNER_DATA_DIR": "/absolute/path/to/planner-data", "PLANNER_AGENT": "claude-code" }
   }
   ```
   plus the recommended `CLAUDE.md` block for a managed project:

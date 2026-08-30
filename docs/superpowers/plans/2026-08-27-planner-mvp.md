@@ -695,7 +695,7 @@ Auth: relies on Claude Code credentials on the machine (`claude login` already d
 - Create: `app/chat/page.tsx`, `components/chat/*.tsx` (message-list, tool-card, composer, profile-picker, focus-picker)
 
 - [ ] **Step 1:** Client page using `useChat` from `@ai-sdk/react` (`transport: new DefaultChatTransport({ api: "/api/chat", body: { profileId, focus } })` — re-send profileId/focus via request body). Render assistant/user messages with markdown (no extra dep: simple whitespace-pre-wrap + code blocks via `pre`).
-- [ ] **Step 2: Tool cards:** render tool parts from `message.parts` — collapsible card showing tool name, input JSON, result summary ("Created task T-012 in ftbot").
+- [ ] **Step 2: Tool cards:** render tool parts from `message.parts` — collapsible card showing tool name, input JSON, result summary ("Created task T-012 in acme-app").
 - [ ] **Step 3: Profile picker** (from /api/providers) + focus picker (project/area dropdown, default none = global).
 - [ ] **Step 4: Verify** all three provider types end-to-end; confirm switching profile mid-conversation works (new conversation per profile switch is acceptable).
 - [ ] **Step 5: Gates + commit** `feat(ui): chat page with tool cards and provider switching`
@@ -720,7 +720,7 @@ Auth: relies on Claude Code credentials on the machine (`claude login` already d
 **Files:**
 - Modify: `planner-data` repo content, `README.md` (app repo)
 
-- [ ] **Step 1: Seed real charters** with the owner (INTERACTIVE — ask the owner for Why/MVP per project; do not invent them). Projects: ftbot, savings-app, job-search-automation, quizra-mobile-app, Responsive-Bot, pomodoro, planner. Areas: ask the owner which life areas to start (suggest: Health, Finances, Career). Write charter files following the contract; initial Backlog tasks only if the owner dictates them.
+- [ ] **Step 1: Seed real charters** with the owner (INTERACTIVE — ask the owner for Why/MVP per project; do not invent them). Projects: whichever the owner actually runs, plus planner itself. Areas: ask the owner which life areas to start (suggest: Health, Finances, Career). Write charter files following the contract; initial Backlog tasks only if the owner dictates them.
 - [ ] **Step 2: Fill about.md** interactively with the owner (values, constraints, energy patterns, current situation).
 - [ ] **Step 3: App README.md:** what it is, two-repo layout, setup (`npm i`, `.env.local` from example, `PLANNER_DATA_DIR`), commands, provider setup incl. `claude setup-token` instructions for the subscription profile.
 - [ ] **Step 4: Commit both repos; push.**

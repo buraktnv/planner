@@ -45,7 +45,7 @@ describe("buildDistillStatus", () => {
   });
 
   it("is not ready below the entry threshold", () => {
-    const s = buildDistillStatus([day("2026-08-28", ["ftbot", "life"])], [], "2026-08-28");
+    const s = buildDistillStatus([day("2026-08-28", ["acme-app", "life"])], [], "2026-08-28");
     expect(s.ready).toBe(false);
     expect(s.entries).toBe(2);
     expect(s.headline).toMatch(/Only 2 journal entries/);
@@ -53,7 +53,7 @@ describe("buildDistillStatus", () => {
 
   it("ignores agent entries when counting", () => {
     const s = buildDistillStatus(
-      [day("2026-08-28", ["agent:claude-code", "agent:probe", "agent:x", "ftbot"])],
+      [day("2026-08-28", ["agent:claude-code", "agent:probe", "agent:x", "acme-app"])],
       [],
       "2026-08-28",
     );
@@ -64,7 +64,7 @@ describe("buildDistillStatus", () => {
 
   it("is ready at the threshold and reports no notes filed", () => {
     const s = buildDistillStatus(
-      [day("2026-08-28", ["ftbot", "life", "chat"])],
+      [day("2026-08-28", ["acme-app", "life", "chat"])],
       [],
       "2026-08-28",
     );
@@ -110,12 +110,12 @@ describe("buildDistillStatus", () => {
 
 describe("lastAutoRunFrom", () => {
   it("is null when the marker never appears", () => {
-    expect(lastAutoRunFrom([day("2026-08-28", ["ftbot"])])).toBeNull();
+    expect(lastAutoRunFrom([day("2026-08-28", ["acme-app"])])).toBeNull();
   });
 
   it("takes the most recent day carrying the marker", () => {
     const journal: JournalDay[] = [
-      { date: "2026-08-28", entries: [{ time: "09:00", scope: "ftbot", message: "T-1 done" }] },
+      { date: "2026-08-28", entries: [{ time: "09:00", scope: "acme-app", message: "T-1 done" }] },
       {
         date: "2026-08-25",
         entries: [{ time: "09:00", scope: "agent:distill", message: "auto distill run: discarded" }],

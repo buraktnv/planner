@@ -38,13 +38,13 @@ function charter(over: Partial<Charter> = {}): Charter {
 const CANDIDATES: ScopeCandidate[] = [
   { key: "area:health", name: "Health", type: "area", slug: "health" },
   { key: "area:finance", name: "Finance", type: "area", slug: "finance" },
-  { key: "responsive-bot", name: "Responsive Bot", type: "project", slug: "responsive-bot" },
+  { key: "acme-bot", name: "Acme Bot", type: "project", slug: "acme-bot" },
 ];
 
 describe("scopeKeyOf", () => {
   it("prefixes areas and leaves projects bare", () => {
     expect(scopeKeyOf({ type: "area", id: "health" })).toBe("area:health");
-    expect(scopeKeyOf({ type: "project", id: "responsive-bot" })).toBe("responsive-bot");
+    expect(scopeKeyOf({ type: "project", id: "acme-bot" })).toBe("acme-bot");
   });
 });
 
@@ -62,14 +62,14 @@ describe("buildCandidates", () => {
 
 describe("literalScopeHit", () => {
   it("matches a project slug named outright", () => {
-    expect(literalScopeHit("The responsive-bot retry loop is flaky", CANDIDATES)).toBe(
-      "responsive-bot",
+    expect(literalScopeHit("The acme-bot retry loop is flaky", CANDIDATES)).toBe(
+      "acme-bot",
     );
   });
 
   it("matches the slug written with spaces", () => {
-    expect(literalScopeHit("responsive bot keeps dropping its session", CANDIDATES)).toBe(
-      "responsive-bot",
+    expect(literalScopeHit("acme bot keeps dropping its session", CANDIDATES)).toBe(
+      "acme-bot",
     );
   });
 
@@ -98,7 +98,7 @@ describe("normaliseScope", () => {
   it("repairs a bare slug, a name, and stray casing", () => {
     expect(normaliseScope("health", CANDIDATES)).toBe("area:health");
     expect(normaliseScope("Health", CANDIDATES)).toBe("area:health");
-    expect(normaliseScope("  Responsive Bot ", CANDIDATES)).toBe("responsive-bot");
+    expect(normaliseScope("  Acme Bot ", CANDIDATES)).toBe("acme-bot");
   });
 
   it("repairs a doubled prefix", () => {
@@ -129,7 +129,7 @@ describe("noteText and classifyPrompt", () => {
   it("lists every candidate and forbids inventing keys", () => {
     const prompt = classifyPrompt("cholesterol came back high", CANDIDATES);
     expect(prompt).toContain("area:health — Health");
-    expect(prompt).toContain("responsive-bot — Responsive Bot");
+    expect(prompt).toContain("acme-bot — Acme Bot");
     expect(prompt).toContain("Never invent a scope key");
     expect(prompt).toContain("cholesterol came back high");
   });

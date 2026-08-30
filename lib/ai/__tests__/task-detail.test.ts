@@ -23,8 +23,8 @@ afterEach(async () => {
 
 async function seedProject() {
   const { createCharter, addTask } = await import("@/lib/core/store");
-  await createCharter({ type: "project", name: "Ftbot", why: "trade", mvp: "ship" });
-  const parent = await addTask("project", "ftbot", { title: "Billing system", size: "L" });
+  await createCharter({ type: "project", name: "Acme App", why: "trade", mvp: "ship" });
+  const parent = await addTask("project", "acme-app", { title: "Billing system", size: "L" });
   return parent;
 }
 
@@ -40,13 +40,13 @@ describe("readTaskDetail / writeTaskDetail", () => {
     const task = await seedProject();
 
     const written = await toolImpls.writeTaskDetail({
-      project: "ftbot",
+      project: "acme-app",
       id: task.id,
       body: "## Plan\nInvoices first, then dunning.",
     });
     expect(written.body).toContain("Invoices first");
 
-    const read = await toolImpls.readTaskDetail({ project: "ftbot", id: task.id });
+    const read = await toolImpls.readTaskDetail({ project: "acme-app", id: task.id });
     expect(read.id).toBe(task.id);
     expect(read.body).toContain("dunning");
   });
@@ -71,7 +71,7 @@ describe("readTaskDetail / writeTaskDetail", () => {
   it("returns an empty body when no plan is written yet", async () => {
     const { toolImpls } = await import("../tools");
     const task = await seedProject();
-    const read = await toolImpls.readTaskDetail({ project: "ftbot", id: task.id });
+    const read = await toolImpls.readTaskDetail({ project: "acme-app", id: task.id });
     expect(read.body).toBe("");
   });
 
@@ -80,10 +80,10 @@ describe("readTaskDetail / writeTaskDetail", () => {
     await seedProject();
 
     await expect(
-      toolImpls.writeTaskDetail({ project: "ftbot", id: "T-999", body: "orphan" }),
+      toolImpls.writeTaskDetail({ project: "acme-app", id: "T-999", body: "orphan" }),
     ).rejects.toThrow(/Task not found: T-999/);
 
-    expect(fsSync.existsSync(path.join(tmp, "projects", "ftbot", "details", "T-999.md"))).toBe(
+    expect(fsSync.existsSync(path.join(tmp, "projects", "acme-app", "details", "T-999.md"))).toBe(
       false,
     );
   });
@@ -92,7 +92,7 @@ describe("readTaskDetail / writeTaskDetail", () => {
     const { toolImpls } = await import("../tools");
     await seedProject();
     await expect(
-      toolImpls.readTaskDetail({ project: "ftbot", id: "../../evil" }),
+      toolImpls.readTaskDetail({ project: "acme-app", id: "../../evil" }),
     ).rejects.toThrow(/Invalid task id/);
   });
 
@@ -101,7 +101,7 @@ describe("readTaskDetail / writeTaskDetail", () => {
     await expect(toolImpls.readTaskDetail({ project: "", id: "T-001" })).rejects.toThrow(
       /requires a project/,
     );
-    await expect(toolImpls.writeTaskDetail({ project: "ftbot", id: "", body: "x" })).rejects.toThrow(
+    await expect(toolImpls.writeTaskDetail({ project: "acme-app", id: "", body: "x" })).rejects.toThrow(
       /requires an id/,
     );
   });
@@ -109,10 +109,10 @@ describe("readTaskDetail / writeTaskDetail", () => {
   it("clears the plan when handed an empty body", async () => {
     const { toolImpls } = await import("../tools");
     const task = await seedProject();
-    await toolImpls.writeTaskDetail({ project: "ftbot", id: task.id, body: "temporary" });
-    const cleared = await toolImpls.writeTaskDetail({ project: "ftbot", id: task.id, body: "" });
+    await toolImpls.writeTaskDetail({ project: "acme-app", id: task.id, body: "temporary" });
+    const cleared = await toolImpls.writeTaskDetail({ project: "acme-app", id: task.id, body: "" });
     expect(cleared.body).toBe("");
-    expect(fsSync.existsSync(path.join(tmp, "projects", "ftbot", "details", `${task.id}.md`))).toBe(
+    expect(fsSync.existsSync(path.join(tmp, "projects", "acme-app", "details", `${task.id}.md`))).toBe(
       false,
     );
   });
@@ -125,7 +125,7 @@ describe("decomposeTask with plans", () => {
     const parent = await seedProject();
 
     const created = await toolImpls.decomposeTask({
-      project: "ftbot",
+      project: "acme-app",
       id: parent.id,
       subtasks: [
         { title: "Invoices schema", size: "M", plan: "One row per invoice line." },
@@ -137,8 +137,8 @@ describe("decomposeTask with plans", () => {
     expect(created[0].id).toBe(`${parent.id}.1`);
     expect(created[1].id).toBe(`${parent.id}.2`);
 
-    expect(await readDetail("project", "ftbot", created[0].id)).toContain("One row per invoice");
-    expect(await readDetail("project", "ftbot", created[1].id)).toContain("Three reminders");
+    expect(await readDetail("project", "acme-app", created[0].id)).toContain("One row per invoice");
+    expect(await readDetail("project", "acme-app", created[1].id)).toContain("Three reminders");
   });
 
   it("leaves subtasks without a plan alone", async () => {
@@ -147,7 +147,7 @@ describe("decomposeTask with plans", () => {
     const parent = await seedProject();
 
     const created = await toolImpls.decomposeTask({
-      project: "ftbot",
+      project: "acme-app",
       id: parent.id,
       subtasks: [
         { title: "Has a plan", size: "M", plan: "keep this" },
@@ -156,21 +156,21 @@ describe("decomposeTask with plans", () => {
       ],
     });
 
-    expect(await readDetail("project", "ftbot", created[1].id)).toBeNull();
-    expect(await readDetail("project", "ftbot", created[2].id)).toBeNull();
-    expect(await listDetailIds("project", "ftbot")).toEqual([created[0].id]);
+    expect(await readDetail("project", "acme-app", created[1].id)).toBeNull();
+    expect(await readDetail("project", "acme-app", created[2].id)).toBeNull();
+    expect(await listDetailIds("project", "acme-app")).toEqual([created[0].id]);
   });
 
   it("reads a subtask plan back through the tool", async () => {
     const { toolImpls } = await import("../tools");
     const parent = await seedProject();
     const created = await toolImpls.decomposeTask({
-      project: "ftbot",
+      project: "acme-app",
       id: parent.id,
       subtasks: [{ title: "Invoices schema", size: "M", plan: "One row per invoice line." }],
     });
 
-    const read = await toolImpls.readTaskDetail({ project: "ftbot", id: created[0].id });
+    const read = await toolImpls.readTaskDetail({ project: "acme-app", id: created[0].id });
     expect(read.id).toBe(`${parent.id}.1`);
     expect(read.body).toContain("One row per invoice");
   });

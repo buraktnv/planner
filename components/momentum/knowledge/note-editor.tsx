@@ -164,12 +164,12 @@ export default function NoteEditor({
               <input className={`${FIELD} text-dim`} value={value.scope || lockedScope} readOnly />
             </Field>
           ) : (
-            <Field label="SCOPE" hint="Comma separated. ftbot, area:trading">
+            <Field label="SCOPE" hint="Comma separated. acme-app, area:research">
               <input
                 className={FIELD}
                 value={value.scope}
                 onChange={(e) => set({ scope: e.target.value })}
-                placeholder="ftbot, area:trading"
+                placeholder="acme-app, area:research"
               />
             </Field>
           )}

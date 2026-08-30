@@ -31,17 +31,17 @@ async function seedProject(name: string, mvp = "Ship it") {
 describe("listArchived", () => {
   it("finds archived charters and maps the directory back to a type", async () => {
     const { archiveCharter, listArchived, createCharter } = await import("../store");
-    await seedProject("Job Search Automation");
+    await seedProject("Acme Jobs");
     const area = await createCharter({ type: "area", name: "Old Habit", why: "legacy" });
-    await archiveCharter("project", "job-search-automation");
+    await archiveCharter("project", "acme-jobs");
     await archiveCharter("area", area.id);
 
     const archived = await listArchived();
     expect(archived).toHaveLength(2);
     const byName = Object.fromEntries(archived.map((a) => [a.archivedAs, a]));
-    expect(byName["job-search-automation"].type).toBe("project");
+    expect(byName["acme-jobs"].type).toBe("project");
     expect(byName["old-habit"].type).toBe("area");
-    expect(byName["job-search-automation"].archivedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(byName["acme-jobs"].archivedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it("returns an empty list when nothing has been archived", async () => {
@@ -51,8 +51,8 @@ describe("listArchived", () => {
 
   it("does not leak archived charters into listCharters", async () => {
     const { archiveCharter, listCharters } = await import("../store");
-    await seedProject("Ftbot");
-    await archiveCharter("project", "ftbot");
+    await seedProject("Acme App");
+    await archiveCharter("project", "acme-app");
     expect(await listCharters()).toEqual([]);
   });
 });
@@ -60,11 +60,11 @@ describe("listArchived", () => {
 describe("listArchivedTasks", () => {
   it("reads the archived tasks file, including done tasks", async () => {
     const { archiveCharter, updateTask, listArchivedTasks } = await import("../store");
-    await seedProject("Ftbot");
-    await updateTask("project", "ftbot", "T-001", { complete: true });
-    await archiveCharter("project", "ftbot");
+    await seedProject("Acme App");
+    await updateTask("project", "acme-app", "T-001", { complete: true });
+    await archiveCharter("project", "acme-app");
 
-    const tasks = await listArchivedTasks("project", "ftbot");
+    const tasks = await listArchivedTasks("project", "acme-app");
     expect(tasks).toHaveLength(1);
     expect(tasks[0].done).toBe(true);
     expect(tasks[0].section).toBe("done");
@@ -82,14 +82,14 @@ describe("listArchivedDetailIds", () => {
   it("sees the plans that moved into the archive with their charter", async () => {
     const { archiveCharter, addTask, listArchivedDetailIds } = await import("../store");
     const { writeDetail } = await import("../details");
-    await seedProject("Ftbot");
-    await addTask("project", "ftbot", { title: "Second", size: "S", parentId: "T-001" });
-    await writeDetail("project", "ftbot", "T-001", "branch plan");
-    await writeDetail("project", "ftbot", "T-001.1", "leaf plan");
+    await seedProject("Acme App");
+    await addTask("project", "acme-app", { title: "Second", size: "S", parentId: "T-001" });
+    await writeDetail("project", "acme-app", "T-001", "branch plan");
+    await writeDetail("project", "acme-app", "T-001.1", "leaf plan");
 
-    await archiveCharter("project", "ftbot");
+    await archiveCharter("project", "acme-app");
 
-    expect((await listArchivedDetailIds("project", "ftbot")).sort()).toEqual([
+    expect((await listArchivedDetailIds("project", "acme-app")).sort()).toEqual([
       "T-001",
       "T-001.1",
     ]);
@@ -97,75 +97,75 @@ describe("listArchivedDetailIds", () => {
 
   it("returns [] when the charter had no plans, and when it does not exist", async () => {
     const { archiveCharter, listArchivedDetailIds } = await import("../store");
-    await seedProject("Ftbot");
-    await archiveCharter("project", "ftbot");
-    expect(await listArchivedDetailIds("project", "ftbot")).toEqual([]);
+    await seedProject("Acme App");
+    await archiveCharter("project", "acme-app");
+    expect(await listArchivedDetailIds("project", "acme-app")).toEqual([]);
     expect(await listArchivedDetailIds("project", "never-existed")).toEqual([]);
   });
 
   it("ignores files that are not task ids", async () => {
     const { archiveCharter, listArchivedDetailIds } = await import("../store");
     const { writeDetail } = await import("../details");
-    await seedProject("Ftbot");
-    await writeDetail("project", "ftbot", "T-001", "real plan");
-    await fs.writeFile(path.join(tmp, "projects", "ftbot", "details", "notes.md"), "stray", "utf8");
+    await seedProject("Acme App");
+    await writeDetail("project", "acme-app", "T-001", "real plan");
+    await fs.writeFile(path.join(tmp, "projects", "acme-app", "details", "notes.md"), "stray", "utf8");
 
-    await archiveCharter("project", "ftbot");
+    await archiveCharter("project", "acme-app");
 
-    expect(await listArchivedDetailIds("project", "ftbot")).toEqual(["T-001"]);
+    expect(await listArchivedDetailIds("project", "acme-app")).toEqual(["T-001"]);
   });
 });
 
 describe("restoreCharter", () => {
   it("moves the charter and its task directory back, and journals", async () => {
     const { archiveCharter, restoreCharter, listCharters, listTasks } = await import("../store");
-    await seedProject("Ftbot");
-    await archiveCharter("project", "ftbot");
+    await seedProject("Acme App");
+    await archiveCharter("project", "acme-app");
 
-    const res = await restoreCharter("project", "ftbot");
-    expect(res.slug).toBe("ftbot");
+    const res = await restoreCharter("project", "acme-app");
+    expect(res.slug).toBe("acme-app");
 
     const live = await listCharters();
-    expect(live.map((c) => c.id)).toEqual(["ftbot"]);
-    expect(await listTasks("project", "ftbot")).toHaveLength(1);
-    expect(fsSync.existsSync(path.join(tmp, "archive", "projects", "ftbot.md"))).toBe(false);
-    expect(fsSync.existsSync(path.join(tmp, "archive", "projects", "ftbot"))).toBe(false);
+    expect(live.map((c) => c.id)).toEqual(["acme-app"]);
+    expect(await listTasks("project", "acme-app")).toHaveLength(1);
+    expect(fsSync.existsSync(path.join(tmp, "archive", "projects", "acme-app.md"))).toBe(false);
+    expect(fsSync.existsSync(path.join(tmp, "archive", "projects", "acme-app"))).toBe(false);
 
     const date = new Date().toLocaleDateString("sv").slice(0, 10);
     const journal = await fs.readFile(path.join(tmp, "journal", `${date}.md`), "utf8");
-    expect(journal).toContain("[ftbot] charter restored");
+    expect(journal).toContain("[acme-app] charter restored");
   });
 
   it("never overwrites a live charter that reclaimed the slug", async () => {
     const { archiveCharter, restoreCharter, getCharter, listCharters } = await import("../store");
-    await seedProject("Ftbot", "original mvp");
-    await archiveCharter("project", "ftbot");
-    await seedProject("Ftbot", "the replacement");
+    await seedProject("Acme App", "original mvp");
+    await archiveCharter("project", "acme-app");
+    await seedProject("Acme App", "the replacement");
 
-    const res = await restoreCharter("project", "ftbot");
-    expect(res.slug).toBe("ftbot-2");
+    const res = await restoreCharter("project", "acme-app");
+    expect(res.slug).toBe("acme-app-2");
 
-    const survivor = await getCharter("project", "ftbot");
+    const survivor = await getCharter("project", "acme-app");
     expect(survivor.mvp).toBe("the replacement");
-    const restored = await getCharter("project", "ftbot-2");
+    const restored = await getCharter("project", "acme-app-2");
     expect(restored.mvp).toBe("original mvp");
-    expect((await listCharters()).map((c) => c.id).sort()).toEqual(["ftbot", "ftbot-2"]);
+    expect((await listCharters()).map((c) => c.id).sort()).toEqual(["acme-app", "acme-app-2"]);
   });
 
   it("keeps task details attached across archive and restore", async () => {
     const { archiveCharter, restoreCharter } = await import("../store");
     const { writeDetail, readDetail } = await import("../details");
-    await seedProject("Ftbot");
-    await writeDetail("project", "ftbot", "T-001", "the plan survives");
+    await seedProject("Acme App");
+    await writeDetail("project", "acme-app", "T-001", "the plan survives");
 
-    await archiveCharter("project", "ftbot");
+    await archiveCharter("project", "acme-app");
     expect(
-      fsSync.existsSync(path.join(tmp, "archive", "projects", "ftbot", "details", "T-001.md")),
+      fsSync.existsSync(path.join(tmp, "archive", "projects", "acme-app", "details", "T-001.md")),
     ).toBe(true);
-    expect(await readDetail("project", "ftbot", "T-001")).toBeNull();
+    expect(await readDetail("project", "acme-app", "T-001")).toBeNull();
 
-    await restoreCharter("project", "ftbot");
-    expect(await readDetail("project", "ftbot", "T-001")).toBe("the plan survives\n");
+    await restoreCharter("project", "acme-app");
+    expect(await readDetail("project", "acme-app", "T-001")).toBe("the plan survives\n");
   });
 
   it("throws for an archived charter that is not there", async () => {

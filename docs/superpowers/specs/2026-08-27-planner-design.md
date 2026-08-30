@@ -5,13 +5,13 @@ Status: Approved
 
 ## Problem
 
-The owner works on multiple projects (ftbot, savings-app, job-search-automation, quizra-mobile-app, Responsive-Bot, pomodoro) and has these problems:
+A developer running several projects at once, alongside the life admin around them, hits these problems:
 
 1. Cannot control/track progress on developments
 2. Sometimes doesn't know what to do next
 3. Loses track of what happened last week
 4. Work feels heavy when seen as a whole; needs splitting into small trackable pieces
-5. Forgets what he is doing and why; drifts out of scope (over-investing in non-MVP work)
+5. Forgets what they are doing and why; drifts out of scope (over-investing in non-MVP work)
 6. Needs AI integrated: web chat area with graphics/charts
 7. Needs coding agents (Claude Code first) to communicate with the planner via MCP
 8. Wants any API provider usable in chat (DeepSeek, OpenRouter, local models, etc.)
@@ -53,13 +53,13 @@ CLAUDE.md                     schema contract for Claude Code
 
 ```markdown
 ---
-id: ftbot
-name: FTBot
+id: acme-app
+name: Acme App
 type: project          # project | area
 status: active         # active | paused | done | abandoned
 priority: 1
 mvp: "One-line MVP definition"
-repo: ../ftbot         # optional, relative path to code repo
+repo: ../acme-app         # optional, relative path to code repo
 created: 2026-08-27
 updated: 2026-08-27
 ---
@@ -94,8 +94,8 @@ One line per task, machine-parseable, fixed grammar:
 `data/journal/YYYY-MM-DD.md`. Lines appended automatically on every mutation:
 
 ```
-- 14:03 [ftbot] T-007 done: Add chart for Y
-- 14:10 [chat] AI created task T-012 in ftbot
+- 14:03 [acme-app] T-007 done: Add chart for Y
+- 14:10 [chat] AI created task T-012 in acme-app
 ```
 
 Manual and AI notes are also appended here. Weekly review = journal files + git log for the range.
@@ -144,7 +144,7 @@ Rule: no code outside `lib/core` reads or writes data files directly (except sta
 - Always-included context: `about.md` + focused project/area charter (Why, MVP, parking lot) + its open tasks + last 7 journal days. Owner picks the focus per chat.
 - Tools (all call `lib/core`): `list_projects`, `list_areas`, `get_context`, `create_project`, `create_area`, `create_task`, `update_task`, `decompose_task`, `complete_task`, `move_to_parking_lot`, `add_journal`, `next_actions`, `weekly_summary`
 - System prompt instruction: flag work that looks out of scope vs the charter's MVP definition and suggest moving it to the parking lot; prefer small tasks; when asked "what should I do next", use `next_actions` and rank by priority, deadlines, size, and life context
-- Chat UI: streaming, tool-call cards ("Created task T-012 in ftbot"), provider/model switcher, context picker
+- Chat UI: streaming, tool-call cards ("Created task T-012 in acme-app"), provider/model switcher, context picker
 
 ## Pages
 
@@ -188,7 +188,7 @@ Habits, calendar sync, multi-user, deployment/hosting, mobile. Parked for phase 
 | Interface | Local web app | Chat area + graphics requirement |
 | AI capabilities | Chat + actions (tool calls) | Fixes "I don't know what to do" directly |
 | Providers | claude-subscription + anthropic-api + openai-compatible | Owner has Pro/Max (no API key needed for Claude); wants DeepSeek etc. |
-| Stack | Next.js 15 + AI SDK + Tailwind | Matches owner's existing skills (savings-app, ftbot) |
+| Stack | Next.js 15 + AI SDK + Tailwind | Matches owner's existing skills (acme-savings, acme-app) |
 | MVP slice | Tracker core + AI chat | Daily value from day one; MCP is thin follow-up |
 | Life planning | Areas + about.md + global Next panel in MVP; habits/calendar later | Same engine, small addition; future work planned in-app |
 | Analytics | Insights page: charts + AI weekly analysis | Owner needs visible analysis at a glance |

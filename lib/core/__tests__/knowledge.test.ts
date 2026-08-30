@@ -31,8 +31,8 @@ id: K-014
 title: Why I abandoned the grid strategy
 summary: Fixed spacing cannot survive a breakout.
 scope:
-  - ftbot
-  - area:trading
+  - acme-app
+  - area:research
 tags:
   - strategy
   - postmortem
@@ -75,7 +75,7 @@ describe("parseNote", () => {
     expect(n.id).toBe("K-014");
     expect(n.title).toBe("Why I abandoned the grid strategy");
     expect(n.summary).toBe("Fixed spacing cannot survive a breakout.");
-    expect(n.scope).toEqual(["ftbot", "area:trading"]);
+    expect(n.scope).toEqual(["acme-app", "area:research"]);
     expect(n.tags).toEqual(["strategy", "postmortem"]);
     expect(n.created).toBe("2026-08-20");
     expect(n.updated).toBe("2026-08-28");
@@ -191,8 +191,8 @@ describe("pure helpers", () => {
   });
 
   it("derives the journal scope, stripping area:", () => {
-    expect(journalScopeOf(["ftbot"])).toBe("ftbot");
-    expect(journalScopeOf(["area:trading"])).toBe("trading");
+    expect(journalScopeOf(["acme-app"])).toBe("acme-app");
+    expect(journalScopeOf(["area:research"])).toBe("research");
     expect(journalScopeOf([])).toBe("knowledge");
   });
 
@@ -235,10 +235,10 @@ describe("pure helpers", () => {
   });
 
   it("filters by scope", () => {
-    const a = note({ id: "K-001", scope: ["ftbot"] });
-    const b = note({ id: "K-002", scope: ["area:trading"] });
-    expect(filterByScope([a, b], "ftbot").map((n) => n.id)).toEqual(["K-001"]);
-    expect(filterByScope([a, b], "area:trading").map((n) => n.id)).toEqual(["K-002"]);
+    const a = note({ id: "K-001", scope: ["acme-app"] });
+    const b = note({ id: "K-002", scope: ["area:research"] });
+    expect(filterByScope([a, b], "acme-app").map((n) => n.id)).toEqual(["K-001"]);
+    expect(filterByScope([a, b], "area:research").map((n) => n.id)).toEqual(["K-002"]);
   });
 });
 
@@ -271,7 +271,7 @@ describe("store", () => {
       title: "Grid strategy postmortem",
       summary: "Fixed spacing cannot survive a breakout.",
       body: "Long form reasoning.",
-      scope: ["ftbot", "area:trading"],
+      scope: ["acme-app", "area:research"],
       tags: ["strategy"],
       source: "journal 2026-08-21",
     });
@@ -285,11 +285,11 @@ describe("store", () => {
     expect(parseNote(onDisk)).toEqual(added);
 
     const index = await fs.readFile(path.join(tmp, "knowledge", "index.md"), "utf8");
-    expect(index).toContain("- K-001 | ftbot,area:trading | strategy | Grid strategy postmortem |");
+    expect(index).toContain("- K-001 | acme-app,area:research | strategy | Grid strategy postmortem |");
 
     const journalFiles = await fs.readdir(path.join(tmp, "journal"));
     const journal = await fs.readFile(path.join(tmp, "journal", journalFiles[0]), "utf8");
-    expect(journal).toContain("[ftbot] K-001 note added: Grid strategy postmortem");
+    expect(journal).toContain("[acme-app] K-001 note added: Grid strategy postmortem");
 
     const log = await simpleGit(tmp).log();
     expect(log.latest?.message).toBe("note added: K-001 (Grid strategy postmortem)");
@@ -379,7 +379,7 @@ describe("store", () => {
       title: "Grid strategy postmortem",
       summary: "Spacing loses to breakouts.",
       body: "The grid died when the market trended for three weeks.",
-      scope: ["ftbot"],
+      scope: ["acme-app"],
       tags: ["strategy"],
     });
     await addNote({
@@ -417,15 +417,15 @@ describe("store", () => {
   });
 
   it("builds an empty knowledge section when there are no notes", async () => {
-    expect(await knowledgeSection("ftbot")).toBe("");
+    expect(await knowledgeSection("acme-app")).toBe("");
   });
 
   it("builds a scoped knowledge section and hides other scopes", async () => {
-    await addNote({ title: "Scoped note", summary: "In scope.", scope: ["ftbot"] });
+    await addNote({ title: "Scoped note", summary: "In scope.", scope: ["acme-app"] });
     await addNote({ title: "Other note", summary: "Out of scope.", scope: ["area:daily"] });
 
-    const scoped = await knowledgeSection("ftbot");
-    expect(scoped).toContain("# Knowledge (scope ftbot)");
+    const scoped = await knowledgeSection("acme-app");
+    expect(scoped).toContain("# Knowledge (scope acme-app)");
     expect(scoped).toContain("Scoped note");
     expect(scoped).not.toContain("Other note");
     expect(scoped).toContain("2 notes in the knowledge base");

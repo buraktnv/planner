@@ -6,7 +6,7 @@ Spec: `docs/superpowers/specs/2026-08-27-planner-design.md`
 
 ## Two-repo layout
 
-- This repo (`planner`): app code only. May become public/open source later — **never commit personal data here**.
+- This repo (`planner`): app code only. It **is public**, MIT licensed — **never commit personal data here**. Test fixtures and doc examples use `acme-*` placeholder slugs; if a real project or person name appears in a diff, it is a bug. Note that git history is public too, so a leak cannot be fixed by a later commit.
 - `planner-data` repo: all user data (markdown). Path configured via `PLANNER_DATA_DIR` env var (default `../planner-data`). Git auto-commits happen there, not here.
 
 ## Commands

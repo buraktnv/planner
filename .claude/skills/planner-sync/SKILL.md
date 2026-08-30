@@ -28,9 +28,10 @@ Decide per project:
 - **Absent** → it needs creating. Over MCP you *cannot*: `create_project` and
   `create_area` are owner-only and not in your tools. Hand back the exact
   `name` / `why` / `mvp` instead. Only the app's own chat can create charters.
-- **Present** → work inside it. One project has one charter: "bot",
-  "responsive bot" and "Responsive-Bot" are the same thing. Never create a
-  second charter because the name you were given differs.
+- **Present** → work inside it. One project has one charter, and the name you
+  were handed may not match its slug: "the scraper", "web-scraper" and
+  "Web Scraper" are one project. Never create a second charter for a name
+  variant.
 
 If the ask was "all my projects", enumerate them and handle each; do not stop at
 the first.
@@ -86,8 +87,9 @@ scoped notes**.
 
 - One note per idea. `scope` is the project slug exactly (`area:slug` for areas).
 - `summary` is a **single line** and the only text later auto-loaded into a
-  context window. Make it a claim — "recovery plans match on error signature,
-  so an unmatched failure escalates instead of retrying" — not a topic.
+  context window. Make it a claim — "uploads are content-addressed, so
+  re-uploading the same file is free and no name can outlive its bytes" — not
+  a topic like "about uploads".
 - First tag groups it on the docs page. Prefer `architecture`, `protocol`,
   `decision`, `runbook`, `reference`.
 - A note describing a part of the system becomes a card on the system map.

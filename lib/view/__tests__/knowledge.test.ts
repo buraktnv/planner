@@ -18,26 +18,26 @@ function note(over: Partial<KnowledgeNote> = {}): KnowledgeNote {
 
 describe("slugOfScope", () => {
   it("strips the area prefix", () => {
-    expect(slugOfScope("area:trading")).toBe("trading");
-    expect(slugOfScope("ftbot")).toBe("ftbot");
+    expect(slugOfScope("area:research")).toBe("research");
+    expect(slugOfScope("acme-app")).toBe("acme-app");
   });
 });
 
 describe("scopeChip", () => {
   it("labels by slug and flags areas", () => {
-    const chip = scopeChip("area:trading");
-    expect(chip.label).toBe("trading");
+    const chip = scopeChip("area:research");
+    expect(chip.label).toBe("research");
     expect(chip.isArea).toBe(true);
     expect(chip.color).toMatch(/^#|^hsl/);
   });
 
   it("prefers a supplied display name", () => {
-    expect(scopeChip("area:trading", { "area:trading": "Trading" }).label).toBe("Trading");
-    expect(scopeChip("ftbot", { "area:trading": "Trading" }).label).toBe("ftbot");
+    expect(scopeChip("area:research", { "area:research": "Research" }).label).toBe("Research");
+    expect(scopeChip("acme-app", { "area:research": "Research" }).label).toBe("acme-app");
   });
 
   it("gives the same colour to a project and its area form", () => {
-    expect(scopeChip("trading").color).toBe(scopeChip("area:trading").color);
+    expect(scopeChip("research").color).toBe(scopeChip("area:research").color);
   });
 });
 
@@ -62,12 +62,12 @@ describe("buildKnowledge", () => {
 
   it("counts scope facets and orders them by count", () => {
     const m = buildKnowledge([
-      note({ id: "K-001", scope: ["ftbot"] }),
-      note({ id: "K-002", scope: ["ftbot", "area:daily"] }),
-      note({ id: "K-003", scope: ["ftbot"] }),
+      note({ id: "K-001", scope: ["acme-app"] }),
+      note({ id: "K-002", scope: ["acme-app", "area:daily"] }),
+      note({ id: "K-003", scope: ["acme-app"] }),
     ]);
     expect(m.scopes.map((s) => [s.key, s.count])).toEqual([
-      ["ftbot", 3],
+      ["acme-app", 3],
       ["area:daily", 1],
     ]);
   });
@@ -88,15 +88,15 @@ describe("buildKnowledge", () => {
   it("counts scopeless notes", () => {
     const m = buildKnowledge([
       note({ id: "K-001" }),
-      note({ id: "K-002", scope: ["ftbot"] }),
+      note({ id: "K-002", scope: ["acme-app"] }),
       note({ id: "K-003" }),
     ]);
     expect(m.scopeless).toBe(2);
   });
 
   it("carries display names onto row chips", () => {
-    const m = buildKnowledge([note({ scope: ["ftbot"] })], { ftbot: "FTBot" });
-    expect(m.rows[0].scope[0].label).toBe("FTBot");
+    const m = buildKnowledge([note({ scope: ["acme-app"] })], { "acme-app": "Acme App" });
+    expect(m.rows[0].scope[0].label).toBe("Acme App");
   });
 });
 
@@ -114,7 +114,7 @@ describe("knowledgeNote", () => {
   it("summarises scopes when everything is filed", () => {
     const text = knowledgeNote(
       buildKnowledge([
-        note({ id: "K-001", scope: ["ftbot"] }),
+        note({ id: "K-001", scope: ["acme-app"] }),
         note({ id: "K-002", scope: ["area:daily"] }),
       ]),
     );

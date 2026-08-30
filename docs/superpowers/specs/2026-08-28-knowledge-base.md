@@ -29,10 +29,10 @@ The filename is `<id>-<slug>.md`. The id in the filename is authoritative and ne
 ```markdown
 ---
 id: K-014
-title: Why I abandoned the ftbot grid strategy
+title: Why I abandoned the acme-app grid strategy
 scope:
-  - ftbot
-  - area:trading
+  - acme-app
+  - area:research
 tags:
   - strategy
   - postmortem
@@ -59,7 +59,7 @@ Free markdown. Link other notes as [[K-009]].
 `knowledge/index.md` is regenerated from the note files after every write. It is **derived state**: nothing reads it as truth, so a corrupt or hand-edited index self-heals on the next write.
 
 ```
-- K-014 | ftbot,area:trading | strategy,postmortem | Why I abandoned the ftbot grid strategy | Grid died on trending markets.
+- K-014 | acme-app,area:research | strategy,postmortem | Why I abandoned the acme-app grid strategy | Grid died on trending markets.
 ```
 
 Order: `id | scope | tags | title | summary`. Empty scope or tags render as `-`.
