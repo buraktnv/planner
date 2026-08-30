@@ -3,7 +3,13 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import type { UIMessage } from "ai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { CHAT_MODES, CHAT_MODE_KEYS, type ChatMode } from "@/lib/ai/modes";
 import { toolNames, type Proposal, type ProposalApplyResult } from "@/lib/ai/schemas";
@@ -23,6 +29,15 @@ import {
   type ReviewDraft,
   type ReviseOrigin,
 } from "@/lib/view/proposal-review";
+import {
+  RAIL_DEFAULT_WIDTH,
+  RAIL_MIN_WIDTH,
+  RAIL_WIDTH_KEY,
+  chromeFolded,
+  dragRailWidth,
+  storedRailWidth,
+  type ChromeOverride,
+} from "@/lib/view/chat-layout";
 import {
   CHAT_SESSIONS_KEY,
   MAX_STORED_SESSIONS,
@@ -132,9 +147,18 @@ export default function ChatRail({
   const [reviewKey, setReviewKey] = useState<string | null>(null);
   /** One per "ask for changes", appended on send; the chain is derived from these. */
   const [reviseOrigins, setReviseOrigins] = useState<ReviseOrigin[]>([]);
+  /**
+   * Scope, modes, history and the opener line fold away once a conversation is
+   * under way; this is the click that overrides that, and it lasts only as
+   * long as the conversation does.
+   */
+  const [chromeOverride, setChromeOverride] = useState<ChromeOverride>(null);
+  /** Live width while the handle is held; null means "use the stored one". */
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
   const transcripts = useRef<Map<string, UIMessage[]>>(new Map());
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const storedSessions = useStored(CHAT_SESSIONS_KEY);
+  const storedWidth = useStored(RAIL_WIDTH_KEY);
 
   const effectiveScope = scope ?? scopeFromPath(pathname);
   const focus = useMemo(() => {
@@ -159,6 +183,41 @@ export default function ChatRail({
       body: { profileId, focus, mode: mode ?? undefined, effort },
     }),
   });
+
+  const folded = chromeFolded(messages.length, chromeOverride);
+  /**
+   * No viewport is passed here: the server and the first client render have no
+   * window to measure, and disagreeing about it would be a hydration mismatch.
+   * The CSS `max-width` below caps it visually until the first drag, which does
+   * know the real width.
+   */
+  const width = dragWidth ?? storedRailWidth(storedWidth);
+
+  const resizeFrom = useRef<{ x: number; w: number } | null>(null);
+
+  const onResizeDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    resizeFrom.current = { x: e.clientX, w: width };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragWidth(width);
+  };
+
+  const onResizeMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const from = resizeFrom.current;
+    if (!from) return;
+    setDragWidth(dragRailWidth(from.w, from.x, e.clientX, window.innerWidth));
+  };
+
+  /** Storage is written once, on release — not on every frame of the drag. */
+  const onResizeUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const from = resizeFrom.current;
+    if (!from) return;
+    resizeFrom.current = null;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    const settled = dragRailWidth(from.w, from.x, e.clientX, window.innerWidth);
+    setDragWidth(null);
+    writeStored(RAIL_WIDTH_KEY, String(settled));
+  };
 
   useEffect(() => {
     let alive = true;
@@ -290,6 +349,7 @@ export default function ChatRail({
     setMessages([]);
     setReviewKey(null);
     setSessionsOpen(false);
+    setChromeOverride(null);
   };
 
   const pickSession = (id: string) => {
@@ -319,6 +379,7 @@ export default function ChatRail({
     // than leave it pointed at a card from a conversation no longer on screen.
     setReviewKey(null);
     setSessionsOpen(false);
+    setChromeOverride(null);
   };
 
   const pickProfile = (p: ProviderProfile) => {
@@ -543,26 +604,81 @@ export default function ChatRail({
       className={
         overlay
           ? "fixed inset-y-0 right-0 z-40 flex w-[372px] max-w-[92vw] flex-col border-l border-edge2 bg-surf shadow-[0_0_40px_rgba(46,42,38,.18)]"
-          : "flex w-[372px] min-w-[340px] shrink-0 flex-col border-l border-edge2 bg-surf"
+          : "relative flex shrink-0 flex-col border-l border-edge2 bg-surf"
       }
+      style={overlay ? undefined : { width, minWidth: RAIL_MIN_WIDTH, maxWidth: "70vw" }}
     >
-      <div className="border-b border-edge2 px-[18px] pt-4 pb-3.5">
-        <div className="mb-3 flex items-center gap-2.5">
-          <span className="grid h-[22px] w-[22px] place-items-center rounded-[7px] bg-quick-tint font-mono text-[10px] text-quick-ink">
+      {!overlay && (
+        <div
+          onPointerDown={onResizeDown}
+          onPointerMove={onResizeMove}
+          onPointerUp={onResizeUp}
+          onPointerCancel={onResizeUp}
+          onDoubleClick={() => writeStored(RAIL_WIDTH_KEY, String(RAIL_DEFAULT_WIDTH))}
+          title="Drag to resize · double-click to reset"
+          className="absolute inset-y-0 -left-1 z-30 w-2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1 after:w-px after:bg-transparent hover:after:bg-edge"
+        />
+      )}
+      <div
+        className={`border-b border-edge2 px-[18px] ${folded ? "py-2" : "pt-4 pb-3.5"}`}
+      >
+        <div className={folded ? "flex items-center gap-2" : "mb-3 flex items-center gap-2.5"}>
+          <span className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-[7px] bg-quick-tint font-mono text-[10px] text-quick-ink">
             M
           </span>
-          <span className="text-[13.5px] font-semibold">Assistant</span>
-          <div className="flex-1" />
+          {folded ? (
+            <button
+              type="button"
+              onClick={() => setChromeOverride("open")}
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-[9px] px-2 py-1 text-left transition-colors hover:bg-soft"
+              title="Show scope, modes and history"
+            >
+              <span
+                className="h-2 w-2 shrink-0 rounded-[3px]"
+                style={{ background: scopeMeta.color }}
+              />
+              <span className="min-w-0 truncate text-[12.5px] font-medium">
+                {scopeMeta.label}
+              </span>
+              {modeMeta && (
+                <Mono
+                  className="shrink-0 rounded-[4px] px-1.5 py-0.5 text-[8px] tracking-[0.08em]"
+                  style={{ color: modeMeta.ink, background: modeMeta.tint }}
+                >
+                  {modeMeta.label.toUpperCase()}
+                </Mono>
+              )}
+              <span className="flex-1" />
+              <Mono className="shrink-0 text-[8.5px] tracking-[0.1em] text-faint">MORE</Mono>
+            </button>
+          ) : (
+            <>
+              <span className="text-[13.5px] font-semibold">Assistant</span>
+              <div className="flex-1" />
+              {messages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setChromeOverride("closed")}
+                  className="font-mono text-[8.5px] tracking-[0.1em] text-faint transition-colors hover:text-ink"
+                  title="Fold these away and give the conversation the room"
+                >
+                  FOLD
+                </button>
+              )}
+            </>
+          )}
           <button
             type="button"
             onClick={onToggle}
-            className="text-base leading-none text-faint transition-colors hover:text-ink"
+            className="shrink-0 text-base leading-none text-faint transition-colors hover:text-ink"
             aria-label="Collapse assistant"
           >
             ›
           </button>
         </div>
 
+        {!folded && (
+          <>
         <div className="relative">
           <button
             type="button"
@@ -707,9 +823,11 @@ export default function ChatRail({
           </span>
           <Mono className="text-[9.5px] text-faint">{visibleSessions.length}</Mono>
         </button>
+          </>
+        )}
       </div>
 
-      {sessionsOpen && (
+      {!folded && sessionsOpen && (
         <div className="animate-pop border-b border-edge2 bg-bg p-2.5">
           <div className="flex flex-col gap-[3px]">
             {visibleSessions.map((s) => (
@@ -759,14 +877,16 @@ export default function ChatRail({
         </div>
       )}
 
-      <div
-        className="border-b border-edge2 px-4 py-2.5"
-        style={{ borderLeft: `2px solid ${modeMeta ? modeMeta.color : "var(--color-edge)"}` }}
-      >
-        <span className="text-[11.5px] leading-[1.45] text-dim">
-          {modeMeta ? modeMeta.opener : "Ask about anything on screen — it reads your real data."}
-        </span>
-      </div>
+      {!folded && (
+        <div
+          className="border-b border-edge2 px-4 py-2.5"
+          style={{ borderLeft: `2px solid ${modeMeta ? modeMeta.color : "var(--color-edge)"}` }}
+        >
+          <span className="text-[11.5px] leading-[1.45] text-dim">
+            {modeMeta ? modeMeta.opener : "Ask about anything on screen — it reads your real data."}
+          </span>
+        </div>
+      )}
 
       <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto p-[18px]">
         {messages.length === 0 && (
