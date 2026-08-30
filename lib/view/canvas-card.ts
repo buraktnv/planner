@@ -15,8 +15,15 @@ export const MIN_CARD_H = 110;
 export const MAX_CARD_W = 1200;
 export const MAX_CARD_H = 900;
 
-/** Below this the card is a label: a title and nothing else. */
-export const CHIP_SCALE = 0.55;
+/**
+ * Below this the card is a label: a title and nothing else.
+ *
+ * Kept well clear of the zoom levels FIT actually produces. At 0.55 a board
+ * that fitted to 54%% showed nothing but titles while the same board at 64%%
+ * showed every summary -- so the map appeared to change design between loads,
+ * on nothing but window width.
+ */
+export const CHIP_SCALE = 0.35;
 /** A card taller than this has room for prose rather than one clipped line. */
 export const BODY_H = 210;
 export const BODY_W = 260;

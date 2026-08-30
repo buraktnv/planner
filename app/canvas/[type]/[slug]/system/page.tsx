@@ -6,8 +6,30 @@ import type { ProjectType } from "@/lib/core/types";
 import { buildNoteCanvas } from "@/lib/view/canvas";
 import { hueOf } from "@/lib/ui/momentum";
 import CanvasView from "@/components/momentum/canvas/canvas-view";
+import { buildCanvasTabs, type TabCharter } from "@/lib/view/canvas-tabs";
 
 export const dynamic = "force-dynamic";
+
+function tabCharters(
+  projects: { id: string; name: string }[],
+  areas: { id: string; name: string }[],
+): TabCharter[] {
+  return [
+    ...projects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      type: "project" as const,
+      color: hueOf(p.id).color,
+    })),
+    ...areas.map((a) => ({
+      id: a.id,
+      name: a.name,
+      type: "area" as const,
+      color: hueOf(a.id).color,
+    })),
+  ];
+}
+
 
 function isType(value: string): value is ProjectType {
   return value === "project" || value === "area";
@@ -58,6 +80,7 @@ export default async function SystemCanvasPage({
       <CanvasView
         model={model}
         surface={{ kind: "system", type, slug }}
+        tabs={buildCanvasTabs(tabCharters(projects, areas), "system")}
         title={`${charter.name} — system`}
         backHref={type === "project" ? `/projects/${slug}` : `/areas/${slug}`}
         drawEdges

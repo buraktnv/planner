@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { LAST_CANVAS_KEY, safeCanvasPath } from "@/lib/view/canvas-tabs";
+import { useStored } from "./use-stored";
 import type { NavCharter } from "./context";
 
 const NAV = [
@@ -56,6 +58,9 @@ export default function Sidebar({
   const pathname = usePathname();
   const [lifeOpen, setLifeOpen] = useState(true);
   const [projOpen, setProjOpen] = useState(true);
+  // "Canvas" reopens the surface you were last on. The stored value is
+  // validated because it comes back from the browser, not from us.
+  const lastCanvas = safeCanvasPath(useStored(LAST_CANVAS_KEY));
 
   const areas = charters.filter((c) => c.type === "area");
   const projects = charters.filter((c) => c.type === "project");
@@ -86,10 +91,12 @@ export default function Sidebar({
         <nav className="flex shrink-0 flex-col gap-0.5 px-2">
           {NAV.map((item) => {
             const active = isActive(item.href);
+            const href =
+              item.href === "/canvas" && lastCanvas ? lastCanvas : item.href;
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={href}
                 className={`flex items-center gap-3 rounded-[10px] px-2.5 py-[9px] transition-colors hover:bg-surf ${
                   active ? "bg-surf text-ink" : "text-dim"
                 }`}

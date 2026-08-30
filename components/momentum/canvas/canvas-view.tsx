@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { CanvasModel, CanvasNodeModel } from "@/lib/view/canvas";
 import {
   arrowHead,
@@ -18,6 +18,8 @@ import { cardExcerpt, cardTier, clampSize, type CardTier } from "@/lib/view/canv
 import { Bar, Mono } from "../primitives";
 import Markdown from "../markdown";
 import CanvasPopup from "./canvas-popup";
+import CanvasTabs from "./canvas-tabs";
+import { activeTabKey, type CanvasTab } from "@/lib/view/canvas-tabs";
 
 interface Viewport {
   tx: number;
@@ -61,6 +63,7 @@ export default function CanvasView({
   surface,
   title,
   backHref,
+  tabs,
   drawEdges = false,
   delegate,
   createScope,
@@ -70,6 +73,7 @@ export default function CanvasView({
   surface: Record<string, unknown>;
   title: string;
   backHref?: string;
+  tabs?: CanvasTab[];
   /** System canvases let you draw requires/triggers arrows; the knowledge one does not. */
   drawEdges?: boolean;
   /** Where a delegated task is created. Absent on the knowledge canvas. */
@@ -83,6 +87,7 @@ export default function CanvasView({
   unlinkedTasks?: { id: string; title: string }[];
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const stage = useRef<HTMLDivElement | null>(null);
   const [vp, setVp] = useState<Viewport>({ tx: 60, ty: 60, k: 1 });
   const [edit, setEdit] = useState(false);
@@ -452,7 +457,14 @@ export default function CanvasView({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center gap-[7px] px-9 pt-[26px] pb-3">
+      {tabs && tabs.length > 1 && (
+        <CanvasTabs tabs={tabs} activeKey={activeTabKey(pathname)} path={pathname} />
+      )}
+      <div
+        className={`flex flex-wrap items-center gap-[7px] px-9 pb-3 ${
+          tabs && tabs.length > 1 ? "border-t border-edge pt-4" : "pt-[26px]"
+        }`}
+      >
         {backHref && (
           <Link
             href={backHref}
