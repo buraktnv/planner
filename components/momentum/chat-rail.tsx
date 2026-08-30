@@ -9,7 +9,9 @@ import { CHAT_MODES, CHAT_MODE_KEYS, type ChatMode } from "@/lib/ai/modes";
 import { toolNames, type Proposal } from "@/lib/ai/schemas";
 import type { ProviderEffort, ProviderProfile, ProvidersFile } from "@/lib/core/types";
 import { isProviderEffort, nextEffort } from "@/lib/ui/providers";
+import { asProposal, toolNameOf, type ToolPartLike } from "@/lib/view/chat-parts";
 import type { NavCharter } from "./context";
+import ChatMessage from "./chat/chat-message";
 import { Mono } from "./primitives";
 import ProposalCard, { type ProposalState } from "./proposal-card";
 
@@ -30,36 +32,6 @@ interface Session {
   title: string;
   mode: ChatMode | null;
   messages: UIMessage[];
-}
-
-interface ToolPartLike {
-  type: string;
-  toolName?: string;
-  toolCallId?: string;
-  state?: string;
-  input?: unknown;
-  output?: unknown;
-}
-
-function toolNameOf(part: ToolPartLike): string {
-  const raw = part.toolName ?? part.type.replace(/^tool-/, "");
-  return raw.replace(/^mcp__planner__/, "");
-}
-
-function asProposal(output: unknown): Proposal | null {
-  let value = output;
-  if (typeof value === "string") {
-    try {
-      value = JSON.parse(value);
-    } catch {
-      return null;
-    }
-  }
-  if (!value || typeof value !== "object") return null;
-  const p = value as Partial<Proposal>;
-  if (typeof p.title !== "string") return null;
-  if (!Array.isArray(p.actions) || !Array.isArray(p.preview)) return null;
-  return p as Proposal;
 }
 
 function newSession(mode: ChatMode | null): Session {
@@ -89,22 +61,6 @@ function scopeFromPath(pathname: string): string | null {
   const area = /^\/areas\/([^/]+)/.exec(pathname);
   if (area) return `area/${decodeURIComponent(area[1])}`;
   return null;
-}
-
-function toolSummary(part: ToolPartLike): string {
-  const out = part.output;
-  if (out == null) return "";
-  if (toolNameOf(part) === "propose_changes") {
-    const proposal = asProposal(out);
-    return proposal ? `proposed ${proposal.actions.length} changes` : "";
-  }
-  if (Array.isArray(out)) return `${out.length} rows`;
-  if (typeof out === "object") {
-    const id = (out as { id?: unknown }).id;
-    if (typeof id === "string") return id;
-  }
-  if (typeof out === "string") return out.length > 28 ? `${out.slice(0, 28)}…` : out;
-  return "";
 }
 
 export default function ChatRail({
@@ -313,6 +269,25 @@ export default function ChatRail({
         error: e instanceof Error ? e.message : "Could not apply",
       });
     }
+  };
+
+  /**
+   * The transcript renders tool parts; the rail owns what they turn into. Today
+   * that is the proposal card and nothing else — every other tool keeps its chip.
+   */
+  const renderTool = (part: ToolPartLike, key: string) => {
+    if (toolNameOf(part) !== "propose_changes") return null;
+    const proposal = asProposal(part.output);
+    if (!proposal) return null;
+    return (
+      <ProposalCard
+        key={key}
+        proposal={proposal}
+        state={proposalStates[key] ?? { status: "idle" }}
+        onAccept={() => acceptProposal(key, proposal)}
+        onDiscard={() => setProposalState(key, { status: "discarded" })}
+      />
+    );
   };
 
   const saveAbout = async () => {
@@ -588,98 +563,18 @@ export default function ChatRail({
               : "No provider profile configured. Add one in Settings to start chatting."}
           </p>
         )}
-        {messages.map((m) => {
-          const isUser = m.role === "user";
-          const tools = m.parts.filter(
-            (p) => p.type === "dynamic-tool" || p.type.startsWith("tool-"),
-          ) as unknown as ToolPartLike[];
-          const text = m.parts
-            .filter((p): p is { type: "text"; text: string } => p.type === "text")
-            .map((p) => p.text)
-            .join("");
-          const thoughts = m.parts
-            .filter((p): p is { type: "reasoning"; text: string } => p.type === "reasoning")
-            .map((p) => (typeof p.text === "string" ? p.text : ""))
-            .filter((t) => t.trim().length > 0);
-          return (
-            <div
-              key={m.id}
-              className={`animate-slidein ${isUser ? "max-w-[85%] self-end" : "self-stretch"}`}
-            >
-              {isUser ? (
-                <div className="rounded-[14px_14px_4px_14px] bg-soft px-[13px] py-2.5 text-[13.5px] leading-[1.5] whitespace-pre-wrap">
-                  {text}
-                </div>
-              ) : (
-                <div>
-                  {thoughts.length > 0 && (
-                    <div className="mb-2.5 flex flex-col gap-1.5">
-                      {thoughts.map((t, i) => {
-                        const key = `${m.id}-r${i}`;
-                        const shown = openReasoning[key] === true;
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() =>
-                              setOpenReasoning((prev) => ({ ...prev, [key]: !shown }))
-                            }
-                            className="rounded-[9px] border border-edge2 bg-soft px-2.5 py-1.5 text-left font-mono text-[10px] leading-[1.5] text-dim transition-colors hover:text-ink"
-                          >
-                            <span className="text-faint">{shown ? "▾" : "▸"} THOUGHT </span>
-                            {shown ? (
-                              <span className="whitespace-pre-wrap">{t}</span>
-                            ) : (
-                              <span>{t.replace(/\s+/g, " ").slice(0, 64)}…</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {tools.length > 0 && (
-                    <div className="mb-2.5 flex flex-col items-start gap-1.5">
-                      {tools.map((t, i) => {
-                        const name = toolNameOf(t);
-                        const done = t.state === "output-available";
-                        return (
-                          <div
-                            key={i}
-                            className="inline-flex items-center gap-2 rounded-[9px] border border-edge2 bg-soft px-2.5 py-1.5 font-mono text-[10px] text-dim"
-                          >
-                            <span className={done ? "text-quick-ink" : "text-faint"}>
-                              {done ? "✓" : "…"}
-                            </span>
-                            {name}
-                            <span className="text-faint">{toolSummary(t)}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  <div className="text-[13.5px] leading-[1.6] whitespace-pre-wrap text-ink">
-                    {text}
-                  </div>
-                  {tools.map((t, i) => {
-                    if (toolNameOf(t) !== "propose_changes") return null;
-                    const proposal = asProposal(t.output);
-                    if (!proposal) return null;
-                    const key = t.toolCallId ?? `${m.id}-${i}`;
-                    return (
-                      <ProposalCard
-                        key={key}
-                        proposal={proposal}
-                        state={proposalStates[key] ?? { status: "idle" }}
-                        onAccept={() => acceptProposal(key, proposal)}
-                        onDiscard={() => setProposalState(key, { status: "discarded" })}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {messages.map((m, mi) => (
+          <ChatMessage
+            key={m.id}
+            message={m}
+            streaming={busy && mi === messages.length - 1}
+            openReasoning={openReasoning}
+            onToggleReasoning={(key) =>
+              setOpenReasoning((prev) => ({ ...prev, [key]: prev[key] !== true }))
+            }
+            renderTool={renderTool}
+          />
+        ))}
         {busy && <Mono className="text-[9.5px] text-faint">THINKING…</Mono>}
       </div>
 
