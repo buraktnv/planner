@@ -19,6 +19,7 @@ import {
   type ReviewRow,
 } from "@/lib/view/proposal-review";
 import Dialog from "../dialog";
+import Markdown from "../markdown";
 import { Mono } from "../primitives";
 
 const INPUT =
@@ -81,7 +82,9 @@ export default function ProposalReview({
       </div>
 
       {draft.summary && (
-        <p className="mt-0 mb-3 text-[12.5px] leading-[1.55] text-dim">{draft.summary}</p>
+        <Markdown className="mb-3 text-[12.5px] leading-[1.55] text-dim [&>p]:m-0" diagrams={false}>
+          {draft.summary}
+        </Markdown>
       )}
 
       <div className="mb-3 flex items-center gap-3">

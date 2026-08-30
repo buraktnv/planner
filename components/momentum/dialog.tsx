@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 
 const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -20,6 +20,19 @@ export default function Dialog({
 }) {
   const panel = useRef<HTMLDivElement | null>(null);
 
+  /**
+   * `onClose` is almost always an inline arrow, so it is a new value on every
+   * render. Reading it through a ref keeps the effect below mount-only — with
+   * `onClose` in the dependency array the whole effect re-ran on every render,
+   * which re-focused the first field after *every keystroke*: text went to the
+   * wrong element and a space toggled whatever checkbox came first.
+   */
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
+  const onCloseStable = useCallback(() => close.current(), []);
+
   useEffect(() => {
     const active = document.activeElement as HTMLElement | null;
     const node = panel.current;
@@ -33,7 +46,7 @@ export default function Dialog({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        close.current();
         return;
       }
       if (e.key !== "Tab" || !node) return;
@@ -57,13 +70,13 @@ export default function Dialog({
       document.body.style.overflow = previousOverflow;
       returnTo?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[rgba(46,42,38,.28)] px-6"
       style={{ paddingTop, paddingBottom: paddingTop }}
-      onClick={onClose}
+      onClick={onCloseStable}
       role="presentation"
     >
       <div

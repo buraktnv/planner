@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Proposal } from "@/lib/ai/schemas";
 import { LANES } from "@/lib/ui/momentum";
 import { taskHrefFromScope } from "@/lib/view/task";
+import Markdown from "./markdown";
 import { Mono } from "./primitives";
 
 export type ProposalStatus = "idle" | "applying" | "applied" | "discarded" | "error";
@@ -69,7 +70,12 @@ export default function ProposalCard({
       </div>
 
       {proposal.summary && (
-        <p className="mt-0 mb-[11px] text-[12px] leading-[1.5] text-dim">{proposal.summary}</p>
+        <Markdown
+          className="mb-[11px] text-[12px] leading-[1.5] text-dim [&>p]:m-0"
+          diagrams={false}
+        >
+          {proposal.summary}
+        </Markdown>
       )}
 
       <div className="mb-[13px] flex flex-col gap-[7px]">
