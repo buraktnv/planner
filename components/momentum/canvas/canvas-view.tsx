@@ -287,10 +287,13 @@ export default function CanvasView({
     // Inside a scrollable card body the event is the card's: capturing it here
     // would steal text selection and scrollbar drags.
     if (scrollAncestor(target)) return;
-    const resizeId = edit
-      ? target.closest<HTMLElement>("[data-resize-ref]")?.dataset.resizeRef
-      : null;
-    const cardId = edit ? target.closest<HTMLElement>("[data-drag-ref]")?.dataset.dragRef : null;
+    // Grabbing a card moves it, whatever mode the board is in. Gating this
+    // on ARRANGE meant a drag silently panned the board instead, so an
+    // arrangement was never saved and every reload re-ran the auto-layout --
+    // the board appeared to snap back to a grid on refresh. Panning still
+    // works from the background, and MOVE_THRESHOLD keeps a click a click.
+    const resizeId = target.closest<HTMLElement>("[data-resize-ref]")?.dataset.resizeRef;
+    const cardId = target.closest<HTMLElement>("[data-drag-ref]")?.dataset.dragRef;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     if (resizeId) {
       const node = nodes.find((n) => n.id === resizeId);
@@ -359,6 +362,8 @@ export default function CanvasView({
     }
   };
 
+  const saveRef = useRef<() => Promise<void>>(async () => {});
+
   const pendingRefs = useMemo(
     () => [...new Set([...Object.keys(dirty), ...Object.keys(dirtySize)])],
     [dirty, dirtySize],
@@ -424,6 +429,12 @@ export default function CanvasView({
     void post("DELETE", { from: edge.from, to: edge.to, kind: edge.kind });
   };
 
+  // An arrangement used to survive only if you noticed the SAVE button and
+  // clicked it -- otherwise a refresh silently threw the work away and the
+  // board came back auto-laid-out. Debounced, so a burst of drags is still one
+  // commit rather than one per pixel.
+  const AUTOSAVE_MS = 900;
+
   const save = async () => {
     if (pendingCount === 0 || saving) return;
     setSaving(true);
@@ -442,13 +453,30 @@ export default function CanvasView({
         body: JSON.stringify({ surface, moves }),
       });
       if (!res.ok) return;
-      setDirty({});
-      setDirtySize({});
+      // Only what this request carried: a card moved while it was in flight
+      // must stay pending, not be wiped by the response.
+      const sent = new Set(pendingRefs);
+      const keep = <T,>(cur: Record<string, T>) =>
+        Object.fromEntries(Object.entries(cur).filter(([ref]) => !sent.has(ref)));
+      setDirty(keep);
+      setDirtySize(keep);
       router.refresh();
     } finally {
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    saveRef.current = save;
+  });
+
+  useEffect(() => {
+    if (pendingCount === 0 || saving) return;
+    const timer = setTimeout(() => {
+      void saveRef.current();
+    }, AUTOSAVE_MS);
+    return () => clearTimeout(timer);
+  }, [pendingCount, saving]);
 
   const open = openId ? (nodes.find((n) => n.id === openId) ?? null) : null;
   const titleOf = (id: string) => nodes.find((n) => n.id === id)?.title ?? id;
@@ -762,9 +790,9 @@ function CanvasCardBase({
       // Not draggable while picking a link target, or the click becomes a drag.
       data-drag-ref={linking ? undefined : node.id}
       onPointerDown={linking && !isSource ? () => onPickTarget(node.id) : undefined}
-      className={`absolute flex flex-col overflow-hidden rounded-[14px] border bg-surf ${
+      className={`group absolute flex flex-col overflow-hidden rounded-[14px] border bg-surf ${
         isSource ? "border-ink" : edit ? "border-edge" : "border-edge2"
-      } ${linking && !isSource ? "cursor-crosshair" : edit ? "cursor-grab" : ""}`}
+      } ${linking && !isSource ? "cursor-crosshair" : "cursor-grab"}`}
       style={{
         left: node.x,
         top: node.y,
@@ -831,11 +859,13 @@ function CanvasCardBase({
         )}
       </div>
 
-      {edit && !linking && (
+      {!linking && (
         <div
           data-resize-ref={node.id}
           aria-hidden
-          className="absolute right-0 bottom-0 h-4 w-4 cursor-nwse-resize"
+          className={`absolute right-0 bottom-0 h-4 w-4 cursor-nwse-resize transition-opacity ${
+            edit ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
           style={{
             background:
               "linear-gradient(135deg, transparent 55%, var(--color-edge) 55%, var(--color-edge) 68%, transparent 68%, transparent 78%, var(--color-edge) 78%, var(--color-edge) 91%, transparent 91%)",
