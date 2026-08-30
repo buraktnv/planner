@@ -6,12 +6,20 @@ import type { UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { CHAT_MODES, CHAT_MODE_KEYS, type ChatMode } from "@/lib/ai/modes";
-import { toolNames, type Proposal } from "@/lib/ai/schemas";
+import { toolNames, type Proposal, type ProposalApplyResult } from "@/lib/ai/schemas";
 import type { ProviderEffort, ProviderProfile, ProvidersFile } from "@/lib/core/types";
 import { isProviderEffort, nextEffort } from "@/lib/ui/providers";
 import { asProposal, toolNameOf, type ToolPartLike } from "@/lib/view/chat-parts";
+import {
+  buildDraft,
+  draftStats,
+  remainderDraft,
+  selectedActions,
+  type ReviewDraft,
+} from "@/lib/view/proposal-review";
 import type { NavCharter } from "./context";
 import ChatMessage from "./chat/chat-message";
+import ProposalReview from "./chat/proposal-review";
 import { Mono } from "./primitives";
 import ProposalCard, { type ProposalState } from "./proposal-card";
 
@@ -95,6 +103,17 @@ export default function ChatRail({
   const [sessions, setSessions] = useState<Session[]>(() => [initialSession]);
   const [activeId, setActiveId] = useState<string>(initialSession.id);
   const [proposalStates, setProposalStates] = useState<Record<string, ProposalState>>({});
+  /**
+   * Row selection and hand edits, keyed by the same toolCallId as the state
+   * above, so they survive closing and reopening the modal.
+   */
+  const [drafts, setDrafts] = useState<Record<string, ReviewDraft>>({});
+  /**
+   * The modal is rendered once, at the root, and pointed at a card — not from
+   * inside the message map, where it would be keyed to a toolCallId and unmount
+   * the moment a revised card arrives, taking the focus trap with it.
+   */
+  const [reviewKey, setReviewKey] = useState<string | null>(null);
   const transcripts = useRef<Map<string, UIMessage[]>>(new Map());
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -231,37 +250,51 @@ export default function ChatRail({
     setProposalStates((prev) => ({ ...prev, [key]: next }));
   };
 
+  /** A card's working copy: the model's batch until the user touches it. */
+  const draftFor = (key: string, proposal: Proposal): ReviewDraft =>
+    drafts[key] ?? buildDraft(proposal, key);
+
   const acceptProposal = async (key: string, proposal: Proposal) => {
+    const current = draftFor(key, proposal);
+    const actions = selectedActions(current);
+    if (actions.length === 0) return;
+
     setProposalState(key, { status: "applying" });
     try {
       const res = await fetch("/api/proposals/apply", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ actions: proposal.actions }),
+        body: JSON.stringify({ actions }),
       });
-      const data = (await res.json()) as {
-        applied?: number;
-        failedIndex?: number | null;
-        results?: { error?: string }[];
-        error?: string;
-      };
+      const data = (await res.json()) as ProposalApplyResult & { error?: string };
       if (!res.ok) {
         setProposalState(key, { status: "error", error: data.error ?? "Could not apply" });
         return;
       }
+
+      /**
+       * A partial apply used to be a dead end: the rows before the failure were
+       * already written and committed, and the only control left was Accept,
+       * which would write them a second time. Rebuild the draft from the
+       * per-action results so what landed is marked applied and unticked, and
+       * Accept resumes on the remainder instead of duplicating.
+       */
       if (data.failedIndex != null) {
+        const remainder = remainderDraft(current, data);
+        setDrafts((prev) => ({ ...prev, [key]: remainder }));
         const failure = data.results?.[data.failedIndex]?.error ?? "Action failed";
         setProposalState(key, {
           status: "error",
-          error: `Applied ${data.applied ?? 0}, stopped at action ${data.failedIndex + 1}: ${failure}`,
+          error: `Applied ${data.applied ?? 0}. Stopped at "${failure}" — the rest is still here.`,
         });
+        setReviewKey(key);
         router.refresh();
         return;
       }
-      setProposalState(key, {
-        status: "applied",
-        applied: data.applied ?? proposal.actions.length,
-      });
+
+      setDrafts((prev) => ({ ...prev, [key]: remainderDraft(current, data) }));
+      setProposalState(key, { status: "applied", applied: data.applied ?? actions.length });
+      setReviewKey((k) => (k === key ? null : k));
       router.refresh();
     } catch (e) {
       setProposalState(key, {
@@ -279,16 +312,25 @@ export default function ChatRail({
     if (toolNameOf(part) !== "propose_changes") return null;
     const proposal = asProposal(part.output);
     if (!proposal) return null;
+    const stats = draftStats(draftFor(key, proposal));
     return (
       <ProposalCard
         key={key}
         proposal={proposal}
         state={proposalStates[key] ?? { status: "idle" }}
+        editedCount={stats.edited}
+        selectedCount={stats.selected}
         onAccept={() => acceptProposal(key, proposal)}
+        onReview={() => {
+          setDrafts((prev) => (prev[key] ? prev : { ...prev, [key]: buildDraft(proposal, key) }));
+          setReviewKey(key);
+        }}
         onDiscard={() => setProposalState(key, { status: "discarded" })}
       />
     );
   };
+
+  const reviewDraft = reviewKey ? drafts[reviewKey] : null;
 
   const saveAbout = async () => {
     setAboutState("saving");
@@ -760,14 +802,47 @@ export default function ChatRail({
     </aside>
   );
 
+  const review =
+    reviewDraft && reviewKey ? (
+      <ProposalReview
+        draft={reviewDraft}
+        busy={proposalStates[reviewKey]?.status === "applying"}
+        error={proposalStates[reviewKey]?.error}
+        onChange={(next) => setDrafts((prev) => ({ ...prev, [reviewKey]: next }))}
+        onAccept={() => acceptProposal(reviewKey, proposalOfDraft(reviewDraft))}
+        onClose={() => setReviewKey(null)}
+      />
+    ) : null;
+
   if (overlay) {
     return (
       <>
         {strip}
         {panel}
+        {review}
       </>
     );
   }
 
-  return panel;
+  return (
+    <>
+      {panel}
+      {review}
+    </>
+  );
+}
+
+/**
+ * Accept reads the draft, not the model's original batch, so the shape it needs
+ * back is only enough to satisfy the call — the actions it applies come from
+ * `selectedActions(draft)` either way.
+ */
+function proposalOfDraft(draft: ReviewDraft): Proposal {
+  return {
+    proposalId: draft.proposalId,
+    title: draft.title,
+    summary: draft.summary,
+    actions: draft.rows.map((r) => r.action),
+    preview: draft.rows.map((r) => r.preview),
+  };
 }

@@ -19,15 +19,29 @@ export default function ProposalCard({
   state,
   onAccept,
   onDiscard,
+  onReview,
+  editedCount = 0,
+  selectedCount,
 }: {
   proposal: Proposal;
   state: ProposalState;
   onAccept: () => void;
   onDiscard: () => void;
+  /**
+   * Opens the review modal, where rows can be inspected, edited and unticked.
+   * Absent on the distillation panel, which has no modal of its own — the
+   * button is simply not shown there rather than being shown and dead.
+   */
+  onReview?: () => void;
+  editedCount?: number;
+  selectedCount?: number;
 }) {
   const dot = proposal.preview[0]?.color ?? "var(--color-faint)";
   const settled = state.status === "applied" || state.status === "discarded";
   const busy = state.status === "applying";
+  const total = proposal.actions.length;
+  const picked = selectedCount ?? total;
+  const partial = picked < total;
 
   return (
     <div
@@ -97,15 +111,25 @@ export default function ProposalCard({
       ) : state.status === "discarded" ? (
         <Mono className="text-[9.5px] tracking-[0.08em] text-faint">DISCARDED</Mono>
       ) : (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onAccept}
-            disabled={busy || settled}
+            disabled={busy || settled || picked === 0}
             className="rounded-[9px] bg-quick px-3.5 py-2 text-[12.5px] font-semibold text-white disabled:opacity-50"
           >
-            {busy ? "Applying…" : "Accept"}
+            {busy ? "Applying…" : partial ? `Accept ${picked} of ${total}` : "Accept"}
           </button>
+          {onReview && (
+            <button
+              type="button"
+              onClick={onReview}
+              disabled={busy || settled}
+              className="rounded-[9px] border border-edge px-3 py-2 text-[12.5px] text-dim transition-colors hover:border-ink hover:text-ink disabled:opacity-50"
+            >
+              Review{total > 1 ? ` ${total}` : ""}…
+            </button>
+          )}
           <button
             type="button"
             onClick={onDiscard}
@@ -114,6 +138,11 @@ export default function ProposalCard({
           >
             Discard
           </button>
+          {editedCount > 0 && (
+            <Mono className="shrink-0 text-[8.5px] tracking-[0.08em] text-dim">
+              {editedCount} EDITED
+            </Mono>
+          )}
           {state.status === "error" && state.error && (
             <Mono className="min-w-0 flex-1 truncate text-[8.5px] text-faint">{state.error}</Mono>
           )}
