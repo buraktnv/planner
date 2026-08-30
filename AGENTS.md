@@ -127,6 +127,28 @@ Journal distillation (`lib/ai/distill.ts`, `POST /api/knowledge/distill`) turns 
 
 `npm run lint && npm run typecheck && npm test` all green, rules above respected.
 
+## Landing work
+
+**Never push to `main`, and never merge into it locally. Open a pull request.**
+Work on a branch, push the branch, `gh pr create`, and let the PR be reviewed
+and merged — even when the change is small, even when the person asking said
+"merge it". "Merge it" means land it the normal way, not skip the review step;
+a merge is the one action nobody can undo once it is pushed to a public repo.
+
+Two consequences specific to this setup:
+
+- **A merged PR does not deploy on its own.** The live app is served from the
+  main checkout by a local service, so a deploy still needs `git pull` on
+  `main` there. The pull is what triggers the deploy — see below.
+- **Deployment is automatic but invisible.** A `post-merge` hook rebuilds and
+  restarts the service on any merge or pull into `main`. It is deliberately not
+  in the repo: it holds one machine's service name and port, and this repo is
+  public. It lives in `.git/hooks/post-merge`, and because `.git/hooks` is
+  shared by every worktree it guards on both branch and toplevel path —
+  without that, a pull inside `.claude/worktrees/*` would redeploy the live app
+  from the wrong branch. It builds while the old build is still serving and
+  restarts only on success, so a failed build leaves the app running.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
