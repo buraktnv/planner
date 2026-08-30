@@ -9,7 +9,7 @@ import { CHAT_MODES, CHAT_MODE_KEYS, type ChatMode } from "@/lib/ai/modes";
 import { toolNames, type Proposal, type ProposalApplyResult } from "@/lib/ai/schemas";
 import type { ProviderEffort, ProviderProfile, ProvidersFile } from "@/lib/core/types";
 import { isProviderEffort, nextEffort } from "@/lib/ui/providers";
-import { asProposal, toolNameOf, type ToolPartLike } from "@/lib/view/chat-parts";
+import { asProposal, toolNameOf, toolStatus, type ToolPartLike } from "@/lib/view/chat-parts";
 import {
   buildDraft,
   buildRevisePayload,
@@ -26,6 +26,7 @@ import {
 import type { NavCharter } from "./context";
 import ChatMessage from "./chat/chat-message";
 import ProposalReview from "./chat/proposal-review";
+import { TOOL_CARDS } from "./chat/tool-cards";
 import { Mono } from "./primitives";
 import ProposalCard, { type ProposalState } from "./proposal-card";
 
@@ -387,7 +388,14 @@ export default function ChatRail({
    * that is the proposal card and nothing else — every other tool keeps its chip.
    */
   const renderTool = (part: ToolPartLike, key: string) => {
-    if (toolNameOf(part) !== "propose_changes") return null;
+    const name = toolNameOf(part);
+    if (name !== "propose_changes") {
+      // The model picks its UI by picking a tool. Anything not in the registry
+      // keeps the plain chip the transcript already shows.
+      if (toolStatus(part) !== "done") return null;
+      const render = TOOL_CARDS[name];
+      return render ? <div key={key}>{render(part)}</div> : null;
+    }
     const proposal = asProposal(part.output);
     if (!proposal) return null;
     const stats = draftStats(draftFor(key, proposal));
