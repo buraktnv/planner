@@ -23,7 +23,16 @@ import {
   type ReviewDraft,
   type ReviseOrigin,
 } from "@/lib/view/proposal-review";
+import {
+  CHAT_SESSIONS_KEY,
+  MAX_STORED_SESSIONS,
+  mergeSessions,
+  nextStoredValue,
+  unpackSessions,
+  type StoredSession,
+} from "@/lib/view/chat-sessions";
 import type { NavCharter } from "./context";
+import { useStored, writeStored } from "./use-stored";
 import ChatMessage from "./chat/chat-message";
 import ProposalReview from "./chat/proposal-review";
 import { TOOL_CARDS } from "./chat/tool-cards";
@@ -125,6 +134,7 @@ export default function ChatRail({
   const [reviseOrigins, setReviseOrigins] = useState<ReviseOrigin[]>([]);
   const transcripts = useRef<Map<string, UIMessage[]>>(new Map());
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const storedSessions = useStored(CHAT_SESSIONS_KEY);
 
   const effectiveScope = scope ?? scopeFromPath(pathname);
   const focus = useMemo(() => {
@@ -221,11 +231,46 @@ export default function ChatRail({
     }
     return map;
   }, [messages]);
-  const active = sessions.find((s) => s.id === activeId) ?? sessions[0];
+  /**
+   * Conversations from previous page loads. Read through useStored, whose
+   * server snapshot is null, so the server and the first client render agree on
+   * an empty list — the count beside the conversations button is rendered, and
+   * restoring during the first render would be a hydration mismatch.
+   */
+  const restored = useMemo(() => unpackSessions(storedSessions), [storedSessions]);
+  const allSessions = useMemo(
+    () => mergeSessions(sessions, restored),
+    [sessions, restored],
+  );
+
+  const active = allSessions.find((s) => s.id === activeId) ?? allSessions[0];
   const visibleSessions = mode
-    ? sessions.filter((s) => s.mode === mode || s.id === activeId)
-    : sessions;
+    ? allSessions.filter((s) => s.mode === mode || s.id === activeId)
+    : allSessions;
   const activeTitle = titleFrom(messages, active?.title ?? "New conversation");
+
+  /**
+   * Writing to storage is an external-system update, so it belongs in an effect;
+   * it reads `restored` through a ref rather than a dependency, because writing
+   * notifies this tab and a dependency on the value we just wrote would loop.
+   * Skipped mid-stream: the transcript is rewritten on every delta.
+   */
+  const restoredRef = useRef(restored);
+  // Declared first, so it has landed before the write effect below reads it.
+  useEffect(() => {
+    restoredRef.current = restored;
+  }, [restored]);
+  useEffect(() => {
+    if (busy) return;
+    const live: StoredSession[] = sessions.map((s) => ({
+      id: s.id,
+      title: s.id === activeId ? titleFrom(messages, s.title) : s.title,
+      mode: s.mode,
+      messages: s.id === activeId ? messages : (transcripts.current.get(s.id) ?? s.messages),
+    }));
+    const next = nextStoredValue(live, restoredRef.current);
+    if (next !== null) writeStored(CHAT_SESSIONS_KEY, next);
+  }, [sessions, messages, activeId, busy]);
 
   const stash = () => {
     transcripts.current.set(activeId, messages);
@@ -253,6 +298,21 @@ export default function ChatRail({
       return;
     }
     stash();
+
+    // Reopening a conversation from a previous page load: adopt it into this
+    // one, so it behaves like any other from here on.
+    if (!sessions.some((s) => s.id === id)) {
+      const stored = restored.find((s) => s.id === id);
+      if (stored) {
+        const adopted = stored.messages as UIMessage[];
+        transcripts.current.set(id, adopted);
+        setSessions((prev) => [
+          ...prev,
+          { id: stored.id, title: stored.title, mode: stored.mode, messages: adopted },
+        ]);
+      }
+    }
+
     setActiveId(id);
     setMessages(transcripts.current.get(id) ?? []);
     // Switching does not abort an in-flight stream, so close the modal rather
@@ -692,7 +752,7 @@ export default function ChatRail({
                 New session
               </button>
               <Mono className="mt-[7px] block text-center text-[8px] tracking-[0.06em] text-faint">
-                CONVERSATIONS LIVE IN THIS BROWSER SESSION
+                KEPT IN THIS BROWSER · {MAX_STORED_SESSIONS} MOST RECENT
               </Mono>
             </div>
           </div>
