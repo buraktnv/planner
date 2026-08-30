@@ -12,10 +12,16 @@ import { isProviderEffort, nextEffort } from "@/lib/ui/providers";
 import { asProposal, toolNameOf, type ToolPartLike } from "@/lib/view/chat-parts";
 import {
   buildDraft,
+  buildRevisePayload,
   draftStats,
+  latestOf,
   remainderDraft,
+  resolveLineage,
+  reviseBubbleText,
   selectedActions,
+  staleKeys,
   type ReviewDraft,
+  type ReviseOrigin,
 } from "@/lib/view/proposal-review";
 import type { NavCharter } from "./context";
 import ChatMessage from "./chat/chat-message";
@@ -114,6 +120,8 @@ export default function ChatRail({
    * the moment a revised card arrives, taking the focus trap with it.
    */
   const [reviewKey, setReviewKey] = useState<string | null>(null);
+  /** One per "ask for changes", appended on send; the chain is derived from these. */
+  const [reviseOrigins, setReviseOrigins] = useState<ReviseOrigin[]>([]);
   const transcripts = useRef<Map<string, UIMessage[]>>(new Map());
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -185,6 +193,33 @@ export default function ChatRail({
   }, [messages.length, status]);
 
   const busy = status === "streaming" || status === "submitted";
+
+  /**
+   * A revised batch arrives as an ordinary new card with a fresh toolCallId, so
+   * the link back to the card it replaces is worked out here rather than asked
+   * of the model — which never sees the proposalId to echo in the first place.
+   *
+   * Derived on every render rather than stored: the successor is a pure
+   * function of the transcript, and keeping it in state would mean writing
+   * state from an effect that watches the stream.
+   */
+  const lineage = resolveLineage(reviseOrigins, messages, busy, activeId);
+
+  /** Every proposal in the transcript, by the key its card is rendered under. */
+  const proposalsByKey = useMemo(() => {
+    const map = new Map<string, Proposal>();
+    for (const m of messages) {
+      m.parts.forEach((part, i) => {
+        const p = part as ToolPartLike;
+        if (typeof p?.type !== "string") return;
+        if (!(p.type === "dynamic-tool" || p.type.startsWith("tool-"))) return;
+        if (toolNameOf(p) !== "propose_changes") return;
+        const proposal = asProposal(p.output);
+        if (proposal) map.set(p.toolCallId ?? `${m.id}-${i}`, proposal);
+      });
+    }
+    return map;
+  }, [messages]);
   const active = sessions.find((s) => s.id === activeId) ?? sessions[0];
   const visibleSessions = mode
     ? sessions.filter((s) => s.mode === mode || s.id === activeId)
@@ -207,6 +242,7 @@ export default function ChatRail({
     setSessions((prev) => [s, ...prev]);
     setActiveId(s.id);
     setMessages([]);
+    setReviewKey(null);
     setSessionsOpen(false);
   };
 
@@ -218,6 +254,9 @@ export default function ChatRail({
     stash();
     setActiveId(id);
     setMessages(transcripts.current.get(id) ?? []);
+    // Switching does not abort an in-flight stream, so close the modal rather
+    // than leave it pointed at a card from a conversation no longer on screen.
+    setReviewKey(null);
     setSessionsOpen(false);
   };
 
@@ -252,12 +291,51 @@ export default function ChatRail({
 
   /** A card's working copy: the model's batch until the user touches it. */
   const draftFor = (key: string, proposal: Proposal): ReviewDraft =>
-    drafts[key] ?? buildDraft(proposal, key);
+    drafts[key] ?? buildDraft(proposal, key, lineage.lineageOf[key] ?? key);
+
+  /**
+   * Applying two cards of one lineage would run every action twice, and addTask
+   * mints a fresh id each call — there is no collision to stop it.
+   */
+  const appliedKeys = Object.entries(proposalStates)
+    .filter(([, s]) => s.status === "applied")
+    .map(([k]) => k);
+  const stale = new Set(staleKeys(drafts, appliedKeys));
+  const staleFor = (key: string) => stale.has(key);
+
+  /**
+   * Ask the model to rewrite the batch. An ordinary chat turn, with the working
+   * copy in the request body rather than the message text — see lib/ai/revise.ts
+   * for why the obvious hidden-marker version was rejected.
+   */
+  const reviseProposal = (key: string, instruction: string) => {
+    const current = drafts[key];
+    if (!current || busy || !profileId) return;
+    const payload = buildRevisePayload(current, instruction);
+    if (!payload) return;
+
+    setReviseOrigins((prev) => [
+      ...prev,
+      {
+        sessionId: activeId,
+        lineageId: current.lineageId,
+        toolCallId: key,
+        afterMessageId: messages[messages.length - 1]?.id ?? null,
+        sentAt: Date.now(),
+      },
+    ]);
+    // The working copy travels in the request body, never in the message text.
+    sendMessage({ text: reviseBubbleText(payload) }, { body: { revise: payload } });
+  };
 
   const acceptProposal = async (key: string, proposal: Proposal) => {
     const current = draftFor(key, proposal);
     const actions = selectedActions(current);
     if (actions.length === 0) return;
+    // Disabling the button is not enough: this closes over the draft
+    // asynchronously, so a revision landing mid-flight could still double-write.
+    if (lineage.pending?.toolCallId === key) return;
+    if (lineage.supersededBy[key] || staleFor(key)) return;
 
     setProposalState(key, { status: "applying" });
     try {
@@ -320,9 +398,14 @@ export default function ChatRail({
         state={proposalStates[key] ?? { status: "idle" }}
         editedCount={stats.edited}
         selectedCount={stats.selected}
+        superseded={Boolean(lineage.supersededBy[key])}
+        stale={staleFor(key)}
+        revising={lineage.pending?.toolCallId === key}
         onAccept={() => acceptProposal(key, proposal)}
         onReview={() => {
-          setDrafts((prev) => (prev[key] ? prev : { ...prev, [key]: buildDraft(proposal, key) }));
+          setDrafts((prev) =>
+            prev[key] ? prev : { ...prev, [key]: buildDraft(proposal, key, lineage.lineageOf[key] ?? key) },
+          );
           setReviewKey(key);
         }}
         onDiscard={() => setProposalState(key, { status: "discarded" })}
@@ -330,7 +413,27 @@ export default function ChatRail({
     );
   };
 
-  const reviewDraft = reviewKey ? drafts[reviewKey] : null;
+  /**
+   * The modal follows a card through however many revisions replaced it, so it
+   * swaps content in place rather than closing and leaving the user to find the
+   * new card in a scrolling rail.
+   */
+  const activeReviewKey = reviewKey ? latestOf(reviewKey, lineage.supersededBy) : null;
+  /**
+   * The revised card's working copy will not be in `drafts` yet — that is only
+   * seeded when Review is clicked — so fall back to building one from the
+   * proposal in the transcript. Reading it back out is cheaper than writing
+   * state during render to put it there.
+   */
+  const reviewDraft = activeReviewKey
+    ? (drafts[activeReviewKey] ??
+      (() => {
+        const proposal = proposalsByKey.get(activeReviewKey);
+        return proposal
+          ? buildDraft(proposal, activeReviewKey, lineage.lineageOf[activeReviewKey])
+          : null;
+      })())
+    : null;
 
   const saveAbout = async () => {
     setAboutState("saving");
@@ -803,13 +906,21 @@ export default function ChatRail({
   );
 
   const review =
-    reviewDraft && reviewKey ? (
+    reviewDraft && activeReviewKey ? (
       <ProposalReview
         draft={reviewDraft}
-        busy={proposalStates[reviewKey]?.status === "applying"}
-        error={proposalStates[reviewKey]?.error}
-        onChange={(next) => setDrafts((prev) => ({ ...prev, [reviewKey]: next }))}
-        onAccept={() => acceptProposal(reviewKey, proposalOfDraft(reviewDraft))}
+        busy={proposalStates[activeReviewKey]?.status === "applying"}
+        revising={lineage.pending?.toolCallId === activeReviewKey}
+        reviseNote={
+          lineage.unanswered?.toolCallId === activeReviewKey
+            ? "The assistant replied without a revised batch. This one is unchanged."
+            : undefined
+        }
+        stale={staleFor(activeReviewKey) || Boolean(lineage.supersededBy[activeReviewKey])}
+        error={proposalStates[activeReviewKey]?.error}
+        onChange={(next) => setDrafts((prev) => ({ ...prev, [activeReviewKey]: next }))}
+        onAccept={() => acceptProposal(activeReviewKey, proposalOfDraft(reviewDraft))}
+        onRevise={(instruction) => reviseProposal(activeReviewKey, instruction)}
         onClose={() => setReviewKey(null)}
       />
     ) : null;

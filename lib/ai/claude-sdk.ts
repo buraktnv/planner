@@ -11,6 +11,7 @@ import type { ChatMode } from "./modes";
 import type { ProviderEffort } from "../core/types";
 import { toolShapes, toolDescriptions, toolNames, type ToolName } from "./schemas";
 import { toolImplMap } from "./tool-map";
+import { toolNamesForRevise, type RevisePayload } from "./revise";
 
 export interface ClaudeSdkChatOptions {
   messages: UIMessage[];
@@ -18,6 +19,7 @@ export interface ClaudeSdkChatOptions {
   mode?: ChatMode;
   model?: string;
   effort?: ProviderEffort;
+  revise?: RevisePayload;
 }
 
 type StreamPart =
@@ -166,12 +168,15 @@ function buildMcpServer() {
 }
 
 export async function claudeSdkChat(opts: ClaudeSdkChatOptions): Promise<Response> {
-  const { messages, focus, mode, model = "sonnet", effort } = opts;
-  const system = await buildSystemContext(focus, mode, recallQuery(messages));
+  const { messages, focus, mode, model = "sonnet", effort, revise } = opts;
+  const system = await buildSystemContext(focus, mode, recallQuery(messages), revise);
   const prompt = formatTranscript(messages) || "Hello";
 
   const server = buildMcpServer();
-  const allowedTools = toolNames.map((n) => `mcp__planner__${n}`);
+  // Same restriction as the AI SDK path: on a revise turn the direct writers go.
+  const allowedTools = (revise ? toolNamesForRevise() : toolNames).map(
+    (n) => `mcp__planner__${n}`,
+  );
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {

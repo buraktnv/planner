@@ -3,7 +3,13 @@ import {
   applyEdit,
   blockingRefs,
   buildDraft,
+  buildRevisePayload,
   draftStats,
+  findSuccessor,
+  latestOf,
+  resolveLineage,
+  reviseBubbleText,
+  staleKeys,
   fieldsForKind,
   isSettled,
   opaqueFieldsFor,
@@ -595,5 +601,280 @@ describe("draftStats", () => {
     const stats = draftStats(after);
     expect(stats.applied).toBe(1);
     expect(stats.label).toBe("Accept 3 changes");
+  });
+});
+
+describe("buildRevisePayload", () => {
+  it("sends the ticked rows, carrying hand edits", () => {
+    let d = buildDraft(proposalOf(BATCH), "c");
+    d = applyEdit(d, 1, "title", "Add the attention trackers");
+    d = toggleRow(d, 3);
+    const payload = buildRevisePayload(d, "  make the phone one due Friday  ");
+
+    expect(payload).not.toBeNull();
+    expect(payload?.instruction).toBe("make the phone one due Friday");
+    expect(payload?.actions).toHaveLength(3);
+    expect((payload?.actions[1] as { title: string }).title).toBe("Add the attention trackers");
+  });
+
+  /**
+   * The row the user just removed must not go to the model, or it comes back in
+   * the revised batch every round.
+   */
+  it("leaves unticked rows out entirely, and says how many went", () => {
+    let d = buildDraft(proposalOf(BATCH), "c");
+    d = toggleRow(d, 2);
+    d = toggleRow(d, 3);
+    const payload = buildRevisePayload(d, "tighten these up");
+    expect(payload?.actions.map((a) => a.kind)).toEqual(["add_note", "create_task"]);
+    expect(payload?.dropped).toBe(2);
+  });
+
+  it("is null when there is nothing to revise or nothing was asked", () => {
+    const d = buildDraft(proposalOf(BATCH), "c");
+    expect(buildRevisePayload(d, "   ")).toBeNull();
+    expect(buildRevisePayload(setAllSelected(d, false), "change it")).toBeNull();
+  });
+
+  it("never re-sends a row that already landed", () => {
+    const d = buildDraft(proposalOf(BATCH), "c");
+    const after = remainderDraft(d, {
+      applied: 1,
+      failedIndex: 1,
+      results: [
+        { kind: "add_note", ok: true },
+        { kind: "create_task", ok: false, error: "boom" },
+      ],
+    });
+    const payload = buildRevisePayload(after, "fix it");
+    expect(payload?.actions.every((a) => a.kind === "create_task")).toBe(true);
+  });
+});
+
+describe("reviseBubbleText", () => {
+  it("shows the instruction and what actually left the client", () => {
+    let d = buildDraft(proposalOf(BATCH), "c");
+    d = toggleRow(d, 3);
+    const payload = buildRevisePayload(d, "make the phone one due Friday");
+    expect(payload && reviseBubbleText(payload)).toBe(
+      "make the phone one due Friday\n\n(revising 3 changes, 1 dropped)",
+    );
+  });
+
+  it("says nothing about dropped rows when none were", () => {
+    const d = buildDraft(proposalOf([BATCH[0]]), "c");
+    const payload = buildRevisePayload(d, "reword it");
+    expect(payload && reviseBubbleText(payload)).toBe("reword it\n\n(revising 1 change)");
+  });
+});
+
+describe("findSuccessor", () => {
+  const origin = {
+    sessionId: "s1",
+    lineageId: "call-1",
+    toolCallId: "call-1",
+    afterMessageId: "m1",
+    sentAt: 0,
+  };
+
+  const proposalPart = (toolCallId: string, state = "output-available") => ({
+    type: "tool-propose_changes",
+    toolCallId,
+    state,
+  });
+
+  it("waits for the turn to settle before replacing anything", () => {
+    const messages = [
+      { id: "m1", role: "user", parts: [] },
+      { id: "m2", role: "assistant", parts: [proposalPart("call-2")] },
+    ];
+    expect(findSuccessor(messages, origin, false)).toBeNull();
+    expect(findSuccessor(messages, origin, true)).toEqual({ toolCallId: "call-2" });
+  });
+
+  it("ignores anything before the revise was sent", () => {
+    const messages = [
+      { id: "m0", role: "assistant", parts: [proposalPart("call-0")] },
+      { id: "m1", role: "user", parts: [] },
+    ];
+    expect(findSuccessor(messages, origin, true)).toBeNull();
+  });
+
+  /** stepCountIs(6) allows two; the first would leave a live card to double-apply. */
+  it("takes the last proposal of the turn, not the first", () => {
+    const messages = [
+      { id: "m1", role: "user", parts: [] },
+      { id: "m2", role: "assistant", parts: [proposalPart("call-2"), proposalPart("call-3")] },
+    ];
+    expect(findSuccessor(messages, origin, true)).toEqual({ toolCallId: "call-3" });
+  });
+
+  it("ignores a proposal that has not finished streaming", () => {
+    const messages = [
+      { id: "m1", role: "user", parts: [] },
+      { id: "m2", role: "assistant", parts: [proposalPart("call-2", "input-available")] },
+    ];
+    expect(findSuccessor(messages, origin, true)).toBeNull();
+  });
+
+  it("never resolves to the card being revised", () => {
+    const messages = [
+      { id: "m1", role: "user", parts: [] },
+      { id: "m2", role: "assistant", parts: [proposalPart("call-1")] },
+    ];
+    expect(findSuccessor(messages, origin, true)).toBeNull();
+  });
+
+  /** A prose-only reply must leave the card usable, not stuck revising. */
+  it("returns null when the model answered without proposing anything", () => {
+    const messages = [
+      { id: "m1", role: "user", parts: [] },
+      { id: "m2", role: "assistant", parts: [{ type: "text" }] },
+    ];
+    expect(findSuccessor(messages, origin, true)).toBeNull();
+  });
+
+  it("recognises the subscription path's prefixed tool name", () => {
+    const messages = [
+      { id: "m1", role: "user", parts: [] },
+      {
+        id: "m2",
+        role: "assistant",
+        parts: [
+          {
+            type: "dynamic-tool",
+            toolName: "mcp__planner__propose_changes",
+            toolCallId: "call-9",
+            state: "output-available",
+          },
+        ],
+      },
+    ];
+    expect(findSuccessor(messages, origin, true)).toEqual({ toolCallId: "call-9" });
+  });
+
+  it("gives up when the message it was anchored to is gone, as after a session switch", () => {
+    const messages = [{ id: "other", role: "assistant", parts: [proposalPart("call-2")] }];
+    expect(findSuccessor(messages, origin, true)).toBeNull();
+  });
+});
+
+describe("resolveLineage", () => {
+  const origin = (over: Partial<Parameters<typeof findSuccessor>[1]> = {}) => ({
+    sessionId: "s1",
+    lineageId: "call-1",
+    toolCallId: "call-1",
+    afterMessageId: "m1",
+    sentAt: 0,
+    ...over,
+  });
+
+  const proposalPart = (toolCallId: string) => ({
+    type: "tool-propose_changes",
+    toolCallId,
+    state: "output-available",
+  });
+
+  const settledMessages = [
+    { id: "m1", role: "user", parts: [] },
+    { id: "m2", role: "assistant", parts: [proposalPart("call-2")] },
+  ];
+
+  it("links a card to the one that replaced it, and carries the lineage over", () => {
+    const state = resolveLineage([origin()], settledMessages, false, "s1");
+    expect(state.supersededBy).toEqual({ "call-1": "call-2" });
+    expect(state.lineageOf).toEqual({ "call-2": "call-1" });
+    expect(state.pending).toBeNull();
+    expect(state.unanswered).toBeNull();
+  });
+
+  it("reports a revision still in flight", () => {
+    const state = resolveLineage([origin()], [{ id: "m1", role: "user", parts: [] }], true, "s1");
+    expect(state.pending?.toolCallId).toBe("call-1");
+    expect(state.supersededBy).toEqual({});
+  });
+
+  it("reports a settled turn that produced no new batch", () => {
+    const state = resolveLineage(
+      [origin()],
+      [
+        { id: "m1", role: "user", parts: [] },
+        { id: "m2", role: "assistant", parts: [{ type: "text" }] },
+      ],
+      false,
+      "s1",
+    );
+    expect(state.unanswered?.toolCallId).toBe("call-1");
+    expect(state.pending).toBeNull();
+  });
+
+  it("ignores origins from another conversation, since a switch does not abort the stream", () => {
+    const state = resolveLineage([origin({ sessionId: "s2" })], settledMessages, false, "s1");
+    expect(state.supersededBy).toEqual({});
+    expect(state.pending).toBeNull();
+    expect(state.unanswered).toBeNull();
+  });
+
+  it("chains several rounds of revision", () => {
+    const messages = [
+      { id: "m1", role: "user", parts: [] },
+      { id: "m2", role: "assistant", parts: [proposalPart("call-2")] },
+      { id: "m3", role: "user", parts: [] },
+      { id: "m4", role: "assistant", parts: [proposalPart("call-3")] },
+    ];
+    const state = resolveLineage(
+      [origin(), origin({ toolCallId: "call-2", afterMessageId: "m3" })],
+      messages,
+      false,
+      "s1",
+    );
+    expect(state.supersededBy["call-1"]).toBe("call-2");
+    expect(state.supersededBy["call-2"]).toBe("call-3");
+    expect(state.lineageOf["call-3"]).toBe("call-1");
+  });
+});
+
+describe("latestOf", () => {
+  it("follows a card through several revisions", () => {
+    const chain = { a: "b", b: "c" };
+    expect(latestOf("a", chain)).toBe("c");
+    expect(latestOf("c", chain)).toBe("c");
+  });
+
+  it("returns the key untouched when nothing replaced it", () => {
+    expect(latestOf("a", {})).toBe("a");
+  });
+
+  it("does not spin on a cycle", () => {
+    expect(latestOf("a", { a: "b", b: "a" })).toBeTypeOf("string");
+  });
+});
+
+describe("staleKeys", () => {
+  /**
+   * Applying two cards of one lineage runs every action twice, and addTask
+   * mints a fresh id each call — there is no collision to stop it.
+   */
+  it("marks the rest of a lineage stale once one of them is applied", () => {
+    const drafts = {
+      "call-1": buildDraft(proposalOf(BATCH), "call-1"),
+      "call-2": buildDraft(proposalOf(BATCH), "call-2", "call-1"),
+      "call-9": buildDraft(proposalOf(BATCH), "call-9"),
+    };
+    expect(staleKeys(drafts, ["call-2"])).toEqual(["call-1"]);
+    expect(staleKeys(drafts, ["call-1"])).toEqual(["call-2"]);
+  });
+
+  it("leaves an unrelated card alone", () => {
+    const drafts = {
+      "call-1": buildDraft(proposalOf(BATCH), "call-1"),
+      "call-9": buildDraft(proposalOf(BATCH), "call-9"),
+    };
+    expect(staleKeys(drafts, ["call-1"])).toEqual([]);
+  });
+
+  it("is empty when nothing has been applied", () => {
+    const drafts = { "call-1": buildDraft(proposalOf(BATCH), "call-1") };
+    expect(staleKeys(drafts, [])).toEqual([]);
   });
 });

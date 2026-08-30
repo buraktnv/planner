@@ -22,6 +22,9 @@ export default function ProposalCard({
   onReview,
   editedCount = 0,
   selectedCount,
+  superseded = false,
+  stale = false,
+  revising = false,
 }: {
   proposal: Proposal;
   state: ProposalState;
@@ -35,6 +38,12 @@ export default function ProposalCard({
   onReview?: () => void;
   editedCount?: number;
   selectedCount?: number;
+  /** Replaced by a revised batch. Kept visible — it is the only record of a
+   *  hand edit the model may have overwritten — but no longer applicable. */
+  superseded?: boolean;
+  /** Another card in the same lineage has already been applied. */
+  stale?: boolean;
+  revising?: boolean;
 }) {
   const dot = proposal.preview[0]?.color ?? "var(--color-faint)";
   const settled = state.status === "applied" || state.status === "discarded";
@@ -46,7 +55,7 @@ export default function ProposalCard({
   return (
     <div
       className={`mt-3 rounded-[14px] border border-edge bg-surf p-[13px] ${
-        state.status === "discarded" ? "opacity-45" : ""
+        state.status === "discarded" || superseded || stale ? "opacity-45" : ""
       }`}
     >
       <div className="mb-[11px] flex items-center gap-2">
@@ -110,6 +119,16 @@ export default function ProposalCard({
         </Mono>
       ) : state.status === "discarded" ? (
         <Mono className="text-[9.5px] tracking-[0.08em] text-faint">DISCARDED</Mono>
+      ) : superseded ? (
+        <Mono className="text-[9.5px] tracking-[0.08em] text-faint">
+          SUPERSEDED — REVISED BELOW
+        </Mono>
+      ) : stale ? (
+        <Mono className="text-[9.5px] tracking-[0.08em] text-faint">
+          SUPERSEDED — ANOTHER VERSION WAS APPLIED
+        </Mono>
+      ) : revising ? (
+        <Mono className="text-[9.5px] tracking-[0.08em] text-faint">REVISING…</Mono>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <button

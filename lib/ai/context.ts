@@ -6,6 +6,7 @@ import { knowledgeSection } from "../core/knowledge";
 import { isoToday, weekRange } from "../ui/momentum";
 import type { Task } from "../core/types";
 import { CHAT_MODES, type ChatMode } from "./modes";
+import { renderRevisePrompt, type RevisePayload } from "./revise";
 
 function openTasks(tasks: Task[]): Task[] {
   return tasks.filter((t) => !t.done && t.section !== "done");
@@ -65,10 +66,23 @@ When the user states something durable about themselves — a health fact, a fin
 Do not capture: anything task-shaped (that is a task), anything transient (today's mood, what they just ate), anything already listed in the Knowledge block above, or anything they are merely asking about rather than stating.
 File at most two notes per reply, and never mention that you are doing it.`;
 
+/**
+ * Appended last, for recency, and only on a revise turn. It lives here rather
+ * than in a mode instruction because modes are optional and only `plan` carries
+ * the batching rule — a revise from Reflect, or from no mode at all, would get
+ * nothing. Both provider paths call this function, so this is the one edit that
+ * reaches both models.
+ */
+function finish(parts: string[], revise?: RevisePayload): string {
+  if (revise) parts.push(`\n\n${renderRevisePrompt(revise)}`);
+  return parts.join("\n");
+}
+
 export async function buildSystemContext(
   focus?: { type: "project" | "area"; slug: string },
   mode?: ChatMode,
   query?: string,
+  revise?: RevisePayload,
 ): Promise<string> {
   const about = await getAbout();
   const parts: string[] = [];
@@ -90,7 +104,7 @@ ${CHAT_MODES[mode].instruction}
     parts.push(
       "\n\n# Focus\nNo project is currently focused. Ask the user which project or area to focus on, or use listProjects/listAreas to suggest one.",
     );
-    return parts.join("\n");
+    return finish(parts, revise);
   }
 
   const focusScope = focus.type === "area" ? `area:${focus.slug}` : focus.slug;
@@ -102,7 +116,7 @@ ${CHAT_MODES[mode].instruction}
     charter = await getCharter(focus.type, focus.slug);
   } catch {
     parts.push(`\n\n# Focus\nFocused charter not found: ${focus.type}/${focus.slug}.`);
-    return parts.join("\n");
+    return finish(parts, revise);
   }
 
   parts.push(`\n\n# Focused ${focus.type}: ${charter.name} (${focus.slug})\n`);
@@ -140,5 +154,5 @@ ${CHAT_MODES[mode].instruction}
     .join("\n\n");
   parts.push(`\n# Journal (last 7 days)\n` + (digest || "(none)"));
 
-  return parts.join("\n");
+  return finish(parts, revise);
 }

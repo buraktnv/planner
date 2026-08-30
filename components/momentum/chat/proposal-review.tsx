@@ -27,24 +27,43 @@ const INPUT =
 export default function ProposalReview({
   draft,
   busy,
+  revising,
+  reviseNote,
+  stale,
   error,
   onChange,
   onAccept,
+  onRevise,
   onClose,
 }: {
   draft: ReviewDraft;
   busy: boolean;
+  /** A revision is in flight for this card; the modal stays open through it. */
+  revising: boolean;
+  /** Set when a revise turn came back with no new batch. */
+  reviseNote?: string;
+  /** Another card in this lineage has already been applied. */
+  stale: boolean;
   error?: string;
   onChange: (next: ReviewDraft) => void;
   onAccept: () => void;
+  onRevise: (instruction: string) => void;
   onClose: () => void;
 }) {
   const [open, setOpen] = useState<Record<number, boolean>>({});
+  const [ask, setAsk] = useState("");
   const stats = draftStats(draft);
   const validation = validateDraft(draft);
   const blocking = blockingRefs(draft);
   const unresolved = unresolvableRefs(draft);
-  const canAccept = stats.selected > 0 && validation.ok && blocking.length === 0 && !busy;
+  const canAccept =
+    stats.selected > 0 && validation.ok && blocking.length === 0 && !busy && !revising && !stale;
+
+  const send = () => {
+    if (!ask.trim() || revising || busy || stats.selected === 0) return;
+    onRevise(ask);
+    setAsk("");
+  };
 
   return (
     <Dialog label={`Review: ${draft.title}`} onClose={onClose} maxWidth={760} paddingTop={48}>
@@ -81,7 +100,7 @@ export default function ProposalReview({
         </button>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className={`flex flex-col gap-1.5 ${revising ? "pointer-events-none opacity-45" : ""}`}>
         {draft.rows.map((row) => (
           <Row
             key={row.index}
@@ -117,6 +136,52 @@ export default function ProposalReview({
       {error && (
         <p className="mt-3 mb-0 text-[11.5px] leading-[1.5] text-wait-ink">{error}</p>
       )}
+
+      {stale && (
+        <p className="mt-3 mb-0 text-[11.5px] leading-[1.5] text-wait-ink">
+          A revised version of this batch has already been applied. Accepting this one would
+          write everything a second time.
+        </p>
+      )}
+
+      <div className="mt-4 border-t border-edge2 pt-3.5">
+        <Mono className="mb-[7px] block text-[8px] tracking-[0.12em] text-faint">
+          ASK FOR CHANGES
+        </Mono>
+        <div className="flex items-center gap-2.5 rounded-[11px] border border-edge bg-bg px-3 py-2">
+          <input
+            value={ask}
+            onChange={(e) => setAsk(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            disabled={revising || busy}
+            placeholder={
+              revising ? "Rewriting the batch…" : "make the second one due Friday, drop the last"
+            }
+            className="min-w-0 flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-faint"
+          />
+          <button
+            type="button"
+            onClick={send}
+            disabled={!ask.trim() || revising || busy || stats.selected === 0}
+            className="shrink-0 font-mono text-[9px] tracking-[0.08em] text-faint transition-colors hover:text-ink disabled:opacity-40"
+          >
+            {revising ? "…" : "SEND"}
+          </button>
+        </div>
+        <p className="mt-1.5 mb-0 text-[11px] leading-[1.45] text-faint">
+          {stats.selected === draft.rows.length
+            ? "Your edits go with it — it revises what you see now."
+            : `Only the ${stats.selected} you kept go with it. Removed rows will not come back.`}
+        </p>
+        {reviseNote && (
+          <p className="mt-1.5 mb-0 text-[11.5px] leading-[1.45] text-wait-ink">{reviseNote}</p>
+        )}
+      </div>
 
       <div className="mt-4 flex items-center gap-2">
         <button

@@ -479,3 +479,188 @@ export function remainderDraft(draft: ReviewDraft, result: ProposalApplyResult):
 export function isSettled(draft: ReviewDraft): boolean {
   return draft.rows.every((r) => r.applied === "ok");
 }
+
+/* ------------------------------------------------------------ ask for changes */
+
+export interface RevisePayloadDraft {
+  instruction: string;
+  proposalId: string;
+  title: string;
+  actions: ProposalAction[];
+  dropped: number;
+}
+
+/**
+ * What goes to the model: the rows still ticked, carrying the user's edits.
+ *
+ * Deselected rows are deliberately left out. Sending them would have the model
+ * re-propose the row the user just removed, on every round — the single most
+ * irritating thing this feature could do. Edits go along, because the
+ * alternative is silently discarding text the user typed.
+ */
+export function buildRevisePayload(
+  draft: ReviewDraft,
+  instruction: string,
+): RevisePayloadDraft | null {
+  const actions = selectedActions(draft);
+  if (actions.length === 0 || instruction.trim().length === 0) return null;
+  const dropped = draft.rows.filter((r) => !r.selected && r.applied !== "ok").length;
+  return {
+    instruction: instruction.trim(),
+    proposalId: draft.proposalId,
+    title: draft.title,
+    actions,
+    dropped,
+  };
+}
+
+/** The bubble in the transcript: the instruction, plus what actually left. */
+export function reviseBubbleText(payload: RevisePayloadDraft): string {
+  const n = payload.actions.length;
+  const kept = `revising ${n} change${n === 1 ? "" : "s"}`;
+  const dropped = payload.dropped > 0 ? `, ${payload.dropped} dropped` : "";
+  return `${payload.instruction}\n\n(${kept}${dropped})`;
+}
+
+export interface ReviseOrigin {
+  sessionId: string;
+  lineageId: string;
+  toolCallId: string;
+  /** The last message present when the revise was sent. */
+  afterMessageId: string | null;
+  sentAt: number;
+}
+
+export interface SuccessorMessage {
+  id: string;
+  role: string;
+  parts: readonly { type: string; toolName?: string; toolCallId?: string; state?: string }[];
+}
+
+function isProposalPart(part: {
+  type: string;
+  toolName?: string;
+  state?: string;
+}): boolean {
+  const raw = part.toolName ?? part.type.replace(/^tool-/, "");
+  return raw.replace(/^mcp__planner__/, "") === "propose_changes";
+}
+
+/**
+ * Which card replaces the one the user was reviewing.
+ *
+ * Tracked positionally rather than by asking the model to echo an id: the
+ * proposalId is minted server-side in buildProposal, so the model never sees
+ * it, and a supersedes field it had to populate would be dropped often enough
+ * to leave two live cards offering the same writes.
+ *
+ * Resolves only once the turn has settled, and to the *last* proposal of it —
+ * stepCountIs(6) permits more than one, and picking the first would leave a
+ * live second card the user could apply on top.
+ */
+export function findSuccessor(
+  messages: readonly SuccessorMessage[],
+  origin: ReviseOrigin,
+  settled: boolean,
+): { toolCallId: string } | null {
+  if (!settled) return null;
+
+  const start = origin.afterMessageId
+    ? messages.findIndex((m) => m.id === origin.afterMessageId) + 1
+    : 0;
+  if (start <= 0 && origin.afterMessageId) return null;
+
+  let found: string | null = null;
+  let seenAssistant = false;
+  for (const message of messages.slice(start)) {
+    // Only the turn that answered *this* revise counts. Without stopping at the
+    // next user message, an early revise in a long conversation would claim the
+    // card produced by a later one.
+    if (message.role === "user" && seenAssistant) break;
+    if (message.role !== "assistant") continue;
+    seenAssistant = true;
+    for (const part of message.parts) {
+      if (!isProposalPart(part)) continue;
+      if (part.state !== "output-available") continue;
+      if (part.toolCallId && part.toolCallId !== origin.toolCallId) found = part.toolCallId;
+    }
+  }
+  return found ? { toolCallId: found } : null;
+}
+
+export interface LineageState {
+  /** Card key → the key of the card that replaced it. */
+  supersededBy: Record<string, string>;
+  /** Card key → the lineage it belongs to, inherited across revisions. */
+  lineageOf: Record<string, string>;
+  /** A revision still in flight, if any. */
+  pending: ReviseOrigin | null;
+  /** A revision that settled without producing a new batch. */
+  unanswered: ReviseOrigin | null;
+}
+
+/**
+ * The whole supersede chain, derived from the transcript rather than stored.
+ *
+ * Deriving it matters beyond tidiness: the successor of a revise is a pure
+ * function of the messages and the origin, so keeping it in state would mean
+ * writing state from an effect that watches the stream — which this repo's
+ * React Compiler lint rejects, and rightly, since it cascades renders.
+ */
+export function resolveLineage(
+  origins: readonly ReviseOrigin[],
+  messages: readonly SuccessorMessage[],
+  busy: boolean,
+  sessionId: string,
+): LineageState {
+  const supersededBy: Record<string, string> = {};
+  const lineageOf: Record<string, string> = {};
+  let pending: ReviseOrigin | null = null;
+  let unanswered: ReviseOrigin | null = null;
+
+  for (const origin of origins) {
+    // A session switch does not abort the stream, so an origin from another
+    // conversation must simply stop counting rather than resolve wrongly.
+    if (origin.sessionId !== sessionId) continue;
+
+    const settled = !busy || origins.indexOf(origin) < origins.length - 1;
+    const successor = findSuccessor(messages, origin, settled);
+    if (successor) {
+      supersededBy[origin.toolCallId] = successor.toolCallId;
+      lineageOf[successor.toolCallId] = origin.lineageId;
+      continue;
+    }
+    if (busy) pending = origin;
+    else unanswered = origin;
+  }
+
+  return { supersededBy, lineageOf, pending, unanswered };
+}
+
+/** Follows a card key through however many revisions replaced it. */
+export function latestOf(key: string, supersededBy: Readonly<Record<string, string>>): string {
+  const seen = new Set<string>();
+  let current = key;
+  while (supersededBy[current] && !seen.has(current)) {
+    seen.add(current);
+    current = supersededBy[current];
+  }
+  return current;
+}
+
+/**
+ * Once any card in a lineage has been applied, its predecessors and successors
+ * are stale — applying one of those too would run every action a second time,
+ * and addTask mints a fresh id each call, so there is no collision to stop it.
+ */
+export function staleKeys(
+  drafts: Readonly<Record<string, ReviewDraft>>,
+  appliedKeys: readonly string[],
+): string[] {
+  const lineages = new Set(
+    appliedKeys.map((k) => drafts[k]?.lineageId).filter((v): v is string => Boolean(v)),
+  );
+  return Object.entries(drafts)
+    .filter(([key, d]) => lineages.has(d.lineageId) && !appliedKeys.includes(key))
+    .map(([key]) => key);
+}
