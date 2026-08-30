@@ -7,6 +7,7 @@ import { hueOf } from "@/lib/ui/momentum";
 import { noteRefsIn } from "./doc";
 import { taskHrefFromScope } from "./task";
 import {
+  CORE_REF,
   arrowHead,
   autoLayout,
   boundsOf,
@@ -109,7 +110,7 @@ export interface CanvasCore {
  * skipped by orphan detection — the same three properties that made group:
  * refs part of the grammar in the first place.
  */
-export const CORE_REF = "group:core";
+export { CORE_REF };
 export const CORE_W = 400;
 export const CORE_H = 280;
 
@@ -277,7 +278,10 @@ export function buildNoteCanvas(
   };
 
   const edges: CanvasEdgeModel[] = [];
+  // Keyed on the unordered pair: two notes that each link the other are one
+  // relationship, and drawing it twice puts two arrowheads on one line.
   const seen = new Set<string>();
+  const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
   // Everything on a charter map branches from the centre. Only the roots are
   // wired to it — a card that something else already points at is reached
@@ -300,18 +304,18 @@ export function buildNoteCanvas(
   for (const n of visible) {
     for (const ref of noteRefsIn(n.body)) {
       const e = withGeometry(n.id, ref, "rel", "derived", null);
-      if (!e || seen.has(`${e.from}>${e.to}`)) continue;
-      seen.add(`${e.from}>${e.to}`);
+      if (!e || seen.has(pairKey(e.from, e.to))) continue;
+      seen.add(pairKey(e.from, e.to));
       edges.push(e);
     }
   }
 
   for (const raw of file.edges) {
-    const pairKey = `${raw.from}>${raw.to}`;
-    if (raw.kind === "rel" && seen.has(pairKey)) continue;
+    const key = pairKey(raw.from, raw.to);
+    if (raw.kind === "rel" && seen.has(key)) continue;
     const e = withGeometry(raw.from, raw.to, raw.kind, "canvas", raw.label ?? null);
     if (!e || edges.some((x) => x.key === e.key)) continue;
-    if (raw.kind === "rel") seen.add(pairKey);
+    if (raw.kind === "rel") seen.add(key);
     edges.push(e);
   }
 

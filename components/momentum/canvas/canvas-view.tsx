@@ -8,6 +8,7 @@ import {
   arrowHead,
   boundsOf,
   clampZoom,
+  CORE_REF,
   edgePath,
   fitTo,
   toCanvas,
@@ -97,6 +98,7 @@ export default function CanvasView({
   const [dirtySize, setDirtySize] = useState<Record<string, Size>>({});
   const [openId, setOpenId] = useState<string | null>(null);
   const [frontId, setFrontId] = useState<string | null>(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
   const [draft, setDraft] = useState<
     { at: Point; screen: Point; title: string; busy: boolean } | null
   >(null);
@@ -149,6 +151,25 @@ export default function CanvasView({
   );
 
   const bounds = useMemo(() => boundsOf(nodes), [nodes]);
+
+  /**
+   * Which arrows are on screen at rest.
+   *
+   * Every `[[K-nnn]]` in a note body is an arrow, so a well-linked board draws
+   * a line for every sentence that cites another note -- structure buried under
+   * its own cross-references. The spine stays: what someone drew by hand, and
+   * the centre's spokes. A card's own links appear when you point at it, and
+   * ARRANGE shows the whole graph for editing.
+   */
+  const shownEdges = useMemo(
+    () =>
+      edges.filter((e) => {
+        if (edit || e.source === "canvas" || e.from === CORE_REF) return true;
+        if (e.key === selectedEdge) return true;
+        return hoverId !== null && (e.from === hoverId || e.to === hoverId);
+      }),
+    [edges, edit, hoverId, selectedEdge],
+  );
 
   // Biggest first, so a card that has been enlarged sits behind the small ones
   // it now overlaps and every card keeps a visible corner. Ties break on id so
@@ -597,7 +618,7 @@ export default function CanvasView({
             style={{ left: 0, top: 0, width: 1, height: 1 }}
             aria-hidden
           >
-            {edges.map((e) => {
+            {shownEdges.map((e) => {
               const on = selectedEdge === e.key;
               const stroke = on ? "var(--color-ink)" : "var(--color-edge)";
               return (
@@ -660,6 +681,7 @@ export default function CanvasView({
               onLinkTask={writeTaskNote}
               busy={saving}
               edit={edit}
+              onHover={setHoverId}
               linking={linkFrom !== null}
               isSource={linkFrom === n.id}
               canDraw={drawEdges}
@@ -743,6 +765,7 @@ interface CardProps {
   tier: CardTier;
   front: boolean;
   edit: boolean;
+  onHover: (id: string | null) => void;
   canDelegate: boolean;
   unlinked?: { id: string; title: string }[];
   linkOpen: boolean;
@@ -763,6 +786,7 @@ function CanvasCardBase({
   tier,
   front,
   edit,
+  onHover,
   canDelegate,
   unlinked,
   linkOpen,
@@ -790,6 +814,8 @@ function CanvasCardBase({
       // Not draggable while picking a link target, or the click becomes a drag.
       data-drag-ref={linking ? undefined : node.id}
       onPointerDown={linking && !isSource ? () => onPickTarget(node.id) : undefined}
+      onPointerEnter={() => onHover(node.id)}
+      onPointerLeave={() => onHover(null)}
       className={`group absolute flex flex-col overflow-hidden rounded-[14px] border bg-surf ${
         isSource ? "border-ink" : edit ? "border-edge" : "border-edge2"
       } ${linking && !isSource ? "cursor-crosshair" : "cursor-grab"}`}

@@ -590,3 +590,45 @@ describe("componentTasks", () => {
     );
   });
 });
+
+describe("one relationship draws one arrow", () => {
+  const mutual = [
+    note({ id: "K-001", body: "see [[K-002]]" }),
+    note({ id: "K-002", body: "back to [[K-001]]" }),
+  ];
+
+  it("collapses two notes that link each other into a single edge", () => {
+    const model = buildNoteCanvas(mutual, empty);
+    expect(model.edges).toHaveLength(1);
+  });
+
+  it("still draws both directions when they are different pairs", () => {
+    const model = buildNoteCanvas(
+      [
+        note({ id: "K-001", body: "see [[K-002]]" }),
+        note({ id: "K-002", body: "see [[K-003]]" }),
+        note({ id: "K-003", body: "" }),
+      ],
+      empty,
+    );
+    expect(model.edges).toHaveLength(2);
+  });
+
+  it("does not redraw a rel someone hand-drew over an existing link", () => {
+    const model = buildNoteCanvas(
+      mutual,
+      file({ edges: [{ from: "K-002", to: "K-001", kind: "rel", extra: [] }] }),
+    );
+    expect(model.edges).toHaveLength(1);
+    expect(model.edges[0].source).toBe("derived");
+  });
+
+  it("keeps a hand-drawn requires, which says more than a mention does", () => {
+    const model = buildNoteCanvas(
+      mutual,
+      file({ edges: [{ from: "K-001", to: "K-002", kind: "requires", extra: [] }] }),
+    );
+    expect(model.edges).toHaveLength(2);
+    expect(model.edges.filter((e) => e.kind === "requires")).toHaveLength(1);
+  });
+});
