@@ -4,6 +4,7 @@ import type { CalendarEvent } from "./types";
 import { calendarPath } from "./paths";
 import { appendJournal } from "./journal";
 import { commitData } from "./git";
+import { withDataLock } from "./locks";
 
 export class CalendarParseError extends Error {
   constructor(message: string) {
@@ -195,7 +196,13 @@ export async function listEvents(range?: { from?: string; to?: string }): Promis
   );
 }
 
-export async function addEvent(input: {
+export function addEvent(
+  ...args: Parameters<typeof addEventUnlocked>
+): ReturnType<typeof addEventUnlocked> {
+  return withDataLock(() => addEventUnlocked(...args));
+}
+
+async function addEventUnlocked(input: {
   date: string;
   title: string;
   time?: string;
@@ -221,7 +228,13 @@ export async function addEvent(input: {
   return event;
 }
 
-export async function updateEvent(
+export function updateEvent(
+  ...args: Parameters<typeof updateEventUnlocked>
+): ReturnType<typeof updateEventUnlocked> {
+  return withDataLock(() => updateEventUnlocked(...args));
+}
+
+async function updateEventUnlocked(
   id: string,
   patch: {
     date?: string;
