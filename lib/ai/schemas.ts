@@ -21,6 +21,9 @@ const baseShapes = {
     project: z.string(),
     title: z.string(),
     size: z.enum(["S", "M", "L"]),
+    est: z.string().optional(),
+    due: z.string().optional(),
+    lane: z.enum(["quick", "deep", "wait", "some"]).optional(),
     target: z.string().optional(),
     note: z.string().optional(),
     waitsOn: z.string().optional(),
@@ -82,6 +85,19 @@ const baseShapes = {
   get_daily: {},
   log_daily: {
     id: z.string(),
+  },
+  create_habit: {
+    name: z.string(),
+    goal: z.number().int().positive(),
+    unit: z.string().optional(),
+  },
+  create_rhythm: {
+    name: z.string(),
+    per: z.number().int().positive(),
+  },
+  create_meal: {
+    name: z.string(),
+    servings: z.number().int().positive(),
   },
   add_grocery: {
     name: z.string(),
@@ -146,6 +162,9 @@ export const proposalActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("update_event"), ...baseShapes.update_event }),
   z.object({ kind: z.literal("add_note"), ...baseShapes.add_note }),
   z.object({ kind: z.literal("update_note"), ...baseShapes.update_note }),
+  z.object({ kind: z.literal("create_habit"), ...baseShapes.create_habit }),
+  z.object({ kind: z.literal("create_rhythm"), ...baseShapes.create_rhythm }),
+  z.object({ kind: z.literal("create_meal"), ...baseShapes.create_meal }),
 ]);
 
 export type ProposalAction = z.infer<typeof proposalActionSchema>;
@@ -215,7 +234,7 @@ export const toolDescriptions: Record<ToolName, string> = {
   create_project: "Create a new project charter.",
   create_area: "Create a new life area charter.",
   create_task:
-    "Create a task in a project or area (slug or area:<slug>). waitsOn marks it blocked by a task id in the same file or by free text. target links it to a charter goal (G-001) from list_targets, which is what makes that goal show real progress. note links it to a component (K-001) from list_components, which is what makes that component show real progress.",
+    "Create a task in a project or area (slug or area:<slug>). due is an ISO date (2026-09-04) and est is free text like '2h' — set due whenever the work has a real deadline, rather than creating the task and updating it afterwards. lane picks the board column (quick, deep, wait, some); omit it and it is derived from size. waitsOn marks it blocked by a task id in the same file or by free text. target links it to a charter goal (G-001) from list_targets, which is what makes that goal show real progress. note links it to a component (K-001) from list_components, which is what makes that component show real progress.",
   update_task:
     "Update a task's fields (title, size, section, est, due, target, note, waitsOn, done). Pass waitsOn, target or note as an empty string to clear it.",
   decompose_task:
@@ -232,6 +251,12 @@ export const toolDescriptions: Record<ToolName, string> = {
     "Get the daily habits, weekly rhythms, prepped meals, grocery list and the raw activity log.",
   log_daily:
     "Count one tick for a habit (H-) or a rhythm (R-). When the goal for today or the week is already met the tick wraps around and resets the count.",
+  create_habit:
+    "Create a daily habit, counted on /daily. goal is how many times a day it should happen; unit is optional free text describing one count ('× 15 min'). Something the user wants to do every day is a habit — create it as one. Never create a task that says to add a habit by hand; that is the thing this tool exists to avoid.",
+  create_rhythm:
+    "Create a weekly rhythm, counted on /daily. per is how many times in a Mon–Sun week it should happen. Use this rather than a habit when the thing does not need to happen every day, and rather than a task when it repeats.",
+  create_meal:
+    "Add a prepped meal with a live servings count, eaten down on /daily. servings is how many portions exist now.",
   add_grocery: "Add an item to the grocery list. cat is a free-text category, default Other.",
   set_grocery: "Mark a grocery item as got (true) or back on the list (false).",
   read_task_detail:

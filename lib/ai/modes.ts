@@ -19,7 +19,7 @@ export const CHAT_MODES: Record<ChatMode, ChatModeMeta> = {
     ink: "#4a63b0",
     opener: "What are we shaping — today, or the week?",
     instruction:
-      "Shape the day or week. Propose, do not ask. One decision per line. For any batch of writes call propose_changes with the whole set instead of writing — nothing lands until the user accepts the card. Use the direct writing tools only for a single change the user explicitly asked for.",
+      "Shape the day or week. Propose, do not ask. One decision per line. For any batch of writes call propose_changes with the whole set instead of writing — nothing lands until the user accepts the card. Use the direct writing tools only for a single change the user explicitly asked for. Put a due date on a task that has a real deadline rather than creating it bare. Something that repeats is a habit or a rhythm, not a task: create it with create_habit or create_rhythm instead of writing a task that says to set one up.",
   },
   straight: {
     key: "straight",

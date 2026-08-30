@@ -13,8 +13,17 @@ import { getNextActions, type NextAction } from "../core/next";
 import { targetsOf, targetProgress } from "../view/targets";
 import { addEvent, listEvents, updateEvent } from "../core/calendar";
 import type { CalendarEvent } from "../core/types";
-import { addGrocery, dailySummary, getDaily, logDaily, toggleGrocery } from "../core/daily";
-import type { DailyData, Grocery } from "../core/types";
+import {
+  addGrocery,
+  addHabit,
+  addMeal,
+  addRhythm,
+  dailySummary,
+  getDaily,
+  logDaily,
+  toggleGrocery,
+} from "../core/daily";
+import type { DailyData, Grocery, Habit, Meal, Rhythm } from "../core/types";
 import { hueOf, isoToday, shiftIso } from "../ui/momentum";
 import { laneOf } from "../core/lanes";
 import type {
@@ -94,8 +103,13 @@ async function previewRow(
       kind: action.kind,
       id: "NEW",
       title: action.title,
-      lane: laneFor({ title: action.title, size: action.size }),
-      note: action.waitsOn ? `waits on ${action.waitsOn}` : "",
+      lane: action.lane ?? laneFor({ title: action.title, size: action.size }),
+      // A proposed date the card never mentions is worse than no date at all.
+      note: action.due
+        ? `due ${action.due}`
+        : action.waitsOn
+          ? `waits on ${action.waitsOn}`
+          : "",
       charterName: tone.name,
       color: tone.color,
     };
@@ -190,19 +204,66 @@ async function previewRow(
       color: tone.color,
     };
   }
-  const existing = (await listEvents({})).find((e) => e.id === action.id);
-  const tone = await charterTone(action.scope ?? existing?.scope, cache);
-  return {
-    kind: action.kind,
-    id: action.id,
-    title: action.title ?? existing?.title ?? action.id,
-    lane: null,
-    note: action.done
-      ? "mark done"
-      : [action.date ?? existing?.date, action.time ?? existing?.time].filter(Boolean).join(" "),
-    charterName: tone.name,
-    color: tone.color,
-  };
+  if (action.kind === "update_event") {
+    const existing = (await listEvents({})).find((e) => e.id === action.id);
+    const tone = await charterTone(action.scope ?? existing?.scope, cache);
+    return {
+      kind: action.kind,
+      id: action.id,
+      title: action.title ?? existing?.title ?? action.id,
+      lane: null,
+      note: action.done
+        ? "mark done"
+        : [action.date ?? existing?.date, action.time ?? existing?.time].filter(Boolean).join(" "),
+      charterName: tone.name,
+      color: tone.color,
+    };
+  }
+  if (action.kind === "create_habit") {
+    return {
+      kind: action.kind,
+      id: "NEW",
+      title: action.name,
+      lane: null,
+      note: `habit · ${action.goal}×${action.unit ? ` ${action.unit}` : ""} a day`,
+      charterName: "daily",
+      color: NEUTRAL,
+    };
+  }
+  if (action.kind === "create_rhythm") {
+    return {
+      kind: action.kind,
+      id: "NEW",
+      title: action.name,
+      lane: null,
+      note: `rhythm · ${action.per}× a week`,
+      charterName: "daily",
+      color: NEUTRAL,
+    };
+  }
+  if (action.kind === "create_meal") {
+    return {
+      kind: action.kind,
+      id: "NEW",
+      title: action.name,
+      lane: null,
+      note: `meal · ${action.servings} servings`,
+      charterName: "daily",
+      color: NEUTRAL,
+    };
+  }
+  /**
+   * Exhaustive on purpose. This used to fall through to update_event, so a new
+   * action kind added without a branch here rendered as a calendar event on the
+   * Accept card rather than failing — a preview that lies about what it is
+   * about to write. The compiler now refuses the omission instead.
+   */
+  return assertNever(action);
+}
+
+function assertNever(action: never): never {
+  const kind = (action as { kind?: string }).kind ?? "unknown";
+  throw new Error(`previewRow has no branch for proposal action: ${kind}`);
 }
 
 export async function buildProposal(input: ProposalInput): Promise<Proposal> {
@@ -274,6 +335,9 @@ export const toolImpls = {
     project: string;
     title: string;
     size: TaskSize;
+    est?: string;
+    due?: string;
+    lane?: TaskLane;
     target?: string;
     note?: string;
     waitsOn?: string;
@@ -285,6 +349,9 @@ export const toolImpls = {
     return addTask(scope.type, scope.slug, {
       title: input.title,
       size,
+      est: input.est,
+      due: input.due,
+      lane: input.lane,
       target: input.target,
       note: input.note,
       waitsOn: input.waitsOn,
@@ -525,6 +592,33 @@ export const toolImpls = {
   async logDaily(input: { id: string }): Promise<{ id: string; delta: number | "reset" }> {
     if (!input.id) throw new Error("logDaily requires a habit or rhythm id");
     return logDaily(input.id);
+  },
+
+  async createHabit(input: { name: string; goal: number; unit?: string }): Promise<Habit> {
+    if (!input.name) throw new Error("createHabit requires a name");
+    const goal = Number(input.goal);
+    if (!Number.isInteger(goal) || goal < 1) {
+      throw new Error("createHabit requires goal as a positive whole number");
+    }
+    return addHabit(input.name, goal, input.unit);
+  },
+
+  async createRhythm(input: { name: string; per: number }): Promise<Rhythm> {
+    if (!input.name) throw new Error("createRhythm requires a name");
+    const per = Number(input.per);
+    if (!Number.isInteger(per) || per < 1) {
+      throw new Error("createRhythm requires per as a positive whole number");
+    }
+    return addRhythm(input.name, per);
+  },
+
+  async createMeal(input: { name: string; servings: number }): Promise<Meal> {
+    if (!input.name) throw new Error("createMeal requires a name");
+    const servings = Number(input.servings);
+    if (!Number.isInteger(servings) || servings < 1) {
+      throw new Error("createMeal requires servings as a positive whole number");
+    }
+    return addMeal(input.name, servings);
   },
 
   async addGrocery(input: { name: string; cat?: string }): Promise<Grocery> {

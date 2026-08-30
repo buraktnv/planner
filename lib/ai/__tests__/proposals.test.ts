@@ -73,6 +73,11 @@ describe("proposalActionSchema", () => {
     { kind: "move_to_parking_lot", project: "alpha", idea: "Maybe later" },
     { kind: "create_event", date: "2026-09-01", title: "Kickoff" },
     { kind: "update_event", id: "E-001", done: true },
+    { kind: "add_note", summary: "Uploads are content-addressed." },
+    { kind: "update_note", id: "K-001", summary: "Still true." },
+    { kind: "create_habit", name: "Walk", goal: 2, unit: "× 15 min" },
+    { kind: "create_rhythm", name: "Laundry", per: 3 },
+    { kind: "create_meal", name: "Lentil soup", servings: 2 },
   ];
 
   it("accepts every action kind", () => {
@@ -90,6 +95,39 @@ describe("proposalActionSchema", () => {
     expect(proposalActionSchema.safeParse({ kind: "create_task", project: "alpha" }).success).toBe(
       false,
     );
+  });
+
+  it("takes a due date, an estimate and a lane on a new task", () => {
+    const parsed = proposalActionSchema.safeParse({
+      kind: "create_task",
+      project: "alpha",
+      title: "Ship the exporter",
+      size: "M",
+      due: "2026-09-04",
+      est: "2h",
+      lane: "deep",
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects a lane that is not a board column", () => {
+    const parsed = proposalActionSchema.safeParse({
+      kind: "create_task",
+      project: "alpha",
+      title: "Ship it",
+      size: "M",
+      lane: "urgent",
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects a routine counted zero or fractional times", () => {
+    expect(
+      proposalActionSchema.safeParse({ kind: "create_habit", name: "Walk", goal: 0 }).success,
+    ).toBe(false);
+    expect(
+      proposalActionSchema.safeParse({ kind: "create_rhythm", name: "Laundry", per: 1.5 }).success,
+    ).toBe(false);
   });
 });
 
@@ -177,6 +215,82 @@ describe("buildProposal", () => {
   it("throws on an empty action list", async () => {
     const { buildProposal } = await import("../tools");
     await expect(buildProposal({ title: "Nothing", actions: [] })).rejects.toThrow(/non-empty/);
+  });
+
+  /**
+   * previewRow used to end in a bare else that treated anything it did not
+   * recognise as update_event, so a new action kind previewed as a calendar
+   * event instead of failing — the card would have described the wrong write.
+   * This asserts every kind in the union previews as itself.
+   */
+  it("previews every action kind as its own kind", async () => {
+    const { buildProposal } = await import("../tools");
+    await writeCharter("alpha", "Alpha");
+    await writeTasks("alpha", ["- [ ] T-001 | M | Existing | created:2026-08-01"]);
+
+    const actions: ProposalAction[] = [
+      { kind: "create_task", project: "alpha", title: "New one", size: "S" },
+      { kind: "update_task", project: "alpha", id: "T-001", section: "in-progress" },
+      {
+        kind: "decompose_task",
+        project: "alpha",
+        id: "T-001",
+        subtasks: [{ title: "Step", size: "S" }],
+      },
+      { kind: "move_to_parking_lot", project: "alpha", idea: "Later" },
+      { kind: "create_event", date: "2026-09-01", title: "Review" },
+      { kind: "update_event", id: "E-001", done: true },
+      { kind: "add_note", summary: "A conclusion." },
+      { kind: "update_note", id: "K-001", summary: "Still a conclusion." },
+      { kind: "create_habit", name: "Walk", goal: 2 },
+      { kind: "create_rhythm", name: "Laundry", per: 3 },
+      { kind: "create_meal", name: "Soup", servings: 2 },
+    ];
+
+    const proposal = await buildProposal({ title: "Everything", actions });
+
+    expect(proposal.preview).toHaveLength(actions.length);
+    expect(proposal.preview.map((r) => r.kind)).toEqual(actions.map((a) => a.kind));
+  });
+
+  it("shows a proposed due date on the row, and honours an explicit lane", async () => {
+    const { buildProposal } = await import("../tools");
+    await writeCharter("alpha", "Alpha");
+    await writeTasks("alpha", []);
+
+    const proposal = await buildProposal({
+      title: "Dated",
+      actions: [
+        {
+          kind: "create_task",
+          project: "alpha",
+          title: "Ship the exporter",
+          size: "S",
+          due: "2026-09-04",
+          lane: "deep",
+        },
+      ],
+    });
+
+    expect(proposal.preview[0].note).toBe("due 2026-09-04");
+    expect(proposal.preview[0].lane).toBe("deep");
+  });
+
+  it("describes a routine by how it is counted", async () => {
+    const { buildProposal } = await import("../tools");
+    const proposal = await buildProposal({
+      title: "Two trackers",
+      actions: [
+        { kind: "create_habit", name: "Focus blocks", goal: 4 },
+        { kind: "create_rhythm", name: "Long walk", per: 2 },
+        { kind: "create_meal", name: "Soup", servings: 3 },
+      ],
+    });
+
+    expect(proposal.preview[0].note).toBe("habit · 4× a day");
+    expect(proposal.preview[1].note).toBe("rhythm · 2× a week");
+    expect(proposal.preview[2].note).toBe("meal · 3 servings");
+    expect(proposal.preview.every((r) => r.charterName === "daily")).toBe(true);
   });
 });
 
