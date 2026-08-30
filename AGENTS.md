@@ -23,6 +23,33 @@ npx vitest run lib/core/schema.test.ts   # single test file
 
 All of `lint`, `typecheck`, `test` must pass before considering any change done.
 
+## How agents are told to use the planner
+
+Two layers, on purpose.
+
+- **`mcp/instructions.ts`** — handed to every MCP client on connect, so an agent
+  gets the standing rules without anyone pasting them. Deliberately short: these
+  sit in context for the whole session, so only what an agent gets *wrong by
+  default* belongs here — filing a duplicate note, re-deciding something already
+  settled, creating a task attached to nothing, trying to write a charter no tool
+  can write. `mcp/__tests__/instructions.test.ts` caps the length and asserts it
+  never cites a tool the allowlist does not expose.
+- **`.claude/skills/planner-sync/SKILL.md`** — the procedure, loaded only when
+  the task calls for it: audit before sync, read note *bodies* before deciding,
+  hand back charter text no tool can write, attach every task to a target or a
+  component. Anything long or situational goes here rather than into the
+  always-on instructions.
+
+`.gitignore` tracks `.claude/skills/` and ignores the rest of `.claude/` —
+worktrees and machine-local settings must never be committed.
+
+Note the asymmetry the instructions exist to explain: **the app's own chat can
+create charters, and an MCP agent cannot.** `create_project` / `create_area` are
+`OWNER_ONLY_TOOLS` in `mcp/allowlist.ts` and absent from `allowedToolNames`,
+while the chat route registers every schema in `lib/ai/schemas.ts`. And *no*
+surface has a charter-*edit* tool at all, so a Why, an MVP scope or a target can
+only be changed by a human in the UI.
+
 ## Architecture rules (non-negotiable)
 
 1. **All data access goes through `lib/core`.** No other code reads or writes the data directory. `app/` routes and components call `lib/core` functions. The future MCP server will wrap `lib/core` too — keep it the single gateway.

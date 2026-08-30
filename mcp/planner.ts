@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { SERVER_INSTRUCTIONS } from "./instructions";
 import { toolShapes, toolDescriptions, type ToolName } from "../lib/ai/schemas";
 import { toolImplMap } from "../lib/ai/tool-map";
 import { appendJournal } from "../lib/core/journal";
@@ -66,7 +67,12 @@ export function buildServer(opts: BuildServerOptions = {}): McpServer {
   const agent = agentName(env);
   const server = new McpServer(
     { name: "planner", version: opts.version ?? "1.0.0" },
-    { capabilities: { tools: {}, resources: {} } },
+    {
+      capabilities: { tools: {}, resources: {} },
+      // Handed to the client on connect, so an agent gets the rules without
+      // anyone having to remember to paste them.
+      instructions: SERVER_INSTRUCTIONS,
+    },
   );
 
   const writable = new Set(WRITE_TOOLS);

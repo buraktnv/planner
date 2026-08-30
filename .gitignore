@@ -37,3 +37,7 @@ yarn-error.log*
 # NEVER commit personal data into the app repo
 planner-data/
 data/
+
+# Claude Code: share skills, keep local worktrees and machine settings out
+.claude/*
+!.claude/skills/
