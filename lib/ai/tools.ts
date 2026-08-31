@@ -37,6 +37,7 @@ import { saveAsset } from "../core/assets";
 import { readCanvas } from "../core/canvas";
 import { noteProgress } from "../view/canvas";
 import { readDetail, writeDetail } from "../core/details";
+import { appendComment, readComments } from "../core/comments";
 import { fileProposal } from "../core/proposals";
 import { fileNote, type FileNoteResult } from "./file-note";
 import type { KnowledgeHit, KnowledgeNote } from "../core/types";
@@ -366,12 +367,13 @@ export const toolImpls = {
     target?: string;
     note?: string;
     waitsOn?: string;
+    description?: string;
   }): Promise<Task> {
     if (!input.project) throw new Error("createTask requires a project (slug or area:<slug>)");
     if (!input.title) throw new Error("createTask requires a title");
     const size = input.size ?? "M";
     const scope = parseScope(input.project);
-    return addTask(scope.type, scope.slug, {
+    const task = await addTask(scope.type, scope.slug, {
       title: input.title,
       size,
       est: input.est,
@@ -381,6 +383,12 @@ export const toolImpls = {
       note: input.note,
       waitsOn: input.waitsOn,
     });
+    // After addTask returns, never inside it: both take the data lock and the
+    // lock is not re-entrant.
+    if (input.description && input.description.trim()) {
+      await writeDetail(scope.type, scope.slug, task.id, input.description);
+    }
+    return task;
   },
 
   async updateTask(input: {
@@ -417,6 +425,7 @@ export const toolImpls = {
     project: string;
     id: string;
     subtasks: { title: string; size: TaskSize; plan?: string }[];
+    reason?: string;
   }): Promise<Task[]> {
     if (!input.project) throw new Error("decomposeTask requires a project (slug or area:<slug>)");
     if (!input.id) throw new Error("decomposeTask requires an id");
@@ -424,6 +433,12 @@ export const toolImpls = {
       throw new Error("decomposeTask requires a non-empty subtasks array");
     }
     const scope = parseScope(input.project);
+    // Logged before the subtasks exist, so the entry explains what follows it.
+    // A comment rather than the description, because the description is
+    // overwritten and why-we-split is worth keeping dated.
+    if (input.reason && input.reason.trim()) {
+      await appendComment(scope.type, scope.slug, input.id, input.reason);
+    }
     const created: Task[] = [];
     for (const sub of input.subtasks) {
       if (!sub.title) throw new Error("decomposeTask subtask requires a title");
@@ -467,6 +482,39 @@ export const toolImpls = {
     await writeDetail(scope.type, scope.slug, input.id, input.body);
     const body = await readDetail(scope.type, scope.slug, input.id);
     return { id: input.id, body: body ?? "" };
+  },
+
+  async readTaskComments(input: {
+    project: string;
+    id: string;
+    limit?: number;
+  }): Promise<{ id: string; entries: { date: string; time: string; body: string }[] }> {
+    if (!input.project) {
+      throw new Error("readTaskComments requires a project (slug or area:<slug>)");
+    }
+    if (!input.id) throw new Error("readTaskComments requires an id");
+    const scope = parseScope(input.project);
+    const all = await readComments(scope.type, scope.slug, input.id);
+    const limit = input.limit && input.limit > 0 ? Math.min(input.limit, 50) : 50;
+    const entries = all.slice(-limit).map((e) => ({ date: e.date, time: e.time, body: e.body }));
+    return { id: input.id, entries };
+  },
+
+  async addTaskComment(input: {
+    project: string;
+    id: string;
+    body: string;
+  }): Promise<{ id: string; entry: { date: string; time: string; body: string } }> {
+    if (!input.project) throw new Error("addTaskComment requires a project (slug or area:<slug>)");
+    if (!input.id) throw new Error("addTaskComment requires an id");
+    if (typeof input.body !== "string") throw new Error("addTaskComment requires a body string");
+    const scope = parseScope(input.project);
+    const tasks = await listTasks(scope.type, scope.slug);
+    if (!tasks.some((t) => t.id === input.id)) {
+      throw new Error(`Task not found: ${input.id} in ${input.project}`);
+    }
+    const entry = await appendComment(scope.type, scope.slug, input.id, input.body);
+    return { id: input.id, entry: { date: entry.date, time: entry.time, body: entry.body } };
   },
 
   async moveToParkingLot(input: { project: string; idea: string }): Promise<Charter> {

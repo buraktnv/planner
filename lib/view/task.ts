@@ -144,6 +144,26 @@ const BACK_LABELS: [string, string][] = [
  * Only the path is trusted: an absolute URL, a protocol-relative one, or
  * anything else a query string can carry must never become an href.
  */
+/**
+ * Which bare `T-nnn` mentions in a body become links. Shared by the
+ * description block and the log so a task id means the same thing in both,
+ * and it lives here rather than in the component because `lib/view` is where
+ * this repo can actually test a decision.
+ */
+export function taskRefLinker(
+  type: ProjectType,
+  slug: string,
+  selfId: string,
+  knownIds: string[],
+  from?: string | null,
+): (id: string) => string | null {
+  const query = from ? `?from=${encodeURIComponent(from)}` : "";
+  return (id: string) => {
+    if (id === selfId || !knownIds.includes(id)) return null;
+    return `${taskHref(type, slug, id)}${query}`;
+  };
+}
+
 export function safeBackPath(from: string | null | undefined): string | null {
   if (!from) return null;
   if (!from.startsWith("/") || from.startsWith("//")) return null;

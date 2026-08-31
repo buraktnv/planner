@@ -73,6 +73,20 @@ describe("allowedToolNames", () => {
   });
 
   /**
+   * A task's log is how one agent tells the next what it already tried, so
+   * reading it must survive readonly while appending to it must not.
+   */
+  it("exposes the task log, and gates writing to it on readonly", () => {
+    const names = allowedToolNames({});
+    expect(names).toContain("read_task_comments");
+    expect(names).toContain("add_task_comment");
+
+    const ro = allowedToolNames({ PLANNER_MCP_READONLY: "1" });
+    expect(ro).toContain("read_task_comments");
+    expect(ro).not.toContain("add_task_comment");
+  });
+
+  /**
    * The asymmetry this whole design rests on: an agent may *propose* a charter
    * and may never *write* one. If create_project ever appears in the callable
    * list, the review step that is the only chance to fix a Why or an MVP scope

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { TaskSize } from "@/lib/core/types";
 import { listTasks, addTask, updateTask } from "@/lib/core/store";
+import { writeDetail } from "@/lib/core/details";
 import { isLane } from "@/lib/core/lanes";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ export async function POST(req: Request, { params }: Ctx) {
       target?: unknown;
       note?: unknown;
       waitsOn?: unknown;
+      description?: unknown;
     };
     const title = typeof body.title === "string" ? body.title.trim() : "";
     if (!title) return NextResponse.json({ error: "title is required" }, { status: 400 });
@@ -45,7 +47,22 @@ export async function POST(req: Request, { params }: Ctx) {
       note: typeof body.note === "string" && body.note.trim() ? body.note.trim() : undefined,
       waitsOn: typeof body.waitsOn === "string" && body.waitsOn.trim() ? body.waitsOn.trim() : undefined,
     });
-    return NextResponse.json(task);
+    // The description is a separate file, so it is written after addTask has
+    // returned: both take the data lock and the lock is not re-entrant.
+    const description =
+      typeof body.description === "string" ? body.description.trim() : "";
+    let descriptionSaved = true;
+    if (description) {
+      try {
+        await writeDetail("area", slug, task.id, description);
+      } catch {
+        // The task is already created and committed. Failing the whole request
+        // here would have the caller retry and create a duplicate, so report
+        // the miss instead and let the task stand.
+        descriptionSaved = false;
+      }
+    }
+    return NextResponse.json({ ...task, descriptionSaved });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 400 });

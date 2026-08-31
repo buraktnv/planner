@@ -49,7 +49,7 @@ export default function DoneView({
           <span className="h-[6px] w-[6px] rounded-[2px]" style={{ background: card.color }} />
           {card.charterName.toUpperCase()}
           {card.archived ? " · ARCHIVED" : ""}
-          {card.hasDetail ? " · PLAN" : ""}
+          {card.hasDetail ? " · DESCRIPTION" : ""}
           {card.subTotal > 0 ? ` · ${card.subDone}/${card.subTotal}` : ""}
         </Mono>
       </span>

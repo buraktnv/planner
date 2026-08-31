@@ -27,6 +27,7 @@ const baseShapes = {
     target: z.string().optional(),
     note: z.string().optional(),
     waitsOn: z.string().optional(),
+    description: z.string().optional(),
   },
   update_task: {
     project: z.string(),
@@ -51,6 +52,7 @@ const baseShapes = {
         plan: z.string().optional(),
       }),
     ),
+    reason: z.string().optional(),
   },
   move_to_parking_lot: {
     project: z.string(),
@@ -112,6 +114,16 @@ const baseShapes = {
     id: z.string(),
   },
   write_task_detail: {
+    project: z.string(),
+    id: z.string(),
+    body: z.string(),
+  },
+  read_task_comments: {
+    project: z.string(),
+    id: z.string(),
+    limit: z.number().int().positive().optional(),
+  },
+  add_task_comment: {
     project: z.string(),
     id: z.string(),
     body: z.string(),
@@ -242,11 +254,11 @@ export const toolDescriptions: Record<ToolName, string> = {
   create_project: "Create a new project charter.",
   create_area: "Create a new life area charter.",
   create_task:
-    "Create a task in a project or area (slug or area:<slug>). due is an ISO date (2026-09-04) and est is free text like '2h' — set due whenever the work has a real deadline, rather than creating the task and updating it afterwards. lane picks the board column (quick, deep, wait, some); omit it and it is derived from size. waitsOn marks it blocked by a task id in the same file or by free text. target links it to a charter goal (G-001) from list_targets, which is what makes that goal show real progress. note links it to a component (K-001) from list_components, which is what makes that component show real progress.",
+    "Create a task in a project or area (slug or area:<slug>). due is an ISO date (2026-09-04) and est is free text like '2h' — set due whenever the work has a real deadline, rather than creating the task and updating it afterwards. lane picks the board column (quick, deep, wait, some); omit it and it is derived from size. waitsOn marks it blocked by a task id in the same file or by free text. target links it to a charter goal (G-001) from list_targets, which is what makes that goal show real progress. note links it to a component (K-001) from list_components, which is what makes that component show real progress. description is free markdown saved as the task's description, the same text read_task_detail returns — write it here rather than creating the task and calling write_task_detail afterwards.",
   update_task:
     "Update a task's fields (title, size, section, est, due, target, note, waitsOn, done). Pass waitsOn, target or note as an empty string to clear it.",
   decompose_task:
-    "Break a task into subtasks. Each subtask may carry an optional plan — free markdown stored alongside it, which is the only place the reasoning behind the breakdown survives.",
+    "Break a task into subtasks. Each subtask may carry an optional plan — free markdown stored alongside it. reason says why the work splits into these pieces and is appended to the parent's log, where it is dated and cannot be overwritten later.",
   move_to_parking_lot: "Add an idea to a charter's parking lot.",
   add_journal: "Append a journal entry for a scope.",
   list_events:
@@ -271,6 +283,10 @@ export const toolDescriptions: Record<ToolName, string> = {
     "Read the plan attached to one task or subtask — the notes, steps and decisions behind it. Task lines only carry a title, so read this before working on a task. Returns an empty body when nothing is written yet.",
   write_task_detail:
     "Write the plan for one task or subtask, replacing whatever is there. Free markdown: steps, findings, decisions, anything worth keeping. id accepts a subtask id like T-007.2. An empty body removes the plan.",
+  read_task_comments:
+    "Read the log for one task or subtask: every dated entry, oldest first, including approaches that did not work. Read it with read_task_detail before restarting work — the description says what was intended, the log says what actually happened. limit returns only the most recent entries.",
+  add_task_comment:
+    "Append one dated entry to a task's log. Nothing is overwritten and nothing can be edited afterwards, so this is where an approach that failed belongs: say what you tried and why you abandoned it. Log it when you turn back, not only when you finish. id accepts a subtask id like T-007.2.",
   search_knowledge:
     "Search the knowledge base and get ranked snippets. Use this whenever the answer might already be written down — the system prompt only lists notes for the focused scope. scope filters to a project slug or area:<slug>; tags must all match.",
   read_note: "Read one knowledge note in full, with the notes it links to and the notes linking back to it.",

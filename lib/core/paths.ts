@@ -19,6 +19,12 @@ export function detailsDir(type: "project" | "area", slug: string) {
 export function detailPath(type: "project" | "area", slug: string, taskId: string) {
   return path.join(detailsDir(type, slug), `${taskId}.md`);
 }
+export function commentsDir(type: "project" | "area", slug: string) {
+  return path.join(type === "project" ? projectsDir() : areasDir(), slug, "comments");
+}
+export function commentPath(type: "project" | "area", slug: string, taskId: string) {
+  return path.join(commentsDir(type, slug), `${taskId}.md`);
+}
 export function archiveDir(type?: "project" | "area") {
   const base = path.join(dataRoot(), "archive");
   if (!type) return base;

@@ -9,7 +9,8 @@ import { taskHref } from "@/lib/view/task";
 import type { TaskLane, TaskSection, TaskSize } from "@/lib/core/types";
 import { LANES, LANE_KEYS, shortDate } from "@/lib/ui/momentum";
 import { Bar, Mono, Tick } from "../primitives";
-import TaskPlan from "../task-plan";
+import TaskDescription from "../task-description";
+import TaskLog from "../task-log";
 import TaskIdLink from "../task-id";
 
 const FLOW: { key: TaskSection; label: string }[] = [
@@ -302,7 +303,7 @@ export default function TaskView({
         </div>
       )}
 
-      <TaskPlan
+      <TaskDescription
         key={node.id}
         type={card.type}
         slug={card.slug}
@@ -398,6 +399,18 @@ export default function TaskView({
         >
           ADD
         </button>
+      </div>
+
+      <div className="mt-[26px] border-t border-edge2 pt-[22px]">
+        <TaskLog
+          key={node.id}
+          type={card.type}
+          slug={card.slug}
+          taskId={node.id}
+          color={card.color}
+          knownIds={knownIds}
+          from={from}
+        />
       </div>
     </div>
   );
