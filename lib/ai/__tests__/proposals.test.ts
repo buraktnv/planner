@@ -292,6 +292,42 @@ describe("buildProposal", () => {
     expect(proposal.preview[2].note).toBe("meal · 3 servings");
     expect(proposal.preview.every((r) => r.charterName === "daily")).toBe(true);
   });
+
+  /**
+   * A charter row has to show the Why, because the review card is the only
+   * place it can still be corrected — nothing edits a charter afterwards.
+   */
+  it("previews a proposed charter with its why and mvp", async () => {
+    const { buildProposal } = await import("../tools");
+    const proposal = await buildProposal({
+      title: "A new project",
+      actions: [
+        {
+          kind: "create_project",
+          name: "Acme Scraper",
+          why: "Collecting listings by hand costs an evening a week",
+          mvp: "One site, one CSV, on a cron",
+        },
+        { kind: "create_area", name: "Admin", why: "The paperwork that has no project" },
+      ],
+    });
+
+    expect(proposal.preview[0]).toMatchObject({
+      kind: "create_project",
+      id: "NEW",
+      title: "Acme Scraper",
+      note: "new project · mvp: One site, one CSV, on a cron",
+      detail: "Collecting listings by hand costs an evening a week",
+    });
+    expect(proposal.preview[1]).toMatchObject({
+      kind: "create_area",
+      title: "Admin",
+      note: "new life area",
+    });
+    // Not a task: a charter row must never claim a lane or an existing scope.
+    expect(proposal.preview[0].lane).toBeNull();
+    expect(proposal.preview[0].scope).toBeUndefined();
+  });
 });
 
 describe("applyProposal", () => {
@@ -326,5 +362,20 @@ describe("applyProposal", () => {
     expect(result.results).toHaveLength(2);
     expect(result.results[1]).toMatchObject({ kind: "update_task", ok: false });
     expect(result.results[1].error).toMatch(/exploded/);
+  });
+
+  it("applies an accepted charter through the same dispatch", async () => {
+    const { applyProposal } = await import("../proposals");
+    const result = await applyProposal([
+      { kind: "create_project", name: "Acme", why: "Because", mvp: "Small" },
+      { kind: "create_area", name: "Admin", why: "Paperwork" },
+    ]);
+
+    expect(calls.order).toEqual(["create_project", "create_area"]);
+    expect(result.failedIndex).toBeNull();
+    expect(result.results[0].result).toMatchObject({
+      name: "create_project",
+      input: { name: "Acme", why: "Because", mvp: "Small" },
+    });
   });
 });

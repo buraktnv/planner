@@ -165,6 +165,14 @@ export const proposalActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("create_habit"), ...baseShapes.create_habit }),
   z.object({ kind: z.literal("create_rhythm"), ...baseShapes.create_rhythm }),
   z.object({ kind: z.literal("create_meal"), ...baseShapes.create_meal }),
+  /**
+   * A charter is the one thing an agent may *propose* but never write. No tool
+   * edits a charter after the fact, so the review modal is the only moment its
+   * Why and MVP scope can be corrected — which is exactly why these arrive here
+   * rather than in `WRITE_TOOLS`.
+   */
+  z.object({ kind: z.literal("create_project"), ...baseShapes.create_project }),
+  z.object({ kind: z.literal("create_area"), ...baseShapes.create_area }),
 ]);
 
 export type ProposalAction = z.infer<typeof proposalActionSchema>;

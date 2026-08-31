@@ -13,6 +13,7 @@ import {
   OWNER_ONLY_TOOLS,
   type McpEnv,
 } from "../planner";
+import { proposalActionSchema } from "../../lib/ai/schemas";
 
 let tmp: string;
 
@@ -69,6 +70,40 @@ describe("allowedToolNames", () => {
     expect(names).toContain("propose_changes");
     expect(names).not.toContain("create_task");
     expect(names).not.toContain("add_journal");
+  });
+
+  /**
+   * The asymmetry this whole design rests on: an agent may *propose* a charter
+   * and may never *write* one. If create_project ever appears in the callable
+   * list, the review step that is the only chance to fix a Why or an MVP scope
+   * has been silently removed.
+   */
+  it("lets a charter be proposed but never called directly", () => {
+    const names = allowedToolNames({});
+    expect(names).not.toContain("create_project");
+    expect(names).not.toContain("create_area");
+
+    expect(
+      proposalActionSchema.safeParse({
+        kind: "create_project",
+        name: "Acme Scraper",
+        why: "Listings by hand take an evening a week",
+        mvp: "One site, one CSV, on a cron",
+      }).success,
+    ).toBe(true);
+    expect(
+      proposalActionSchema.safeParse({
+        kind: "create_area",
+        name: "Admin",
+        why: "The paperwork that has no project",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("still refuses a charter proposal that is missing its thinking", () => {
+    expect(
+      proposalActionSchema.safeParse({ kind: "create_project", name: "Bare" }).success,
+    ).toBe(false);
   });
 
   it("treats empty, 0 and false as not readonly", () => {

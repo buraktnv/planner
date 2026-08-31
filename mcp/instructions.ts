@@ -37,11 +37,14 @@ project's docs page: prefer architecture, protocol, decision, runbook, reference
 [[K-nnn]] links become arrows on a canvas, so link where the relationship is
 real, not decoratively.
 
-WHAT YOU CANNOT DO HERE. Creating or archiving a charter is owner-only and
-absent from your tools. No tool edits a charter at all, so a project's Why, its
-MVP scope and its targets are beyond your reach: when one needs changing, hand
-back the exact text for a human to paste, and never work around it by filing a
-note that contradicts the charter.
+WHAT YOU CANNOT DO HERE. You cannot write a charter, only propose one: there is
+no charter tool in your list, so a new project or area goes through
+propose_changes as a create_project or create_area action and waits for the
+owner to accept it. Get the Why and the MVP scope right in that proposal —
+nothing edits a charter afterwards, so the review card is the last chance to
+change them. Archiving is owner-only and absent entirely. When an existing
+charter needs changing, hand back the exact text for a human to paste, and never
+work around it by filing a note that contradicts the charter.
 
 BATCH MULTI-STEP WRITES through propose_changes, so the whole set lands as one
 Accept/Discard card rather than a trail of half-applied commits.`;

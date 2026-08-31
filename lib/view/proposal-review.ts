@@ -278,6 +278,39 @@ const FIELDS = {
     { key: "name", label: "Meal", type: "text", required: true },
     { key: "servings", label: "Servings", type: "number", required: true },
   ],
+  /**
+   * These two are the only rows where editing before Accept is not a
+   * convenience but the whole point: no tool anywhere can edit a charter once
+   * it exists, so this modal is the last moment a Why or an MVP scope can be
+   * changed without hand-editing markdown.
+   */
+  create_project: [
+    { key: "name", label: "Project", type: "text", required: true },
+    {
+      key: "why",
+      label: "Why",
+      type: "textarea",
+      required: true,
+      placeholder: "Why this exists, and what changes when it is done",
+    },
+    {
+      key: "mvp",
+      label: "MVP scope",
+      type: "textarea",
+      required: true,
+      placeholder: "The smallest version worth having",
+    },
+  ],
+  create_area: [
+    { key: "name", label: "Area", type: "text", required: true },
+    {
+      key: "why",
+      label: "Why",
+      type: "textarea",
+      required: true,
+      placeholder: "What this area of life is for",
+    },
+  ],
 } satisfies Record<ProposalActionKind, readonly FieldDescriptor[]>;
 
 export function fieldsForKind(kind: ProposalActionKind): readonly FieldDescriptor[] {
