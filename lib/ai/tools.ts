@@ -252,6 +252,30 @@ async function previewRow(
       color: NEUTRAL,
     };
   }
+  if (action.kind === "create_project") {
+    return {
+      kind: action.kind,
+      id: "NEW",
+      title: action.name,
+      lane: null,
+      note: `new project · mvp: ${action.mvp}`,
+      detail: action.why,
+      charterName: "new charter",
+      color: NEUTRAL,
+    };
+  }
+  if (action.kind === "create_area") {
+    return {
+      kind: action.kind,
+      id: "NEW",
+      title: action.name,
+      lane: null,
+      note: "new life area",
+      detail: action.why,
+      charterName: "new charter",
+      color: NEUTRAL,
+    };
+  }
   /**
    * Exhaustive on purpose. This used to fall through to update_event, so a new
    * action kind added without a branch here rendered as a calendar event on the

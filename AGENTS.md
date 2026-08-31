@@ -44,11 +44,19 @@ Two layers, on purpose.
 worktrees and machine-local settings must never be committed.
 
 Note the asymmetry the instructions exist to explain: **the app's own chat can
-create charters, and an MCP agent cannot.** `create_project` / `create_area` are
-`OWNER_ONLY_TOOLS` in `mcp/allowlist.ts` and absent from `allowedToolNames`,
-while the chat route registers every schema in `lib/ai/schemas.ts`. And *no*
-surface has a charter-*edit* tool at all, so a Why, an MVP scope or a target can
-only be changed by a human in the UI.
+create charters directly; an MCP agent may only propose one.**
+`create_project` / `create_area` are `OWNER_ONLY_TOOLS` in `mcp/allowlist.ts`
+and absent from `allowedToolNames`, while the chat route registers every schema
+in `lib/ai/schemas.ts`. They are *also* members of `proposalActionSchema`, which
+is what lets an agent put a charter in a `propose_changes` batch for the owner
+to accept — proposable, never callable, and `mcp/__tests__/server.test.ts` pins
+both halves of that sentence.
+
+The reason it is a proposal rather than a write: *no* surface has a
+charter-*edit* tool at all, so a Why, an MVP scope or a target can only be
+changed by a human in the UI. The review modal is therefore the **last** moment
+a charter's thinking can be corrected, which is why `fieldsForKind` gives both
+kinds real textarea fields rather than a read-only preview row.
 
 ## Architecture rules (non-negotiable)
 

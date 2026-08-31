@@ -25,9 +25,11 @@ Never start in Sync on a project you have not audited in the same run.
 
 Decide per project:
 
-- **Absent** → it needs creating. Over MCP you *cannot*: `create_project` and
-  `create_area` are owner-only and not in your tools. Hand back the exact
-  `name` / `why` / `mvp` instead. Only the app's own chat can create charters.
+- **Absent** → it needs creating, and you may *propose* it but never write it.
+  There is no `create_project` tool in your list; put a `create_project` (or
+  `create_area`) action in a `propose_changes` batch and let the owner accept
+  it. Spend real effort on the `why` and the `mvp` — nothing edits a charter
+  afterwards, so that review card is the last moment either can be changed.
 - **Present** → work inside it. One project has one charter, and the name you
   were handed may not match its slug: "the scraper", "web-scraper" and
   "Web Scraper" are one project. Never create a second charter for a name
