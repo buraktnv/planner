@@ -11,6 +11,7 @@ import {
 import { charterPath, tasksPath, aboutPath, dataRoot, archiveDir } from "./paths";
 import { appendJournal } from "./journal";
 import { commitData } from "./git";
+import { withDataLock } from "./locks";
 
 function today(): string {
   return new Date().toLocaleDateString("sv").slice(0, 10);
@@ -30,6 +31,21 @@ function cleanWaitsOn(value: string | undefined): string | undefined {
   if (trimmed.includes(" | ")) {
     throw new Error('A waits: value may not contain " | "');
   }
+  return trimmed;
+}
+
+/**
+ * A task title is the third `" | "`-delimited field of a task line, and the
+ * grammar is closed: a title carrying its own `" | "` parses back as an extra
+ * field and `parseTasks` throws. Because `serializeTasks` rewrites the whole
+ * file, that does not corrupt one line — it makes every task in the charter
+ * unreadable until a human edits the markdown by hand. `calendar.ts` has
+ * guarded event titles this way all along; task titles were the gap.
+ */
+function cleanTitle(title: string): string {
+  const trimmed = title.trim();
+  if (trimmed === "") throw new Error("A task requires a title");
+  if (trimmed.includes(" | ")) throw new Error('A task title may not contain " | "');
   return trimmed;
 }
 
@@ -92,7 +108,13 @@ export async function getCharter(type: ProjectType, slug: string): Promise<Chart
   return parseCharter(raw);
 }
 
-export async function createCharter(input: {
+export function createCharter(
+  ...args: Parameters<typeof createCharterUnlocked>
+): ReturnType<typeof createCharterUnlocked> {
+  return withDataLock(() => createCharterUnlocked(...args));
+}
+
+async function createCharterUnlocked(input: {
   type: ProjectType;
   name: string;
   why: string;
@@ -134,7 +156,13 @@ export async function createCharter(input: {
   return c;
 }
 
-export async function updateCharter(
+export function updateCharter(
+  ...args: Parameters<typeof updateCharterUnlocked>
+): ReturnType<typeof updateCharterUnlocked> {
+  return withDataLock(() => updateCharterUnlocked(...args));
+}
+
+async function updateCharterUnlocked(
   type: ProjectType,
   slug: string,
   patch: Partial<Pick<Charter, "name" | "status" | "priority" | "mvp" | "repo" | "why" | "mvpScope" | "parkingLot">>,
@@ -164,7 +192,13 @@ export async function listTasks(type: ProjectType, slug: string): Promise<Task[]
   return parseTasks(raw);
 }
 
-export async function addTask(
+export function addTask(
+  ...args: Parameters<typeof addTaskUnlocked>
+): ReturnType<typeof addTaskUnlocked> {
+  return withDataLock(() => addTaskUnlocked(...args));
+}
+
+async function addTaskUnlocked(
   type: ProjectType,
   slug: string,
   input: {
@@ -198,7 +232,7 @@ export async function addTask(
     }
     task = {
       id: `${input.parentId}.${children + 1}`,
-      title: input.title,
+      title: cleanTitle(input.title),
       size: input.size,
       lane: input.lane,
       done: false,
@@ -220,7 +254,7 @@ export async function addTask(
   } else {
     task = {
       id: nextTaskId(tasks),
-      title: input.title,
+      title: cleanTitle(input.title),
       size: input.size,
       lane: input.lane,
       done: false,
@@ -242,7 +276,13 @@ export async function addTask(
   return task;
 }
 
-export async function updateTask(
+export function updateTask(
+  ...args: Parameters<typeof updateTaskUnlocked>
+): ReturnType<typeof updateTaskUnlocked> {
+  return withDataLock(() => updateTaskUnlocked(...args));
+}
+
+async function updateTaskUnlocked(
   type: ProjectType,
   slug: string,
   taskId: string,
@@ -259,7 +299,7 @@ export async function updateTask(
   const idx = tasks.findIndex((t) => t.id === taskId);
   if (idx < 0) throw new Error(`Task not found: ${taskId}`);
   const t = { ...tasks[idx] };
-  if (patch.title !== undefined) t.title = patch.title;
+  if (patch.title !== undefined) t.title = cleanTitle(patch.title);
   if (patch.size !== undefined) t.size = patch.size;
   if (patch.est !== undefined) t.est = patch.est;
   if (patch.due !== undefined) t.due = patch.due;
@@ -296,7 +336,13 @@ export async function getAbout(): Promise<string> {
   }
 }
 
-export async function saveAbout(md: string): Promise<void> {
+export function saveAbout(
+  ...args: Parameters<typeof saveAboutUnlocked>
+): ReturnType<typeof saveAboutUnlocked> {
+  return withDataLock(() => saveAboutUnlocked(...args));
+}
+
+async function saveAboutUnlocked(md: string): Promise<void> {
   await fs.mkdir(path.dirname(aboutPath()), { recursive: true });
   await fs.writeFile(aboutPath(), md, "utf8");
   await appendJournal("about", "about updated");
@@ -312,7 +358,13 @@ async function pathExists(target: string): Promise<boolean> {
   }
 }
 
-export async function archiveCharter(
+export function archiveCharter(
+  ...args: Parameters<typeof archiveCharterUnlocked>
+): ReturnType<typeof archiveCharterUnlocked> {
+  return withDataLock(() => archiveCharterUnlocked(...args));
+}
+
+async function archiveCharterUnlocked(
   type: ProjectType,
   slug: string,
 ): Promise<{ slug: string; archivedAs: string }> {
@@ -415,7 +467,13 @@ export async function listArchivedDetailIds(
     .filter((id) => /^T-\d+(\.\d+)*$/.test(id));
 }
 
-export async function restoreCharter(
+export function restoreCharter(
+  ...args: Parameters<typeof restoreCharterUnlocked>
+): ReturnType<typeof restoreCharterUnlocked> {
+  return withDataLock(() => restoreCharterUnlocked(...args));
+}
+
+async function restoreCharterUnlocked(
   type: ProjectType,
   name: string,
 ): Promise<{ slug: string; archivedAs: string }> {

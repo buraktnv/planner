@@ -20,6 +20,7 @@ import {
 import { shiftIso, weekRange } from "../ui/momentum";
 import { appendJournal } from "./journal";
 import { commitData } from "./git";
+import { withDataLock } from "./locks";
 
 export class DailyParseError extends Error {
   constructor(message: string) {
@@ -365,7 +366,13 @@ export function dailySummary(
   };
 }
 
-export async function logHabit(id: string): Promise<{ id: string; delta: DailyDelta }> {
+export function logHabit(
+  ...args: Parameters<typeof logHabitUnlocked>
+): ReturnType<typeof logHabitUnlocked> {
+  return withDataLock(() => logHabitUnlocked(...args));
+}
+
+async function logHabitUnlocked(id: string): Promise<{ id: string; delta: DailyDelta }> {
   const data = await getDaily();
   const habit = data.habits.find((h) => h.id === id);
   if (!habit) throw new Error(`Habit not found: ${id}`);
@@ -378,7 +385,13 @@ export async function logHabit(id: string): Promise<{ id: string; delta: DailyDe
   return { id, delta };
 }
 
-export async function logRhythm(id: string): Promise<{ id: string; delta: DailyDelta }> {
+export function logRhythm(
+  ...args: Parameters<typeof logRhythmUnlocked>
+): ReturnType<typeof logRhythmUnlocked> {
+  return withDataLock(() => logRhythmUnlocked(...args));
+}
+
+async function logRhythmUnlocked(id: string): Promise<{ id: string; delta: DailyDelta }> {
   const data = await getDaily();
   const rhythm = data.rhythms.find((r) => r.id === id);
   if (!rhythm) throw new Error(`Rhythm not found: ${id}`);
@@ -397,7 +410,13 @@ export async function logDaily(id: string): Promise<{ id: string; delta: DailyDe
   throw new Error(`logDaily takes a habit (H-) or rhythm (R-) id, got: ${id}`);
 }
 
-export async function eatMeal(id: string): Promise<Meal> {
+export function eatMeal(
+  ...args: Parameters<typeof eatMealUnlocked>
+): ReturnType<typeof eatMealUnlocked> {
+  return withDataLock(() => eatMealUnlocked(...args));
+}
+
+async function eatMealUnlocked(id: string): Promise<Meal> {
   const meals = parseMeals(await readOr(mealsPath()));
   const idx = meals.findIndex((m) => m.id === id);
   if (idx < 0) throw new Error(`Meal not found: ${id}`);
@@ -410,7 +429,13 @@ export async function eatMeal(id: string): Promise<Meal> {
   return meals[idx];
 }
 
-export async function setMealServings(id: string, n: number): Promise<Meal> {
+export function setMealServings(
+  ...args: Parameters<typeof setMealServingsUnlocked>
+): ReturnType<typeof setMealServingsUnlocked> {
+  return withDataLock(() => setMealServingsUnlocked(...args));
+}
+
+async function setMealServingsUnlocked(id: string, n: number): Promise<Meal> {
   if (!Number.isInteger(n) || n < 0) throw new Error("servings must be 0 or more");
   const meals = parseMeals(await readOr(mealsPath()));
   const idx = meals.findIndex((m) => m.id === id);
@@ -422,7 +447,13 @@ export async function setMealServings(id: string, n: number): Promise<Meal> {
   return meals[idx];
 }
 
-export async function toggleGrocery(id: string, got?: boolean): Promise<Grocery> {
+export function toggleGrocery(
+  ...args: Parameters<typeof toggleGroceryUnlocked>
+): ReturnType<typeof toggleGroceryUnlocked> {
+  return withDataLock(() => toggleGroceryUnlocked(...args));
+}
+
+async function toggleGroceryUnlocked(id: string, got?: boolean): Promise<Grocery> {
   const groceries = parseGroceries(await readOr(groceriesPath()));
   const idx = groceries.findIndex((g) => g.id === id);
   if (idx < 0) throw new Error(`Grocery not found: ${id}`);
@@ -434,7 +465,13 @@ export async function toggleGrocery(id: string, got?: boolean): Promise<Grocery>
   return groceries[idx];
 }
 
-export async function addGrocery(name: string, cat: string): Promise<Grocery> {
+export function addGrocery(
+  ...args: Parameters<typeof addGroceryUnlocked>
+): ReturnType<typeof addGroceryUnlocked> {
+  return withDataLock(() => addGroceryUnlocked(...args));
+}
+
+async function addGroceryUnlocked(name: string, cat: string): Promise<Grocery> {
   const trimmed = name.trim();
   const category = (cat || "Other").trim();
   if (!trimmed) throw new Error("addGrocery requires a name");
@@ -455,7 +492,13 @@ export async function addGrocery(name: string, cat: string): Promise<Grocery> {
   return grocery;
 }
 
-export async function clearBoughtGroceries(): Promise<number> {
+export function clearBoughtGroceries(
+  ...args: Parameters<typeof clearBoughtGroceriesUnlocked>
+): ReturnType<typeof clearBoughtGroceriesUnlocked> {
+  return withDataLock(() => clearBoughtGroceriesUnlocked(...args));
+}
+
+async function clearBoughtGroceriesUnlocked(): Promise<number> {
   const groceries = parseGroceries(await readOr(groceriesPath()));
   const left = groceries.filter((g) => !g.got);
   const removed = groceries.length - left.length;
@@ -466,7 +509,13 @@ export async function clearBoughtGroceries(): Promise<number> {
   return removed;
 }
 
-export async function addHabit(name: string, goal: number, unit?: string): Promise<Habit> {
+export function addHabit(
+  ...args: Parameters<typeof addHabitUnlocked>
+): ReturnType<typeof addHabitUnlocked> {
+  return withDataLock(() => addHabitUnlocked(...args));
+}
+
+async function addHabitUnlocked(name: string, goal: number, unit?: string): Promise<Habit> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("addHabit requires a name");
   if (!Number.isInteger(goal) || goal < 1) throw new Error("goal must be a positive integer");
@@ -484,7 +533,13 @@ export async function addHabit(name: string, goal: number, unit?: string): Promi
   return habit;
 }
 
-export async function addRhythm(name: string, per: number): Promise<Rhythm> {
+export function addRhythm(
+  ...args: Parameters<typeof addRhythmUnlocked>
+): ReturnType<typeof addRhythmUnlocked> {
+  return withDataLock(() => addRhythmUnlocked(...args));
+}
+
+async function addRhythmUnlocked(name: string, per: number): Promise<Rhythm> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("addRhythm requires a name");
   if (!Number.isInteger(per) || per < 1) throw new Error("per must be a positive integer");
@@ -497,7 +552,13 @@ export async function addRhythm(name: string, per: number): Promise<Rhythm> {
   return rhythm;
 }
 
-export async function addMeal(name: string, servings: number): Promise<Meal> {
+export function addMeal(
+  ...args: Parameters<typeof addMealUnlocked>
+): ReturnType<typeof addMealUnlocked> {
+  return withDataLock(() => addMealUnlocked(...args));
+}
+
+async function addMealUnlocked(name: string, servings: number): Promise<Meal> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("addMeal requires a name");
   if (!Number.isInteger(servings) || servings < 0) throw new Error("servings must be 0 or more");
