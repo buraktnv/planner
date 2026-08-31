@@ -51,6 +51,45 @@ describe("buildNoteCanvas", () => {
     expect(model.groups.map((g) => g.label).sort()).toEqual(["Health", "Planner"]);
   });
 
+  it("bands in id order when no bandCompare is given, exactly as before", () => {
+    const model = buildNoteCanvas(
+      [note({ id: "K-001", scope: ["late"] }), note({ id: "K-002", scope: ["early"] })],
+      empty,
+    );
+    // Bands lay out in first-appearance order, so the lowest id leads.
+    expect(model.groups[0].key).toBe("late");
+    expect(model.groups[0].rect.y).toBeLessThan(model.groups[1].rect.y);
+  });
+
+  it("lets bandCompare decide which band sits on top", () => {
+    const rank: Record<string, number> = { early: 0, late: 1 };
+    const model = buildNoteCanvas(
+      [note({ id: "K-001", scope: ["late"] }), note({ id: "K-002", scope: ["early"] })],
+      empty,
+      { bandCompare: (a, b) => (rank[a ?? ""] ?? 9) - (rank[b ?? ""] ?? 9) },
+    );
+    const early = model.groups.find((g) => g.key === "early")!;
+    const late = model.groups.find((g) => g.key === "late")!;
+    expect(early.rect.y).toBeLessThan(late.rect.y);
+  });
+
+  it("still breaks ties on id inside a band, so ordering stays deterministic", () => {
+    const model = buildNoteCanvas(
+      [note({ id: "K-009", scope: ["one"] }), note({ id: "K-002", scope: ["one"] })],
+      empty,
+      { bandCompare: () => 0 },
+    );
+    expect(model.nodes.map((n) => n.id)).toEqual(["K-002", "K-009"]);
+  });
+
+  it("carries a band status for the label, and null when the caller knows none", () => {
+    const withStatus = buildNoteCanvas([note({ id: "K-001", scope: ["planner"] })], empty, {
+      bandStatus: (key) => (key === "planner" ? "paused" : null),
+    });
+    expect(withStatus.groups[0].status).toBe("paused");
+    expect(buildNoteCanvas([note({ id: "K-001" })], empty).groups[0].status).toBeNull();
+  });
+
   it("labels a scopeless note Unfiled rather than leaving it blank", () => {
     const model = buildNoteCanvas([note({ id: "K-001" })], empty);
     expect(model.nodes[0].groupLabel).toBe("Unfiled");

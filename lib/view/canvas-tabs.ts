@@ -174,3 +174,44 @@ export function safeCanvasPath(raw: unknown): string | null {
   if (/[\s\\]/.test(raw)) return null;
   return raw;
 }
+
+/**
+ * The KNOWLEDGE / TASKS switch.
+ *
+ * Both surfaces have always existed, but only as URLs: which one a tab opened
+ * was inferred by `modeOf` from the path you happened to arrive from, so from
+ * the global map every charter tab silently opened its notes and no control
+ * said otherwise. This turns that inference into two buttons.
+ *
+ * `href` is null when there is nowhere to go — the current surface, or the
+ * global map's task view, which does not exist: tasks belong to a charter, and
+ * a board of every task in the repo is the Board, not a canvas. The switch
+ * still renders that option, disabled, rather than vanishing on one tab and
+ * leaving the strip a different shape depending on where you stand.
+ */
+export interface CanvasModeOption {
+  mode: CanvasMode;
+  label: string;
+  href: string | null;
+  active: boolean;
+}
+
+export function modeSwitch(pathname: string): CanvasModeOption[] {
+  const key = activeTabKey(pathname);
+  const mode = modeOf(pathname);
+  const global = key === ALL_TAB;
+  return [
+    {
+      mode: "system",
+      label: "KNOWLEDGE",
+      href: global || mode === "system" ? null : hrefOf(key, "system"),
+      active: mode === "system",
+    },
+    {
+      mode: "tasks",
+      label: "TASKS",
+      href: global || mode === "tasks" ? null : hrefOf(key, "tasks"),
+      active: !global && mode === "tasks",
+    },
+  ];
+}

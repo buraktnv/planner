@@ -20,7 +20,7 @@ import { Bar, Mono } from "../primitives";
 import Markdown from "../markdown";
 import CanvasPopup from "./canvas-popup";
 import CanvasTabs from "./canvas-tabs";
-import { activeTabKey, type CanvasTab } from "@/lib/view/canvas-tabs";
+import { activeTabKey, modeSwitch, type CanvasTab } from "@/lib/view/canvas-tabs";
 
 interface Viewport {
   tx: number;
@@ -69,6 +69,8 @@ export default function CanvasView({
   delegate,
   createScope,
   unlinkedTasks,
+  filters,
+  emptyNote,
 }: {
   model: CanvasModel;
   surface: Record<string, unknown>;
@@ -86,6 +88,19 @@ export default function CanvasView({
   createScope?: string;
   /** Open tasks in this charter with no component yet, offered for linking. */
   unlinkedTasks?: { id: string; title: string }[];
+  /**
+   * The filter bar, on the surfaces that have one. Rendered rather than built
+   * here because filtering is a server concern: the bands and the bounds are
+   * computed from the note list, so the page has to narrow it before the model
+   * is built. This component only finds it a row to sit in.
+   */
+  filters?: React.ReactNode;
+  /**
+   * What an empty board means here. A filter can empty one while the base is
+   * full, and "Nothing to map yet" then reads as data loss rather than a
+   * narrow filter — so the caller that knows about filtering says so.
+   */
+  emptyNote?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -523,6 +538,35 @@ export default function CanvasView({
           </Link>
         )}
         <h1 className="m-0 mr-2 text-2xl font-semibold tracking-[-0.03em]">{title}</h1>
+
+        <div className="mr-1 flex items-center rounded-lg border border-edge p-[2px]">
+          {modeSwitch(pathname).map((m) => {
+            const cls = `rounded-[7px] px-2.5 py-[3px] font-mono text-[9px] tracking-[0.08em] ${
+              m.active ? "bg-soft text-ink" : "text-faint"
+            }`;
+            if (m.active || !m.href) {
+              return (
+                <span
+                  key={m.mode}
+                  className={`${cls} ${m.active ? "" : "opacity-40"}`}
+                  title={
+                    m.active
+                      ? undefined
+                      : "Tasks belong to a charter — open a project or area to see its task map"
+                  }
+                >
+                  {m.label}
+                </span>
+              );
+            }
+            return (
+              <Link key={m.mode} href={m.href} className={`${cls} hover:text-dim`}>
+                {m.label}
+              </Link>
+            );
+          })}
+        </div>
+
         <button
           type="button"
           onClick={() => setEdit((v) => !v)}
@@ -598,6 +642,8 @@ export default function CanvasView({
         </Mono>
       </div>
 
+      {filters && <div className="px-9 pb-3">{filters}</div>}
+
       <div
         ref={stage}
         onDoubleClick={onDoubleClick}
@@ -663,6 +709,11 @@ export default function CanvasView({
                 style={{ color: g.color }}
               >
                 {g.label.toUpperCase()}
+                {/* "active" is the default and "none" is what Unfiled already
+                    says, so neither earns a suffix. */}
+                {g.status && g.status !== "active" && g.status !== "none" && (
+                  <span className="ml-1.5 text-faint">· {g.status.toUpperCase()}</span>
+                )}
               </Mono>
             </div>
           ))}
@@ -695,9 +746,10 @@ export default function CanvasView({
         {nodes.length === 0 && !draft && (
           <div className="absolute inset-0 grid place-items-center">
             <p className="m-0 max-w-[280px] text-center text-[13px] text-faint">
-              {createScope
-                ? "Nothing here yet. Double-click anywhere to add the first component."
-                : "Nothing to map yet."}
+              {emptyNote ??
+                (createScope
+                  ? "Nothing here yet. Double-click anywhere to add the first component."
+                  : "Nothing to map yet.")}
             </p>
           </div>
         )}

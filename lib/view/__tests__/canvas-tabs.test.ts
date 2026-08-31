@@ -6,6 +6,7 @@ import {
   buildCanvasTabs,
   hrefOf,
   modeOf,
+  modeSwitch,
   readTabOrder,
   reorderTabs,
   safeCanvasPath,
@@ -217,5 +218,57 @@ describe("safeCanvasPath", () => {
     expect(safeCanvasPath("/canvas\\evil")).toBeNull();
     expect(safeCanvasPath(null)).toBeNull();
     expect(safeCanvasPath(12)).toBeNull();
+  });
+});
+
+describe("modeSwitch", () => {
+  const at = (path: string) => {
+    const [k, t] = modeSwitch(path);
+    return { k, t };
+  };
+
+  it("offers both surfaces on every canvas path", () => {
+    for (const path of ["/canvas", "/canvas/project/planner", "/canvas/area/career/system"]) {
+      expect(modeSwitch(path).map((m) => m.mode)).toEqual(["system", "tasks"]);
+    }
+  });
+
+  it("links a charter's notes map across to its task map", () => {
+    const { k, t } = at("/canvas/project/planner/system");
+    expect(k.active).toBe(true);
+    expect(k.href).toBeNull();
+    expect(t.active).toBe(false);
+    expect(t.href).toBe("/canvas/project/planner");
+  });
+
+  it("links back the other way from a task map", () => {
+    const { k, t } = at("/canvas/project/planner");
+    expect(t.active).toBe(true);
+    expect(t.href).toBeNull();
+    expect(k.href).toBe("/canvas/project/planner/system");
+  });
+
+  it("works for an area exactly as for a project", () => {
+    const { t } = at("/canvas/area/career/system");
+    expect(t.href).toBe("/canvas/area/career");
+  });
+
+  it("never links the current surface to itself", () => {
+    for (const path of ["/canvas", "/canvas/project/planner", "/canvas/area/career/system"]) {
+      for (const m of modeSwitch(path)) if (m.active) expect(m.href).toBeNull();
+    }
+  });
+
+  it("offers no task map on the global board, where there is no charter", () => {
+    const { k, t } = at("/canvas");
+    expect(k.active).toBe(true);
+    expect(t.active).toBe(false);
+    expect(t.href).toBeNull();
+  });
+
+  it("treats an unrecognised path as the global board rather than linking nowhere", () => {
+    const { k, t } = at("/knowledge");
+    expect(k.active).toBe(true);
+    expect(t.href).toBeNull();
   });
 });
