@@ -67,6 +67,8 @@ export interface CanvasGroupModel {
   label: string;
   color: string;
   rect: Rect;
+  /** The charter's status, when the caller knows one. Shown on the band. */
+  status: string | null;
 }
 
 export interface CanvasModel {
@@ -89,6 +91,15 @@ export interface NoteCanvasOptions {
   taskScope?: string;
   /** Present on a charter map: what the whole thing is for, in the middle. */
   core?: CanvasCore;
+  /**
+   * Band order. Bands are laid out in first-appearance order, so ordering the
+   * notes is the whole mechanism — which is why this has to sort ahead of the
+   * id tiebreak rather than after it. Omitted, bands fall out by lowest note
+   * id, which is what they did before status ordering existed.
+   */
+  bandCompare?: (a: string | null, b: string | null) => number;
+  /** A band's charter status, for the label. Never used for layout. */
+  bandStatus?: (key: string | null) => string | null;
 }
 
 /**
@@ -188,11 +199,16 @@ export function buildNoteCanvas(
   const grid = opts.grid ?? DEFAULT_GRID;
   const names = opts.charterNames ?? {};
 
+  const bandCompare = opts.bandCompare;
   const visible = (
     opts.scopeKey ? notes.filter((n) => n.scope.includes(opts.scopeKey!)) : notes
   )
     .slice()
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort(
+      (a, b) =>
+        (bandCompare ? bandCompare(a.scope[0] ?? null, b.scope[0] ?? null) : 0) ||
+        a.id.localeCompare(b.id),
+    );
 
   const savedByRef = new Map(file.nodes.map((n) => [n.ref, n]));
   const saved = new Map<string, Point>();
@@ -335,6 +351,7 @@ export function buildNoteCanvas(
       label: labelForScope(key, names),
       color: members[0]?.color ?? "var(--color-faint)",
       rect: { x: r.x - pad, y: r.y - pad, w: r.w + pad * 2, h: r.h + pad * 2 },
+      status: opts.bandStatus ? opts.bandStatus(key) : null,
     };
   });
 
@@ -512,6 +529,7 @@ export function buildTaskCanvas(
       label: key ?? "Backlog",
       color: charter.color,
       rect: { x: r.x - pad, y: r.y - pad, w: r.w + pad * 2, h: r.h + pad * 2 },
+      status: null,
     };
   });
 
