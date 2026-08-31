@@ -4,12 +4,14 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import type { UIMessage } from "ai";
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { CHAT_MODES, CHAT_MODE_KEYS, type ChatMode } from "@/lib/ai/modes";
 import { toolNames, type Proposal, type ProposalApplyResult } from "@/lib/ai/schemas";
@@ -155,6 +157,8 @@ export default function ChatRail({
   const [chromeOverride, setChromeOverride] = useState<ChromeOverride>(null);
   /** Live width while the handle is held; null means "use the stored one". */
   const [dragWidth, setDragWidth] = useState<number | null>(null);
+  /** Proposals filed but not yet accepted, shown as a chip linking to /proposals. */
+  const [waiting, setWaiting] = useState(0);
   const transcripts = useRef<Map<string, UIMessage[]>>(new Map());
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const storedSessions = useStored(CHAT_SESSIONS_KEY);
@@ -183,6 +187,23 @@ export default function ChatRail({
       body: { profileId, focus, mode: mode ?? undefined, effort },
     }),
   });
+
+  const refreshWaiting = useCallback(() => {
+    fetch("/api/proposals")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { pending?: number } | null) => {
+        if (data && typeof data.pending === "number") setWaiting(data.pending);
+      })
+      .catch(() => {});
+  }, []);
+
+  /**
+   * Re-counted whenever the transcript grows, because a `propose_changes` turn
+   * files a proposal as a side effect of answering.
+   */
+  useEffect(() => {
+    refreshWaiting();
+  }, [refreshWaiting, messages.length]);
 
   const folded = chromeFolded(messages.length, chromeOverride);
   /**
@@ -461,7 +482,13 @@ export default function ChatRail({
 
     setProposalState(key, { status: "applying" });
     try {
-      const res = await fetch("/api/proposals/apply", {
+      /**
+       * Keyed by proposal id, not the bare apply route, for two reasons: the
+       * filed copy has to be marked applied or the inbox goes on offering a
+       * batch that already landed, and the claim inside that route is what
+       * stops this card and `/proposals` both writing the same actions.
+       */
+      const res = await fetch(`/api/proposals/${current.proposalId}/apply`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ actions }),
@@ -488,6 +515,7 @@ export default function ChatRail({
           error: `Applied ${data.applied ?? 0}. Stopped at "${failure}" — the rest is still here.`,
         });
         setReviewKey(key);
+        refreshWaiting();
         router.refresh();
         return;
       }
@@ -495,6 +523,7 @@ export default function ChatRail({
       setDrafts((prev) => ({ ...prev, [key]: remainderDraft(current, data) }));
       setProposalState(key, { status: "applied", applied: data.applied ?? actions.length });
       setReviewKey((k) => (k === key ? null : k));
+      refreshWaiting();
       router.refresh();
     } catch (e) {
       setProposalState(key, {
@@ -537,7 +566,19 @@ export default function ChatRail({
           );
           setReviewKey(key);
         }}
-        onDiscard={() => setProposalState(key, { status: "discarded" })}
+        onDiscard={() => {
+          setProposalState(key, { status: "discarded" });
+          // Settle the filed copy too, or the inbox keeps offering a batch that
+          // was turned down here. Best effort: the card is already discarded on
+          // screen, and a failed bookkeeping call must not undo that.
+          void fetch(`/api/proposals/${proposal.proposalId}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ status: "discarded" }),
+          })
+            .then(() => refreshWaiting())
+            .catch(() => {});
+        }}
       />
     );
   };
@@ -826,6 +867,26 @@ export default function ChatRail({
           </>
         )}
       </div>
+
+      {/*
+        Outside the fold on purpose: `/proposals` is reachable by URL only, so
+        this chip is the only thing that says a batch is waiting. Folding it away
+        the moment a conversation starts would hide it exactly when an agent is
+        most likely to have filed one.
+      */}
+      {waiting > 0 && (
+        <Link
+          href="/proposals"
+          className="flex items-center gap-2 border-b border-edge2 bg-quick-tint px-[18px] py-2 transition-opacity hover:opacity-80"
+        >
+          <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-quick-ink" />
+          <Mono className="text-[9px] tracking-[0.1em] text-quick-ink">
+            {waiting} WAITING
+          </Mono>
+          <span className="flex-1" />
+          <Mono className="text-[8.5px] tracking-[0.1em] text-quick-ink">REVIEW ›</Mono>
+        </Link>
+      )}
 
       {!folded && sessionsOpen && (
         <div className="animate-pop border-b border-edge2 bg-bg p-2.5">

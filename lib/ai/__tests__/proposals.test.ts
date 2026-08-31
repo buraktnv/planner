@@ -330,6 +330,59 @@ describe("buildProposal", () => {
   });
 });
 
+/**
+ * A filed proposal is applied later, against a world that has moved. This is
+ * why `/proposals` rebuilds the preview on every read instead of storing the one
+ * made at propose time.
+ */
+describe("a preview goes stale, which is why the inbox recomputes it", () => {
+  const actions: ProposalAction[] = [
+    {
+      kind: "decompose_task",
+      project: "alpha",
+      id: "T-001",
+      subtasks: [{ title: "Step one", size: "S" }],
+    },
+  ];
+
+  it("resolves the task while it still exists", async () => {
+    const { buildProposal } = await import("../tools");
+    const { buildDraft, unresolvableRefs } = await import("../../view/proposal-review");
+    await writeCharter("alpha", "Alpha");
+    await writeTasks("alpha", ["- [ ] T-001 | M | Existing | created:2026-08-01"]);
+
+    const proposal = await buildProposal({ title: "Break it down", actions });
+    expect(proposal.preview[0].scope).toBeTruthy();
+    expect(unresolvableRefs(buildDraft(proposal, proposal.proposalId))).toEqual([]);
+  });
+
+  /**
+   * The dangerous direction. With the propose-time preview frozen into the file,
+   * this row would still carry `scope`, Accept would stay unblocked, and the
+   * failure would land mid-batch — after any earlier row had already been
+   * written and committed.
+   */
+  it("blocks Accept once the task it names has gone", async () => {
+    const { buildProposal } = await import("../tools");
+    const { buildDraft, unresolvableRefs } = await import("../../view/proposal-review");
+    await writeCharter("alpha", "Alpha");
+    await writeTasks("alpha", ["- [ ] T-001 | M | Existing | created:2026-08-01"]);
+
+    const fresh = await buildProposal({ title: "Break it down", actions });
+    expect(fresh.preview[0].scope).toBeTruthy();
+
+    // The task is deleted between filing and accepting.
+    await writeTasks("alpha", []);
+
+    const rebuilt = await buildProposal({ title: "Break it down", actions });
+    expect(rebuilt.preview[0].scope).toBeUndefined();
+
+    const blocked = unresolvableRefs(buildDraft(rebuilt, rebuilt.proposalId));
+    expect(blocked).toHaveLength(1);
+    expect(blocked[0].id).toBe("T-001");
+  });
+});
+
 describe("applyProposal", () => {
   const actions: ProposalAction[] = [
     { kind: "create_task", project: "alpha", title: "One", size: "S" },

@@ -115,7 +115,10 @@ describe("knowledgeSection recall", () => {
     expect(section).toContain("K-042");
     expect(section).not.toContain("K-001 ");
     expect(section).toContain("2 more in this scope");
-  });
+    // 42 notes is 42 locked writes, each with its own git commit, and vitest
+    // runs files in parallel — this sat about 17s against a 30s budget, so it
+    // tipped over as soon as another suite added git work beside it.
+  }, 90_000);
 
   it("surfaces notes that bear on the message even with no focus", async () => {
     await addNote({ summary: "Cholesterol came back high at the last blood test." });

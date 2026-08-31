@@ -35,6 +35,7 @@ export function calendarPath() { return path.join(dataRoot(), "calendar.md"); }
 export function aboutPath() { return path.join(dataRoot(), "about.md"); }
 export function providersPath() { return path.join(dataRoot(), "providers.json"); }
 export function canvasDir() { return path.join(dataRoot(), "canvas"); }
+export function proposalsDir() { return path.join(dataRoot(), "proposals"); }
 /**
  * Per-charter canvases live inside the charter directory so archiveCharter,
  * which renames the whole <slug>/ folder, carries them along — the same reason

@@ -37,6 +37,7 @@ import { saveAsset } from "../core/assets";
 import { readCanvas } from "../core/canvas";
 import { noteProgress } from "../view/canvas";
 import { readDetail, writeDetail } from "../core/details";
+import { fileProposal } from "../core/proposals";
 import { fileNote, type FileNoteResult } from "./file-note";
 import type { KnowledgeHit, KnowledgeNote } from "../core/types";
 import { getInsights, type Insights } from "../core/insights";
@@ -516,8 +517,33 @@ export const toolImpls = {
     return updateEvent(id, patch);
   },
 
+  /**
+   * Builds the preview *and* files it, so the batch can still be accepted from
+   * `/proposals` after the conversation that produced it is gone. Every surface
+   * reaches this one impl through `toolImplMap` — the AI SDK chat route, the
+   * subscription path, and the external MCP server — which is why the hook lives
+   * here rather than in `buildProposal`, whose other caller is journal
+   * distillation and has its own pending queue.
+   *
+   * Filing must never fail the tool call: an agent losing its answer because an
+   * inbox write failed is worse than an unfiled proposal.
+   */
   async proposeChanges(input: ProposalInput): Promise<Proposal> {
-    return buildProposal(input);
+    const proposal = await buildProposal(input);
+    try {
+      await fileProposal(
+        {
+          proposalId: proposal.proposalId,
+          title: proposal.title,
+          summary: proposal.summary,
+          actions: proposal.actions,
+        },
+        process.env.PLANNER_AGENT?.trim() || "chat",
+      );
+    } catch (err) {
+      console.error("could not file proposal", proposal.proposalId, err);
+    }
+    return proposal;
   },
 
   async listTargets(input: { project?: string } = {}): Promise<
