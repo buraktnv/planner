@@ -172,4 +172,22 @@ describe("a task title can never break the file it is written into", () => {
     const tasks = await listTasks("project", "acme-bot");
     expect(tasks.map((t) => t.title)).toEqual(["Keep me"]);
   });
+
+  /**
+   * The log claims a stronger property than every other writer here: it only
+   * ever appends, so it has no read-modify-write window at all. That claim is
+   * worth proving in the one file where a lost update is actually visible.
+   */
+  it("keeps both entries when two comments race the same task", async () => {
+    const { appendComment, readComments } = await import("../comments");
+
+    await Promise.all([
+      appendComment("project", "acme-bot", "T-001", "first writer"),
+      appendComment("project", "acme-bot", "T-001", "second writer"),
+    ]);
+
+    const bodies = (await readComments("project", "acme-bot", "T-001")).map((e) => e.body);
+    expect(bodies).toHaveLength(2);
+    expect(bodies.sort()).toEqual(["first writer", "second writer"]);
+  });
 });

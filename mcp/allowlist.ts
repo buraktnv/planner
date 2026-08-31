@@ -19,6 +19,7 @@ export const READ_TOOLS: ToolName[] = [
   "search_knowledge",
   "read_note",
   "read_task_detail",
+  "read_task_comments",
 ];
 
 export const WRITE_TOOLS: ToolName[] = [
@@ -38,6 +39,7 @@ export const WRITE_TOOLS: ToolName[] = [
   "add_note",
   "update_note",
   "write_task_detail",
+  "add_task_comment",
   "attach_image",
 ];
 

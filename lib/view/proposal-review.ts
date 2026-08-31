@@ -199,6 +199,7 @@ const FIELDS = {
   create_task: [
     { key: "project", label: "Charter", type: "text", required: true },
     { key: "title", label: "Title", type: "text", required: true },
+    { key: "description", label: "Description", type: "textarea", required: false },
     { key: "size", label: "Size", type: "select", options: SIZES, required: true },
     { key: "lane", label: "Lane", type: "select", options: LANES, required: false },
     { key: "due", label: "Due", type: "date", required: false, placeholder: "2026-09-04" },
@@ -223,6 +224,7 @@ const FIELDS = {
   decompose_task: [
     { key: "project", label: "Charter", type: "text", required: true },
     { key: "id", label: "Parent task", type: "text", required: true },
+    { key: "reason", label: "Why split", type: "textarea", required: false },
   ],
   move_to_parking_lot: [
     { key: "project", label: "Charter", type: "text", required: true },

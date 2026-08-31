@@ -83,7 +83,7 @@ export default async function ArchivedCharterPage({
               <span className={`text-[13.5px] ${t.done ? "text-faint line-through" : "text-ink"}`}>
                 {t.title}
                 {detailIds.has(t.id) ? (
-                  <Mono className="ml-2 text-[9px] tracking-[0.08em] text-faint">PLAN</Mono>
+                  <Mono className="ml-2 text-[9px] tracking-[0.08em] text-faint">DESCRIPTION</Mono>
                 ) : null}
               </span>
               <Mono className="text-[9px] text-faint">

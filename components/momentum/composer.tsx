@@ -58,6 +58,7 @@ export default function Composer({
   const [size, setSize] = useState<TaskSize>("M");
   const [due, setDue] = useState("");
   const [steps, setSteps] = useState("");
+  const [description, setDescription] = useState("");
   const [waitsOn, setWaitsOn] = useState("");
   const [milestone, setMilestone] = useState("");
   const [target, setTarget] = useState("");
@@ -202,6 +203,7 @@ export default function Composer({
           ...(due ? { due } : {}),
           ...(kind === "branch" && waitsOn.trim() ? { waitsOn: waitsOn.trim() } : {}),
           ...(kind === "branch" && target ? { target } : {}),
+          ...(kind === "branch" && description.trim() ? { description: description.trim() } : {}),
         }),
       });
       if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? "Failed");
@@ -438,7 +440,16 @@ export default function Composer({
               placeholder="T-041, or the clinic"
               className="mb-[18px] w-full rounded-[13px] border border-edge bg-bg px-3.5 py-[11px] text-[13px] outline-none placeholder:text-faint"
             />
-            <FieldLabel>STEPS — ONE PER LINE, EACH BECOMES A SUBTASK</FieldLabel>
+            <FieldLabel>DESCRIPTION — OPTIONAL</FieldLabel>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="What this actually is, and why. Not every task needs splitting up."
+              className="mb-[18px] w-full resize-y rounded-[13px] border border-edge bg-bg px-3.5 py-3 text-[13px] leading-[1.6] outline-none placeholder:text-faint"
+            />
+
+            <FieldLabel>STEPS — OPTIONAL, EACH LINE BECOMES A SUBTASK</FieldLabel>
             <textarea
               value={steps}
               onChange={(e) => setSteps(e.target.value)}

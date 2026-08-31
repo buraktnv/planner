@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import type { ProjectType } from "@/lib/core/types";
-import { taskHref } from "@/lib/view/task";
+import { taskRefLinker } from "@/lib/view/task";
 import { linkifyTaskRefs } from "@/lib/view/task-refs";
 import { Mono } from "./primitives";
 import Markdown from "./markdown";
 
-export default function TaskPlan({
+export default function TaskDescription({
   type,
   slug,
   taskId,
@@ -22,7 +22,7 @@ export default function TaskPlan({
   color: string;
   knownIds?: string[];
   from?: string | null;
-  onSaved?: (hasPlan: boolean) => void;
+  onSaved?: (hasDescription: boolean) => void;
 }) {
   const [body, setBody] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -33,10 +33,7 @@ export default function TaskPlan({
   const url = `/api/tasks/${type}/${slug}/${taskId}/detail`;
 
   /** The task being read links nowhere — it is already on screen. */
-  const hrefForRef = (id: string) => {
-    if (id === taskId || !knownIds.includes(id)) return null;
-    return `${taskHref(type, slug, id)}${from ? `?from=${encodeURIComponent(from)}` : ""}`;
-  };
+  const hrefForRef = taskRefLinker(type, slug, taskId, knownIds, from);
 
   useEffect(() => {
     let live = true;
@@ -46,7 +43,7 @@ export default function TaskPlan({
         if (live) setBody(typeof data.body === "string" ? data.body : "");
       })
       .catch(() => {
-        if (live) setError("Could not load the plan.");
+        if (live) setError("Could not load the description.");
       });
     return () => {
       live = false;
@@ -69,7 +66,7 @@ export default function TaskPlan({
       setEditing(false);
       onSaved?.(next.trim() !== "");
     } catch {
-      setError("Could not save the plan.");
+      setError("Could not save the description.");
     } finally {
       setBusy(false);
     }
@@ -83,7 +80,7 @@ export default function TaskPlan({
   return (
     <div className="mb-5">
       <div className="mb-2.5 flex items-center gap-2">
-        <Mono className="block text-[9px] tracking-[0.1em] text-faint">PLAN</Mono>
+        <Mono className="block text-[9px] tracking-[0.1em] text-faint">DESCRIPTION</Mono>
         <div className="flex-1" />
         {!editing && body !== null && (
           <button
@@ -106,7 +103,7 @@ export default function TaskPlan({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={10}
-            placeholder="What is the actual plan? Steps, findings, decisions, anything worth keeping."
+            placeholder="What is this, and why? The thinking behind it — not a restatement of the title."
             className="mb-2 w-full resize-y rounded-[13px] border border-edge bg-bg p-3 text-[13px] leading-[1.6] outline-none placeholder:text-faint"
           />
           <div className="flex gap-2">
@@ -154,7 +151,7 @@ export default function TaskPlan({
           onClick={startEdit}
           className="w-full rounded-[13px] border border-dashed border-edge p-[13px] text-left text-[12.5px] text-faint transition-colors hover:border-edge2 hover:text-dim"
         >
-          Add a plan — the thinking behind this task, not just its title.
+          Add a description — what this is and why, not just its title.
         </button>
       )}
     </div>
