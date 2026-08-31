@@ -48,7 +48,13 @@ export default function ProposalReview({
   error?: string;
   onChange: (next: ReviewDraft) => void;
   onAccept: () => void;
-  onRevise: (instruction: string) => void;
+  /**
+   * Absent on surfaces with no AI turn to revise with — the `/proposals` page
+   * reads a filed proposal long after the conversation that produced it, so the
+   * ASK FOR CHANGES box is hidden there rather than offering a button that
+   * cannot do anything.
+   */
+  onRevise?: (instruction: string) => void;
   onClose: () => void;
 }) {
   const [open, setOpen] = useState<Record<number, boolean>>({});
@@ -61,7 +67,7 @@ export default function ProposalReview({
     stats.selected > 0 && validation.ok && blocking.length === 0 && !busy && !revising && !stale;
 
   const send = () => {
-    if (!ask.trim() || revising || busy || stats.selected === 0) return;
+    if (!onRevise || !ask.trim() || revising || busy || stats.selected === 0) return;
     onRevise(ask);
     setAsk("");
   };
@@ -147,6 +153,7 @@ export default function ProposalReview({
         </p>
       )}
 
+      {onRevise && (
       <div className="mt-4 border-t border-edge2 pt-3.5">
         <Mono className="mb-[7px] block text-[8px] tracking-[0.12em] text-faint">
           ASK FOR CHANGES
@@ -185,6 +192,7 @@ export default function ProposalReview({
           <p className="mt-1.5 mb-0 text-[11.5px] leading-[1.45] text-wait-ink">{reviseNote}</p>
         )}
       </div>
+      )}
 
       <div className="mt-4 flex items-center gap-2">
         <button

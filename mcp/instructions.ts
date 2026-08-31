@@ -47,4 +47,7 @@ charter needs changing, hand back the exact text for a human to paste, and never
 work around it by filing a note that contradicts the charter.
 
 BATCH MULTI-STEP WRITES through propose_changes, so the whole set lands as one
-Accept/Discard card rather than a trail of half-applied commits.`;
+Accept/Discard card rather than a trail of half-applied commits. A proposal is
+filed the moment you make it and waits at /proposals in the planner app; say so,
+with its id, rather than claiming the work is done. Nothing is written until the
+owner accepts it there.`;
