@@ -41,6 +41,18 @@ describe("SERVER_INSTRUCTIONS", () => {
     }
   });
 
+  it("carries the working loop, so an agent follows it unprompted", () => {
+    // AGENTS.md § The working loop is stated here and in the planner-sync
+    // skill. Losing it from here means an MCP agent only follows it when
+    // someone remembers to say so, which is the failure it exists to prevent.
+    expect(SERVER_INSTRUCTIONS).toContain("add_note");
+    expect(SERVER_INSTRUCTIONS).toContain("create_task");
+    expect(SERVER_INSTRUCTIONS).toContain("add_task_comment");
+    expect(SERVER_INSTRUCTIONS).toMatch(/description/i);
+    // the ordering claim, not just the tool names: written first, not after
+    expect(SERVER_INSTRUCTIONS).toMatch(/before the work|before you do it/i);
+  });
+
   it("states the two facts that cause the most damage when unknown", () => {
     // every write is a commit, and a batch can stop halfway
     expect(SERVER_INSTRUCTIONS).toMatch(/commit/i);

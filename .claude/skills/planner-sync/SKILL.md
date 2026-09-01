@@ -102,22 +102,49 @@ scoped notes**.
 - Never write canvas positions or edges. The map lays itself out.
 - Where you are inferring rather than confirming, say so in one clause. A
   confidently wrong architecture note is worse than no note at all.
+- **An idea nobody is scheduling is still a note.** Work that becomes a task is
+  visible on a board; a thought that stays in a transcript is visible nowhere,
+  so that is the one that needs filing.
 
 ## Step 5 — Tasks
 
-- `create_task` takes `project`, `title`, `size` (S/M/L), and optionally
-  `target:` / `note:` / `waitsOn:`.
+- `create_task` takes `project`, `title`, `size` (S/M/L), a `description`, and
+  optionally `target:` / `note:` / `waitsOn:`.
+- **Write the description while creating the task, not afterwards.** One or two
+  sentences: what this is and why, the thinking rather than a restatement of the
+  title. Written first it is a plan; written afterwards it is a summary of what
+  already happened, which nobody needed.
 - **Attach every task**: to the target it advances, or the component it changes.
   A task with neither cannot be prioritised later.
-- `decompose_task` for anything larger than one sitting. Subtasks are steps,
-  not themes.
-- `write_task_detail` only where the *how* is not obvious. Free markdown, no
-  parser — this is where reasoning goes. Most tasks need none.
+- `decompose_task` for anything larger than one sitting, and pass its `reason`
+  — what makes these the pieces. It is filed as the first comment on the parent,
+  so the logic of the split outlives the next description edit. Subtasks are
+  steps, not themes.
 - Size honestly: S is under an hour, L is a day or more.
 - **Nothing in a parking lot becomes a task unless asked.** Parked items are
   deliberately out of scope; promoting them silently re-scopes the project.
 
-## Step 6 — Land it, then report
+`write_task_detail` replaces a description wholesale, so reach for it to revise
+a plan and never to add to one. Adding is what the log is for.
+
+## Step 6 — Log the work while it is happening
+
+`add_task_comment` appends a timestamped entry to a task's log, and nothing in
+the app edits or deletes one. It is for the doing, not the reporting:
+
+- **When you abandon an approach, log it before you try the next one.** What you
+  tried and what made you back out. This is the entry the log exists for, and
+  the one most easily argued out of being written — by the time you know it was
+  a detour it stops feeling like a finding, which is exactly when it becomes one
+  for whoever hits it next.
+- `read_task_comments` before picking up a task anyone has already touched. A
+  dead end recorded there is the cheapest thing you will read all session.
+- Entries render markdown and linkify `T-003` and `[[K-009]]`, so cite rather
+  than re-explain.
+- Never tidy the log into agreeing with how things turned out. There is no edit
+  and no delete, deliberately.
+
+## Step 7 — Land it, then report
 
 Put the whole set through `propose_changes` so it arrives as one
 Accept/Discard card. Nothing should apply that the human did not accept.

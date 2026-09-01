@@ -282,7 +282,7 @@ export const toolDescriptions: Record<ToolName, string> = {
   read_task_detail:
     "Read the plan attached to one task or subtask — the notes, steps and decisions behind it. Task lines only carry a title, so read this before working on a task. Returns an empty body when nothing is written yet.",
   write_task_detail:
-    "Write the plan for one task or subtask, replacing whatever is there. Free markdown: steps, findings, decisions, anything worth keeping. id accepts a subtask id like T-007.2. An empty body removes the plan.",
+    "Write the plan for one task or subtask, replacing whatever is there. Free markdown: steps, findings, decisions, anything worth keeping. It replaces and never appends, so anything that has to survive the next edit — what you tried, what failed — goes to add_task_comment instead. id accepts a subtask id like T-007.2. An empty body removes the plan.",
   read_task_comments:
     "Read the log for one task or subtask: every dated entry, oldest first, including approaches that did not work. Read it with read_task_detail before restarting work — the description says what was intended, the log says what actually happened. limit returns only the most recent entries.",
   add_task_comment:
@@ -291,7 +291,7 @@ export const toolDescriptions: Record<ToolName, string> = {
     "Search the knowledge base and get ranked snippets. Use this whenever the answer might already be written down — the system prompt only lists notes for the focused scope. scope filters to a project slug or area:<slug>; tags must all match.",
   read_note: "Read one knowledge note in full, with the notes it links to and the notes linking back to it.",
   add_note:
-    "File a knowledge note. summary must be a single line stating the conclusion, not the topic — it is the only text loaded into context until someone searches. title is optional and is derived from the summary when omitted. Leave scope empty and it is categorised automatically into the right area or project; pass it only when you are certain.",
+    "File a knowledge note. summary must be a single line stating the conclusion, not the topic — it is the only text loaded into context until someone searches. title is optional and is derived from the summary when omitted. Leave scope empty and it is categorised automatically into the right area or project; pass it only when you are certain. File the note even when no task is being created for the idea: work that becomes a task is at least visible on a board, so an idea nobody is scheduling is the one actually at risk of being lost.",
   update_note:
     "Amend a knowledge note. Only the fields you pass change; updated is bumped. Pass source as an empty string to clear it.",
   attach_image:
