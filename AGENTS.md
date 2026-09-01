@@ -65,6 +65,49 @@ changed by a human in the UI. The review modal is therefore the **last** moment
 a charter's thinking can be corrected, which is why `fieldsForKind` gives both
 kinds real textarea fields rather than a read-only preview row.
 
+## The working loop
+
+Four beats, in this order, for any piece of work — on a project the planner
+tracks, and on this repo itself. Each one leaves a record the next can be
+checked against, which is the only reason the order matters.
+
+1. **Write the idea down before deciding whether to do it.** A new idea gets a
+   file the moment it exists: a knowledge note in the data repo (`add_note`),
+   or a spec under `docs/superpowers/specs/` when it is a change to the planner
+   itself. This holds **even when nothing is being scheduled**, and that case is
+   the point of the rule rather than an exception to it — work that becomes a
+   task is at least visible on a board, so the idea actually at risk of being
+   lost is the one nobody is acting on yet.
+2. **Create the task with its description, before starting.** `create_task`
+   takes a `description` and the New Task dialog has a box for it above STEPS,
+   so there is no moment where writing it costs a second round trip. Written
+   first it is a plan; written afterwards it is a summary of what happened,
+   which is a different and much weaker document.
+3. **If it needs splitting, say why those are the pieces.** `decompose_task`
+   takes a `reason`, filed as the first comment on the parent. The subtasks
+   record *what* the pieces are; nothing else records why the work divides
+   there, so a later reader cannot tell a considered split from an arbitrary one.
+4. **Log as you go, and log the wrong turns first.** `add_task_comment` appends
+   to `<slug>/comments/<task-id>.md`; nothing in the app edits or deletes an
+   entry. The moment to write one is when an approach is abandoned, not when the
+   work lands — a record that only survives if it turned out well is not a
+   record of the work, and the dead end gets walked again next month.
+
+The split between the two free-text fields is what makes this work at all. The
+**description** is one document that is overwritten, so it always reads as the
+current plan; the **log** is append-only, so it keeps what was thought before.
+Neither can do the other's job, which is why a wrong turn is never "fixed" by
+editing the description — doing that destroys the only copy of the reasoning
+that the next person needs.
+
+This loop is carried in two places on purpose, along the same seam as *How
+agents are told to use the planner* above: `mcp/instructions.ts` states it as a
+standing rule, so an MCP agent
+follows it without being asked, and `.claude/skills/planner-sync/SKILL.md`
+carries the long form for when the procedure is actually being run. A change to
+the loop that lands in only one of them puts agents and humans on different
+rules.
+
 ## Architecture rules (non-negotiable)
 
 1. **All data access goes through `lib/core`.** No other code reads or writes the data directory. `app/` routes and components call `lib/core` functions. The future MCP server will wrap `lib/core` too — keep it the single gateway.
