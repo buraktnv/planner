@@ -65,6 +65,10 @@ function eventNote(when: string, repeat?: string, lead?: number): string {
   return [when, repeat || null, lead ? `lead ${lead}d` : null].filter(Boolean).join(" · ");
 }
 
+function eventNote(when: string, repeat?: string, lead?: number): string {
+  return [when, repeat || null, lead ? `lead ${lead}d` : null].filter(Boolean).join(" · ");
+}
+
 async function charterTone(
   project: string | undefined,
   cache: Map<string, { name: string; color: string }>,
