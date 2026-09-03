@@ -33,6 +33,8 @@ export async function POST(req: Request) {
       note: text(body.note),
       scope: text(body.scope),
       action: text(body.action),
+      repeat: text(body.repeat),
+      lead: typeof body.lead === "number" ? body.lead : undefined,
     });
     return NextResponse.json(event);
   } catch (e) {

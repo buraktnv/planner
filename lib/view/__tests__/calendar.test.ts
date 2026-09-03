@@ -141,7 +141,73 @@ describe("buildCalendar", () => {
   });
 });
 
+describe("buildCalendar with repeating and lead events", () => {
+  const REPEATING: CalendarEvent[] = [
+    { id: "E-020", date: "1990-08-30", title: "Birthday", done: false, repeat: "yearly", lead: 7 },
+    { id: "E-021", date: "2026-08-03", title: "Standup", done: false, repeat: "weekly" },
+    { id: "E-022", date: "2026-09-17", title: "Passport", done: false, action: "photoshoot", lead: 21 },
+    { id: "E-023", date: "2026-09-30", title: "Far", done: false, action: "book seats", lead: 7 },
+    { id: "E-024", date: "2026-08-10", title: "Old monthly", done: false, repeat: "monthly" },
+  ];
+
+  it("resolves each event to its next occurrence and never marks a repeat as past", async () => {
+    const { loadWorkspace } = await import("../workspace");
+    const { toEventModels } = await import("../calendar");
+    const ws = await loadWorkspace(NOW);
+    const models = toEventModels(REPEATING, ws);
+    const by = (id: string) => models.find((m) => m.id === id)!;
+    expect(by("E-020").occurs).toBe("2026-08-30");
+    expect(by("E-020").past).toBe(false);
+    expect(by("E-020").daysUntil).toBe(2);
+    expect(by("E-020").surfaced).toBe(true);
+    expect(by("E-021").occurs).toBe("2026-08-31");
+    expect(by("E-024").occurs).toBe("2026-09-10");
+    expect(by("E-022").surfaceFrom).toBe("2026-08-27");
+    expect(by("E-022").surfaced).toBe(true);
+    expect(by("E-023").surfaced).toBe(false);
+  });
+
+  it("places a weekly event on every grid day it occurs", async () => {
+    const { loadWorkspace } = await import("../workspace");
+    const { buildCalendar } = await import("../calendar");
+    const ws = await loadWorkspace(NOW);
+    const model = buildCalendar(ws, REPEATING);
+    const standupDays = model.rows
+      .flat()
+      .filter((d) => d.events.some((e) => e.id === "E-021"))
+      .map((d) => d.iso);
+    expect(standupDays).toEqual(["2026-08-24", "2026-08-31", "2026-09-07"]);
+    expect(model.pastEvents).toEqual([]);
+  });
+
+  it("gates needsAction on the lead window and lists comingUp nearest first", async () => {
+    const { loadWorkspace } = await import("../workspace");
+    const { buildCalendar } = await import("../calendar");
+    const ws = await loadWorkspace(NOW);
+    const model = buildCalendar(ws, [...EVENTS, ...REPEATING]);
+    expect(model.needsAction.map((e) => e.id)).toEqual(["E-001", "E-022"]);
+    expect(model.comingUp.map((e) => e.id)).toEqual(["E-020", "E-022"]);
+  });
+});
+
 describe("buildFocus with events", () => {
+  it("picks a birthday by its occurrence and surfaces lead events under comingUp", async () => {
+    const { loadWorkspace } = await import("../workspace");
+    const { toEventModels } = await import("../calendar");
+    const { buildFocus } = await import("../focus");
+    const ws = await loadWorkspace(NOW);
+    const events: CalendarEvent[] = [
+      { id: "E-030", date: "1990-08-28", title: "Birthday", done: false, repeat: "yearly" },
+      { id: "E-031", date: "2026-09-10", title: "Soon", done: false, lead: 14 },
+      { id: "E-032", date: "2026-09-05", title: "Sooner", done: false, lead: 14 },
+      { id: "E-033", date: "2026-09-20", title: "Not yet", done: false, lead: 7 },
+      { id: "E-034", date: "2026-09-02", title: "No lead", done: false },
+    ];
+    const model = buildFocus(ws, [], toEventModels(events, ws));
+    expect(model.todayEvents.map((e) => e.id)).toEqual(["E-030"]);
+    expect(model.comingUp.map((e) => e.id)).toEqual(["E-032", "E-031"]);
+  });
+
   it("keeps only today's open events in the strip, ordered by time", async () => {
     const { loadWorkspace } = await import("../workspace");
     const { toEventModels } = await import("../calendar");

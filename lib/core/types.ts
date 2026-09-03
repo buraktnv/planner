@@ -37,6 +37,8 @@ export interface Task {
   parentId?: string | null;
 }
 
+export type EventRepeat = "yearly" | "monthly" | "weekly";
+
 export interface CalendarEvent {
   id: string;
   date: string;
@@ -46,6 +48,8 @@ export interface CalendarEvent {
   note?: string;
   scope?: string;
   action?: string;
+  repeat?: EventRepeat;
+  lead?: number;
 }
 
 export interface Habit {

@@ -44,21 +44,25 @@ One file at the data root, `calendar.md`. No sections, one event per line, kept 
 ```
 - [ ] E-001 | 2026-09-01 | Passport appointment | time:09:40 | note:bring photos | scope:area:admin | action:photos not printed
 - [x] E-002 | 2026-08-29 | Grocery run + prep | time:morning | scope:area:daily
+- [ ] E-003 | 1990-03-04 | A birthday | note:born 1990 | action:buy a gift | repeat:yearly | lead:7d
+- [ ] E-004 | 2026-09-24 | Passport pickup | action:photoshoot | lead:21d
 ```
 
-- **Fixed order:** checkbox, id, ISO date, title, then the optional fields in the order `time:` / `note:` / `scope:` / `action:`.
+- **Fixed order:** checkbox, id, ISO date, title, then the optional fields in the order `time:` / `note:` / `scope:` / `action:` / `repeat:` / `lead:`.
 - **Id:** `E-` followed by at least 3 digits, zero-padded to 3. Monotonic across the file, never reused — `nextEventId()` takes the highest existing number and adds one.
-- **Date:** `YYYY-MM-DD`, required. There is no separate "done date"; a done event keeps its date and flips the checkbox.
+- **Date:** `YYYY-MM-DD`, required. There is no separate "done date"; a done event keeps its date and flips the checkbox. For a repeating event the date is the **anchor**: the file is still sorted by it, and `lib/core/recurrence.ts` derives the next occurrence at read time (`nextOccurrence`, `occurrencesBetween`), so the file never depends on today.
+- **`repeat:`** one of `yearly` / `monthly` / `weekly`. Nothing else — a daily thing is a habit, not an event. Yearly from Feb 29 falls on Feb 28 in a non-leap year; monthly from the 29th–31st clamps to the month's last day. **Ticking a repeating event advances its date to the next occurrence and leaves it open** (journal `E-003 event advanced to 2027-03-04`), so a birthday's original year is overwritten on first tick — put it in `note:`. `done: false` on a repeating event changes nothing.
+- **`lead:`** `<n>d`, 1–999, no leading zero, `d` mandatory (`lead:21d`). The event surfaces on Today, under the calendar's COMING UP and in chat context from `lead` days before its next occurrence, which is what makes `action:` useful ahead of time: "photoshoot" three weeks before a passport appointment is one event with `action:` + `lead:21d`, never a separate task. Without a lead, `action:` surfaces only on the day. `listEvents({ from, to })` matches a repeating event when any occurrence falls in the range.
 - **`time:`** free text up to 12 characters — `09:40`, `morning`, `after lunch`. Sorting is lexicographic, so an empty time sorts first within a day.
 - **`note:`** free text.
 - **`scope:`** either a project slug (`widget-shop`) or `area:<slug>`. Optional: an event may belong to nothing. Slugs are lowercase letters, digits and dashes.
 - **`action:`** free text = what still needs doing before the event. Its presence on an **open** event is the "needs action" flag the UI surfaces in wait-ink. A done event's `action:` is ignored.
 - No field value may contain ` | `, and no value may be empty on disk. `CalendarParseError` carries the line number for every malformed line; blank lines and `#` headings are tolerated and dropped on write. Round-trip (parse → serialize → parse) is identity up to sort order.
-- **Store** (`lib/core/calendar.ts`): `listEvents({ from?, to? })` (inclusive ISO range), `addEvent(input)`, `updateEvent(id, patch)` — any field including `done` and `date`. Passing an empty string for `time` / `note` / `scope` / `action` clears the field.
+- **Store** (`lib/core/calendar.ts`): `listEvents({ from?, to? })` (inclusive ISO range), `addEvent(input)`, `updateEvent(id, patch)` — any field including `done` and `date`. Passing an empty string for `time` / `note` / `scope` / `action` / `repeat` clears the field; `lead: 0` clears the lead.
 - **Journal scope** is the event's scope slug with any `area:` prefix stripped, or `calendar` when the event has no scope.
 - **API:** `GET/POST /api/calendar`, `PATCH /api/calendar/[id]`.
 - **Views:** `/calendar` merges events and task `due:` dates into one three-week grid (square dots in the scope colour for events, round dots for tasks), a "Needs action" panel, a "Behind" group for passed open events and overdue tasks, and an "Up next" agenda of the next 14 days with events before due tasks. The Focus page shows today's open events above the plan.
-- **AI:** `list_events`, `create_event`, `update_event`; `buildSystemContext` includes `# Calendar (next 14 days)`.
+- **AI:** `list_events`, `create_event`, `update_event` (both take `repeat` and `lead`); `buildSystemContext` includes `# Calendar (next 14 days, plus anything inside its lead window)`, each line dated by its next occurrence.
 
 ## Daily — habits, rhythms, meals, groceries
 

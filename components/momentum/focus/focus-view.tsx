@@ -78,9 +78,38 @@ export default function FocusView({ model }: { model: FocusModel }) {
 
   const clock = clockOf(seconds);
 
-  const eventStrip = model.todayEvents.length ? (
+  const comingUp = model.comingUp.length ? (
+    <div className={model.todayEvents.length ? "mt-4 border-t border-edge2 pt-3.5" : ""}>
+      <Mono className="mb-3 block text-[9px] tracking-[0.14em] text-faint">COMING UP</Mono>
+      <div className="flex flex-col gap-2.5">
+        {model.comingUp.map((e) => (
+          <div key={e.key} className="flex min-w-0 items-start gap-2.5">
+            <span
+              className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-[2px]"
+              style={{ background: e.color }}
+            />
+            <div className="flex min-w-0 flex-col gap-[3px]">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-[13.5px] font-medium leading-[1.35]">{e.title}</span>
+                <Mono className="text-[10px] text-dim">
+                  IN {e.daysUntil} {e.daysUntil === 1 ? "DAY" : "DAYS"}
+                </Mono>
+              </div>
+              {e.action ? (
+                <span className="text-[12.5px] leading-[1.5] text-wait-ink">{e.action}</span>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  const eventStrip = model.todayEvents.length || model.comingUp.length ? (
     <div className="mb-[22px] rounded-[20px] border border-edge bg-surf px-[22px] py-[17px]">
-      <Mono className="mb-3 block text-[9px] tracking-[0.14em] text-faint">TODAY</Mono>
+      {model.todayEvents.length ? (
+        <Mono className="mb-3 block text-[9px] tracking-[0.14em] text-faint">TODAY</Mono>
+      ) : null}
       <div className="flex flex-col gap-2.5">
         {model.todayEvents.map((e) => (
           <div key={e.key} className="flex min-w-0 items-start gap-2.5">
@@ -103,6 +132,7 @@ export default function FocusView({ model }: { model: FocusModel }) {
           </div>
         ))}
       </div>
+      {comingUp}
     </div>
   ) : null;
 

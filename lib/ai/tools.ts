@@ -59,6 +59,10 @@ function parseScope(project: string): ScopeRef {
 
 const NEUTRAL = "#a9a3b5";
 
+function eventNote(when: string, repeat?: string, lead?: number): string {
+  return [when, repeat || null, lead ? `lead ${lead}d` : null].filter(Boolean).join(" · ");
+}
+
 async function charterTone(
   project: string | undefined,
   cache: Map<string, { name: string; color: string }>,
@@ -201,7 +205,7 @@ async function previewRow(
       id: "NEW",
       title: action.title,
       lane: null,
-      note: [action.date, action.time].filter(Boolean).join(" "),
+      note: eventNote([action.date, action.time].filter(Boolean).join(" "), action.repeat, action.lead),
       charterName: tone.name,
       color: tone.color,
     };
@@ -209,14 +213,21 @@ async function previewRow(
   if (action.kind === "update_event") {
     const existing = (await listEvents({})).find((e) => e.id === action.id);
     const tone = await charterTone(action.scope ?? existing?.scope, cache);
+    const repeat = action.repeat ?? existing?.repeat;
     return {
       kind: action.kind,
       id: action.id,
       title: action.title ?? existing?.title ?? action.id,
       lane: null,
       note: action.done
-        ? "mark done"
-        : [action.date ?? existing?.date, action.time ?? existing?.time].filter(Boolean).join(" "),
+        ? repeat
+          ? "advance to next occurrence"
+          : "mark done"
+        : eventNote(
+            [action.date ?? existing?.date, action.time ?? existing?.time].filter(Boolean).join(" "),
+            repeat,
+            action.lead ?? existing?.lead,
+          ),
       charterName: tone.name,
       color: tone.color,
     };
@@ -544,6 +555,8 @@ export const toolImpls = {
     note?: string;
     scope?: string;
     action?: string;
+    repeat?: string;
+    lead?: number;
   }): Promise<CalendarEvent> {
     if (!input.date) throw new Error("createEvent requires a date (YYYY-MM-DD)");
     if (!input.title) throw new Error("createEvent requires a title");
@@ -558,6 +571,8 @@ export const toolImpls = {
     note?: string;
     scope?: string;
     action?: string;
+    repeat?: string;
+    lead?: number;
     done?: boolean;
   }): Promise<CalendarEvent> {
     if (!input.id) throw new Error("updateEvent requires an id");

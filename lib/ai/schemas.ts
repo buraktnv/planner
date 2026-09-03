@@ -1,6 +1,9 @@
 import { z, type ZodRawShape } from "zod";
 import type { TaskLane } from "../core/types";
 
+/** "" is accepted because the review modal's cleared select sends it, and the writer reads it as "no repeat". */
+const eventRepeat = z.enum(["yearly", "monthly", "weekly", ""]).optional();
+
 const baseShapes = {
   list_projects: {},
   list_areas: {},
@@ -73,6 +76,8 @@ const baseShapes = {
     note: z.string().optional(),
     scope: z.string().optional(),
     action: z.string().optional(),
+    repeat: eventRepeat,
+    lead: z.number().int().min(0).max(999).optional(),
   },
   update_event: {
     id: z.string(),
@@ -82,6 +87,8 @@ const baseShapes = {
     note: z.string().optional(),
     scope: z.string().optional(),
     action: z.string().optional(),
+    repeat: eventRepeat,
+    lead: z.number().int().min(0).max(999).optional(),
     done: z.boolean().optional(),
   },
   get_daily: {},
@@ -264,9 +271,9 @@ export const toolDescriptions: Record<ToolName, string> = {
   list_events:
     "List calendar events, optionally limited to an ISO date range (from/to, inclusive).",
   create_event:
-    "Create a calendar event on an ISO date. time is free text up to 12 characters, scope is a project slug or area:<slug> and is optional, action is what still needs doing before the event.",
+    "Create a calendar event on an ISO date. time is free text up to 12 characters, scope is a project slug or area:<slug> and is optional, action is what still needs doing before the event. repeat makes it recur from the date given — a birthday is yearly; put the birth year in note, since ticking a repeating event advances its date to the next occurrence. lead is how many days before the date it should surface in Today and in context: pair it with action for anything that must be done ahead, like a photoshoot three weeks before a passport appointment. A routine is a habit or rhythm, never a repeating event.",
   update_event:
-    "Update a calendar event (date, title, time, note, scope, action, done). Pass an empty string to clear time, note, scope or action.",
+    "Update a calendar event (date, title, time, note, scope, action, repeat, lead, done). Pass an empty string to clear time, note, scope, action or repeat, and 0 to clear lead. Marking a repeating event done advances it to its next occurrence instead of closing it.",
   get_daily:
     "Get the daily habits, weekly rhythms, prepped meals, grocery list and the raw activity log.",
   log_daily:

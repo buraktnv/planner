@@ -1,10 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { CalendarEvent } from "./types";
+import type { CalendarEvent, EventRepeat } from "./types";
 import { calendarPath } from "./paths";
 import { appendJournal } from "./journal";
 import { commitData } from "./git";
 import { withDataLock } from "./locks";
+import { advancedAnchor, EVENT_REPEATS, isEventRepeat, LEAD_MAX, occurrencesBetween } from "./recurrence";
+import { isoToday } from "../ui/momentum";
 
 export class CalendarParseError extends Error {
   constructor(message: string) {
@@ -17,7 +19,8 @@ const EVENT_PREFIX_RE = /^- \[( |x)\] (.*)$/;
 const EVENT_ID_RE = /^E-\d{3,}$/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SCOPE_RE = /^(area:)?[a-z0-9][a-z0-9-]*$/;
-const EVENT_FIELD_KEYS = ["time", "note", "scope", "action"] as const;
+const EVENT_FIELD_KEYS = ["time", "note", "scope", "action", "repeat", "lead"] as const;
+const LEAD_RE = /^[1-9]\d{0,2}d$/;
 const TIME_MAX = 12;
 
 type EventFieldKey = (typeof EVENT_FIELD_KEYS)[number];
@@ -87,17 +90,42 @@ export function parseEvents(raw: string): CalendarEvent[] {
       if (event[key] !== undefined) {
         throw new CalendarParseError(`Line ${lineNo}: event ${id} repeats the ${key}: field: ${line}`);
       }
-      if (key === "time" && value.length > TIME_MAX) {
-        throw new CalendarParseError(
-          `Line ${lineNo}: event ${id} has a time: longer than ${TIME_MAX} characters: ${value}`,
-        );
+      switch (key) {
+        case "time":
+          if (value.length > TIME_MAX) {
+            throw new CalendarParseError(
+              `Line ${lineNo}: event ${id} has a time: longer than ${TIME_MAX} characters: ${value}`,
+            );
+          }
+          event.time = value;
+          break;
+        case "scope":
+          if (!SCOPE_RE.test(value)) {
+            throw new CalendarParseError(
+              `Line ${lineNo}: event ${id} has an invalid scope "${value}"; expected <slug> or area:<slug>`,
+            );
+          }
+          event.scope = value;
+          break;
+        case "repeat":
+          if (!isEventRepeat(value)) {
+            throw new CalendarParseError(
+              `Line ${lineNo}: event ${id} has an invalid repeat "${value}"; expected one of: ${EVENT_REPEATS.join(", ")}`,
+            );
+          }
+          event.repeat = value;
+          break;
+        case "lead":
+          if (!LEAD_RE.test(value)) {
+            throw new CalendarParseError(
+              `Line ${lineNo}: event ${id} has an invalid lead "${value}"; expected 1–${LEAD_MAX} days as e.g. lead:21d`,
+            );
+          }
+          event.lead = parseInt(value, 10);
+          break;
+        default:
+          event[key] = value;
       }
-      if (key === "scope" && !SCOPE_RE.test(value)) {
-        throw new CalendarParseError(
-          `Line ${lineNo}: event ${id} has an invalid scope "${value}"; expected <slug> or area:<slug>`,
-        );
-      }
-      event[key] = value;
     }
 
     events.push(event);
@@ -123,6 +151,8 @@ export function serializeEvents(events: CalendarEvent[]): string {
     if (e.note) fields.push(`note:${e.note}`);
     if (e.scope) fields.push(`scope:${e.scope}`);
     if (e.action) fields.push(`action:${e.action}`);
+    if (e.repeat) fields.push(`repeat:${e.repeat}`);
+    if (e.lead) fields.push(`lead:${e.lead}d`);
     const tail = fields.length ? ` | ${fields.join(" | ")}` : "";
     return `- [${e.done ? "x" : " "}] ${e.id} | ${e.date} | ${e.title}${tail}`;
   });
@@ -161,6 +191,24 @@ function cleanValue(key: EventFieldKey, value: string | undefined): string | und
   return trimmed;
 }
 
+function cleanRepeat(value: string | undefined): EventRepeat | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (trimmed === "") return undefined;
+  if (!isEventRepeat(trimmed)) {
+    throw new Error(`Invalid repeat "${value}"; expected one of: ${EVENT_REPEATS.join(", ")}`);
+  }
+  return trimmed;
+}
+
+function cleanLead(value: number | undefined): number | undefined {
+  if (value === undefined || value === 0) return undefined;
+  if (!Number.isInteger(value) || value < 1 || value > LEAD_MAX) {
+    throw new Error(`Invalid lead ${value}; expected a whole number of days from 1 to ${LEAD_MAX}`);
+  }
+  return value;
+}
+
 function cleanDate(date: string): string {
   const trimmed = date.trim();
   if (!ISO_DATE_RE.test(trimmed)) {
@@ -191,9 +239,12 @@ export async function listEvents(range?: { from?: string; to?: string }): Promis
   }
   const events = sortEvents(parseEvents(raw));
   if (!range) return events;
-  return events.filter(
-    (e) => (!range.from || e.date >= range.from) && (!range.to || e.date <= range.to),
-  );
+  return events.filter((e) => {
+    if (e.repeat) {
+      return !range.to || occurrencesBetween(e, range.from ?? e.date, range.to).length > 0;
+    }
+    return (!range.from || e.date >= range.from) && (!range.to || e.date <= range.to);
+  });
 }
 
 export function addEvent(
@@ -209,6 +260,8 @@ async function addEventUnlocked(input: {
   note?: string;
   scope?: string;
   action?: string;
+  repeat?: string;
+  lead?: number;
   done?: boolean;
 }): Promise<CalendarEvent> {
   const events = await listEvents();
@@ -221,6 +274,8 @@ async function addEventUnlocked(input: {
     note: cleanValue("note", input.note),
     scope: cleanValue("scope", input.scope),
     action: cleanValue("action", input.action),
+    repeat: cleanRepeat(input.repeat),
+    lead: cleanLead(input.lead),
   };
   await writeEvents([...events, event]);
   await appendJournal(scopeSlugOf(event.scope), `${event.id} event added: ${event.title}`);
@@ -243,8 +298,11 @@ async function updateEventUnlocked(
     note?: string;
     scope?: string;
     action?: string;
+    repeat?: string;
+    lead?: number;
     done?: boolean;
   },
+  today: string = isoToday(),
 ): Promise<CalendarEvent> {
   const events = await listEvents();
   const idx = events.findIndex((e) => e.id === id);
@@ -256,10 +314,25 @@ async function updateEventUnlocked(
   if (patch.note !== undefined) next.note = cleanValue("note", patch.note);
   if (patch.scope !== undefined) next.scope = cleanValue("scope", patch.scope);
   if (patch.action !== undefined) next.action = cleanValue("action", patch.action);
-  if (patch.done !== undefined) next.done = patch.done;
+  if (patch.repeat !== undefined) next.repeat = cleanRepeat(patch.repeat);
+  if (patch.lead !== undefined) next.lead = cleanLead(patch.lead);
+  let advanced = false;
+  if (patch.done !== undefined) {
+    if (patch.done && next.repeat) {
+      next.date = advancedAnchor(next, today);
+      next.done = false;
+      advanced = true;
+    } else {
+      next.done = patch.done;
+    }
+  }
   events[idx] = next;
   await writeEvents(events);
-  const message = patch.done === true ? `${id} event done` : `${id} event updated`;
+  const message = advanced
+    ? `${id} event advanced to ${next.date}`
+    : patch.done === true
+      ? `${id} event done`
+      : `${id} event updated`;
   await appendJournal(scopeSlugOf(next.scope), message);
   await commitData(`${message} (${next.date})`);
   return next;

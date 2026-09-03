@@ -68,6 +68,8 @@ export default function Composer({
   const [scopeMilestones, setScopeMilestones] = useState<string[]>([]);
   const [time, setTime] = useState("");
   const [note, setNote] = useState("");
+  const [repeat, setRepeat] = useState("");
+  const [lead, setLead] = useState("");
   const [scopeKey, setScopeKey] = useState<string>(
     prefill?.scopeKey ?? (kind === "event" ? "" : (charters[0]?.key ?? "")),
   );
@@ -139,6 +141,8 @@ export default function Composer({
             title: title.trim(),
             ...(time.trim() ? { time: time.trim() } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
+            ...(repeat ? { repeat } : {}),
+            ...(Number(lead) > 0 ? { lead: Math.floor(Number(lead)) } : {}),
             ...(scopeType && scopeSlug
               ? { scope: scopeType === "area" ? `area:${scopeSlug}` : scopeSlug }
               : {}),
@@ -381,6 +385,33 @@ export default function Composer({
               placeholder="bring photos"
               className="mb-[18px] w-full rounded-[13px] border border-edge bg-bg px-3.5 py-[11px] text-[13px] outline-none placeholder:text-faint"
             />
+            <div className="mb-[18px] grid grid-cols-2 gap-3">
+              <div>
+                <FieldLabel>REPEATS</FieldLabel>
+                <select
+                  value={repeat}
+                  onChange={(e) => setRepeat(e.target.value)}
+                  className="w-full rounded-[13px] border border-edge bg-bg px-3.5 py-[11px] font-mono text-[12.5px] outline-none"
+                >
+                  <option value="">never</option>
+                  <option value="yearly">yearly</option>
+                  <option value="monthly">monthly</option>
+                  <option value="weekly">weekly</option>
+                </select>
+              </div>
+              <div>
+                <FieldLabel>SURFACE DAYS BEFORE</FieldLabel>
+                <input
+                  value={lead}
+                  onChange={(e) => setLead(e.target.value)}
+                  type="number"
+                  min={0}
+                  max={999}
+                  placeholder="0"
+                  className="w-full rounded-[13px] border border-edge bg-bg px-3.5 py-[11px] font-mono text-[12.5px] outline-none placeholder:text-faint"
+                />
+              </div>
+            </div>
           </>
         )}
 

@@ -7,12 +7,15 @@ import NewButton from "@/components/momentum/new-button";
 
 export const dynamic = "force-dynamic";
 
-function noteFor(events: number, dated: number, needsAction: number): string {
+function noteFor(events: number, dated: number, needsAction: number, comingUp: number): string {
   if (events === 0 && dated === 0) {
     return "Nothing is dated. Deadlines only exist once you write them down.";
   }
   if (needsAction > 0) {
     return `${needsAction} ${needsAction === 1 ? "event needs" : "events need"} something from you before the day arrives.`;
+  }
+  if (comingUp > 0) {
+    return `${comingUp} ${comingUp === 1 ? "event is" : "events are"} close enough to start preparing for.`;
   }
   return `${events} ${events === 1 ? "event" : "events"} and ${dated} dated ${
     dated === 1 ? "task" : "tasks"
@@ -33,7 +36,7 @@ export default async function CalendarPage() {
       </div>
 
       <AssistantNote className="mb-4">
-        {noteFor(model.eventCount, model.datedCount, model.needsAction.length)}
+        {noteFor(model.eventCount, model.datedCount, model.needsAction.length, model.comingUp.length)}
       </AssistantNote>
 
       <CalendarView model={model} />
