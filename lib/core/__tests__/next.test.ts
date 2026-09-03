@@ -27,6 +27,43 @@ afterEach(async () => {
   await fs.rm(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 120 });
 });
 
+describe("rankOpenTasks", () => {
+  it("orders one charter's open tasks by the same tiers, blocked last, done excluded", async () => {
+    const { rankOpenTasks } = await import("../next");
+    const charter = {
+      id: "alpha",
+      name: "Alpha",
+      type: "project" as const,
+      status: "active" as const,
+      priority: 1,
+      created: "2026-08-01",
+      updated: "2026-08-01",
+      why: "",
+      mvpScope: [],
+      parkingLot: [],
+    };
+    const t = (id: string, extra: Record<string, unknown>) => ({
+      id,
+      title: id,
+      size: "M" as const,
+      done: false,
+      section: "backlog" as const,
+      parentId: null,
+      ...extra,
+    });
+    const tasks = [
+      t("T-001", { section: "in-progress" }),
+      t("T-002", { due: "2026-01-01", waitsOn: "T-005" }),
+      t("T-003", { due: "2026-01-01" }),
+      t("T-004", { done: true, section: "done" }),
+      t("T-005", {}),
+      t("T-006", { due: "2999-01-01", size: "S" }),
+    ];
+    const ids = rankOpenTasks(tasks, charter, "2026-09-03").map((x) => x.id);
+    expect(ids).toEqual(["T-003", "T-006", "T-001", "T-005", "T-002"]);
+  });
+});
+
 describe("getNextActions", () => {
   it("ranks overdue, due-soon, in-progress then backlog by priority and size", async () => {
     const { createCharter, addTask, updateTask } = await import("../store");

@@ -29,6 +29,27 @@ afterEach(async () => {
 });
 
 describe("routine tools", () => {
+  it("hands the model only the last 28 days of the log", async () => {
+    const { toolImpls } = await import("../tools");
+    const { shiftIso, isoToday } = await import("@/lib/ui/momentum");
+    const today = isoToday();
+    await fs.mkdir(path.join(tmp, "daily"), { recursive: true });
+    await fs.writeFile(path.join(tmp, "daily", "habits.md"), "- H-001 | Walk | goal:1\n");
+    await fs.writeFile(
+      path.join(tmp, "daily", "log.md"),
+      [
+        `- ${shiftIso(today, -40)} 09:00 | H-001 | +1`,
+        `- ${shiftIso(today, -28)} 09:00 | H-001 | +1`,
+        `- ${shiftIso(today, -27)} 09:00 | H-001 | +1`,
+        `- ${today} 09:00 | H-001 | +1`,
+        "",
+      ].join("\n"),
+    );
+    const data = await toolImpls.getDaily();
+    expect(data.logDays).toBe(28);
+    expect(data.log.map((e) => e.date)).toEqual([shiftIso(today, -27), today]);
+  });
+
   it("creates a habit that /daily can count", async () => {
     const { toolImpls } = await import("../tools");
     const habit = await toolImpls.createHabit({ name: "Focus blocks", goal: 4, unit: "× 25 min" });

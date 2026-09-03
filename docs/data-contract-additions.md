@@ -64,6 +64,10 @@ One file at the data root, `calendar.md`. No sections, one event per line, kept 
 - **Views:** `/calendar` merges events and task `due:` dates into one three-week grid (square dots in the scope colour for events, round dots for tasks), a "Needs action" panel, a "Behind" group for passed open events and overdue tasks, and an "Up next" agenda of the next 14 days with events before due tasks. The Focus page shows today's open events above the plan.
 - **AI:** `list_events`, `create_event`, `update_event` (both take `repeat` and `lead`); `buildSystemContext` includes `# Calendar (next 14 days, plus anything inside its lead window)`, each line dated by its next occurrence.
 
+## Check-ins
+
+A check-in (the `Check-in` chat mode) leaves two kinds of record and no transcript: one to three knowledge notes tagged `checkin` first, each scoped explicitly to an area (`scope: [area:health]`), and one journal line under scope `life` whose message starts `check-in: `. Nothing else marks a check-in; the tag is what groups them on `/areas/<slug>/docs` and the journal line is what the next check-in reads back.
+
 ## Daily — habits, rhythms, meals, groceries
 
 A `daily/` directory at the data root. Four small mutable definition lists plus one append-only log, so counts and streaks stay honest.

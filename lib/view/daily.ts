@@ -1,8 +1,8 @@
-import type { DailyData, DailyLogEntry } from "@/lib/core/types";
-import { countIn, countOnDay } from "@/lib/core/daily";
+import type { DailyData } from "@/lib/core/types";
+import { countIn, countOnDay, habitStreak } from "@/lib/core/daily";
 
-export { habitDaysMet, servingsEaten } from "@/lib/core/daily";
-import { isoToday, shiftIso, weekRange } from "@/lib/ui/momentum";
+export { habitDaysMet, habitStreak, servingsEaten } from "@/lib/core/daily";
+import { isoToday, weekRange } from "@/lib/ui/momentum";
 
 export interface HabitRow {
   id: string;
@@ -65,18 +65,6 @@ export interface DailyModel {
 }
 
 const HABIT_COLORS = ["#8fbfc9", "#7d95dd", "#63b894", "#d9a463", "#c48bc9", "#c9857a"];
-
-export function habitStreak(
-  log: DailyLogEntry[],
-  id: string,
-  goal: number,
-  today: string,
-): number {
-  const offset = countOnDay(log, id, today) >= goal ? 0 : 1;
-  let n = 0;
-  while (n < 400 && countOnDay(log, id, shiftIso(today, -(offset + n))) >= goal) n += 1;
-  return n;
-}
 
 export function buildDaily(data: DailyData, today: string = isoToday()): DailyModel {
   const week = weekRange(today);

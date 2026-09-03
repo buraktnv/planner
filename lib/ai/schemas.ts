@@ -275,7 +275,7 @@ export const toolDescriptions: Record<ToolName, string> = {
   update_event:
     "Update a calendar event (date, title, time, note, scope, action, repeat, lead, done). Pass an empty string to clear time, note, scope, action or repeat, and 0 to clear lead. Marking a repeating event done advances it to its next occurrence instead of closing it.",
   get_daily:
-    "Get the daily habits, weekly rhythms, prepped meals, grocery list and the raw activity log.",
+    "Get the daily habits, weekly rhythms, prepped meals, grocery list and the raw activity log for the last 28 days (logDays says how many).",
   log_daily:
     "Count one tick for a habit (H-) or a rhythm (R-). When the goal for today or the week is already met the tick wraps around and resets the count.",
   create_habit:

@@ -20,6 +20,7 @@ export interface ClaudeSdkChatOptions {
   model?: string;
   effort?: ProviderEffort;
   revise?: RevisePayload;
+  digest?: string;
 }
 
 type StreamPart =
@@ -168,8 +169,8 @@ function buildMcpServer() {
 }
 
 export async function claudeSdkChat(opts: ClaudeSdkChatOptions): Promise<Response> {
-  const { messages, focus, mode, model = "sonnet", effort, revise } = opts;
-  const system = await buildSystemContext(focus, mode, recallQuery(messages), revise);
+  const { messages, focus, mode, model = "sonnet", effort, revise, digest } = opts;
+  const system = await buildSystemContext(focus, mode, recallQuery(messages), revise, digest);
   const prompt = formatTranscript(messages) || "Hello";
 
   const server = buildMcpServer();

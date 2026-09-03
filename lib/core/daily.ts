@@ -330,6 +330,18 @@ export function countOnDay(log: DailyLogEntry[], id: string, date: string): numb
   return countIn(log, id, date, date);
 }
 
+export function habitStreak(
+  log: DailyLogEntry[],
+  id: string,
+  goal: number,
+  today: string,
+): number {
+  const offset = countOnDay(log, id, today) >= goal ? 0 : 1;
+  let n = 0;
+  while (n < 400 && countOnDay(log, id, shiftIso(today, -(offset + n))) >= goal) n += 1;
+  return n;
+}
+
 export function habitDaysMet(
   log: DailyLogEntry[],
   habits: Habit[],

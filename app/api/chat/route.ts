@@ -9,6 +9,7 @@ import { toolSchemas, toolDescriptions, type ToolName } from "@/lib/ai/schemas";
 import { toolImplMap } from "@/lib/ai/tool-map";
 import { isChatMode, type ChatMode } from "@/lib/ai/modes";
 import { parseRevise, toolNamesForRevise } from "@/lib/ai/revise";
+import { parseDigest } from "@/lib/ai/digest";
 import { isProviderEffort } from "@/lib/ui/providers";
 import type { ProviderEffort } from "@/lib/core/types";
 
@@ -27,6 +28,12 @@ interface ChatBody {
    * so it is sent once and never persisted into the transcript.
    */
   revise?: unknown;
+  /**
+   * The client windows long transcripts and sends a digest of what it left
+   * out. Prompt text, like revise, so it reaches both provider paths; never a
+   * message, or the subscription path would re-send it for ever.
+   */
+  digest?: unknown;
 }
 
 const tools: Record<string, Tool> = {};
@@ -92,6 +99,7 @@ export async function POST(req: NextRequest) {
     }
     revise = parsed.payload;
   }
+  const digest = parseDigest(body.digest);
 
   if (profile.type === "claude-subscription") {
     return claudeSdkChat({
@@ -101,10 +109,17 @@ export async function POST(req: NextRequest) {
       model: profile.model,
       effort: effort ?? profile.effort,
       revise,
+      digest,
     });
   }
 
-  const system = await buildSystemContext(body.focus, mode, recallQuery(body.messages), revise);
+  const system = await buildSystemContext(
+    body.focus,
+    mode,
+    recallQuery(body.messages),
+    revise,
+    digest,
+  );
   const resolved = resolveModel(profile, effort);
 
   const result = streamText({
