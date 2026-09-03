@@ -1,6 +1,7 @@
 import type { DailyData, DailyLogEntry } from "./types";
-import { countIn, countOnDay, habitStreak } from "./daily";
-import { parseIso, shiftIso, weekRange } from "../ui/momentum";
+import { countIn, countOnDay, getDaily, habitStreak } from "./daily";
+import { getInsights, type Insights } from "./insights";
+import { isoToday, parseIso, shiftIso, weekRange } from "../ui/momentum";
 
 export interface WeekCell {
   weekStart: string;
@@ -17,6 +18,12 @@ export interface HabitTrend {
   streak: number;
   lastLogged: string | null;
   daysSinceLogged: number | null;
+  /** Mean adherence (% of days met) over the last four complete weeks. */
+  recent4: number;
+  /** Mean adherence over the complete weeks before those. */
+  prior4: number;
+  /** Least-squares slope of weekly adherence, in percentage points per week, over complete weeks. */
+  slope: number;
 }
 
 export interface RhythmWeek {
@@ -31,6 +38,25 @@ export interface RhythmTrend {
   name: string;
   per: number;
   weeks: RhythmWeek[];
+}
+
+export interface ProjectThroughput {
+  slug: string;
+  name: string;
+  type: "project" | "area";
+  open: number;
+  doneTotal: number;
+  lastActivity: string | null;
+}
+
+export interface LifeTrends {
+  today: string;
+  weeks: string[];
+  habits: HabitTrend[];
+  rhythms: RhythmTrend[];
+  throughput: { weekStart: string; done: number; created: number }[];
+  projects: ProjectThroughput[];
+  stalled: { slug: string; name: string; days: number }[];
 }
 
 export const TREND_WEEKS = 8;
@@ -55,6 +81,25 @@ function lastLoggedDate(log: DailyLogEntry[], id: string): string | null {
   return last;
 }
 
+function mean(values: number[]): number {
+  return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+}
+
+/** Least-squares slope of `values` against their index; 0 when there is nothing to fit. */
+export function slopeOf(values: number[]): number {
+  const n = values.length;
+  if (n < 2) return 0;
+  const xMean = (n - 1) / 2;
+  const yMean = mean(values);
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < n; i += 1) {
+    num += (i - xMean) * (values[i] - yMean);
+    den += (i - xMean) ** 2;
+  }
+  return den === 0 ? 0 : num / den;
+}
+
 export function habitTrends(data: DailyData, today: string, weeks = TREND_WEEKS): HabitTrend[] {
   const starts = weekStarts(today, weeks);
   return data.habits.map((h) => {
@@ -68,6 +113,9 @@ export function habitTrends(data: DailyData, today: string, weeks = TREND_WEEKS)
       }
       return { weekStart, met, days, partial };
     });
+    const complete = cells.filter((c) => !c.partial).map((c) => (c.met / c.days) * 100);
+    const recent = complete.slice(-DIGEST_WEEKS);
+    const prior = complete.slice(0, Math.max(0, complete.length - DIGEST_WEEKS));
     const lastLogged = lastLoggedDate(data.log, h.id);
     return {
       id: h.id,
@@ -77,6 +125,9 @@ export function habitTrends(data: DailyData, today: string, weeks = TREND_WEEKS)
       streak: habitStreak(data.log, h.id, h.goal, today),
       lastLogged,
       daysSinceLogged: lastLogged ? daysBetween(lastLogged, today) : null,
+      recent4: mean(recent),
+      prior4: mean(prior),
+      slope: slopeOf(complete),
     };
   });
 }
@@ -95,6 +146,23 @@ export function rhythmTrends(data: DailyData, today: string, weeks = TREND_WEEKS
   }));
 }
 
+export function buildLifeTrends(data: DailyData, insights: Insights, today: string): LifeTrends {
+  return {
+    today,
+    weeks: weekStarts(today, TREND_WEEKS),
+    habits: habitTrends(data, today),
+    rhythms: rhythmTrends(data, today),
+    throughput: insights.weeks,
+    projects: insights.perProject,
+    stalled: insights.stalled,
+  };
+}
+
+export async function getLifeTrends(now: Date = new Date()): Promise<LifeTrends> {
+  const [data, insights] = await Promise.all([getDaily(), getInsights(now)]);
+  return buildLifeTrends(data, insights, isoToday(now));
+}
+
 function ago(days: number | null): string {
   if (days === null) return "never logged";
   if (days === 0) return "logged today";
@@ -102,22 +170,42 @@ function ago(days: number | null): string {
   return `last logged ${days}d ago`;
 }
 
+function trendWord(slope: number): string {
+  const rounded = Math.round(slope);
+  if (rounded === 0) return "flat";
+  return `${rounded > 0 ? "+" : ""}${rounded} pts/wk`;
+}
+
 /**
  * Compact enough to sit in a system prompt: one line per habit and rhythm over
- * the last four weeks, the current week starred as partial. Capped by line
- * count, because a life with thirty habits is not a reason to spend a page.
+ * the last four weeks, the current week starred as partial, plus one line of
+ * task throughput and one of stalled charters when those are supplied. Capped
+ * by line count, because a life with thirty habits is not a reason to spend a
+ * page.
  */
 export function renderTrendsDigest(
-  trends: { habits: HabitTrend[]; rhythms: RhythmTrend[] },
+  trends: Pick<LifeTrends, "habits" | "rhythms"> & Partial<Pick<LifeTrends, "throughput" | "stalled">>,
   maxLines = 10,
 ): string {
   const lines: string[] = [];
+  if (trends.throughput?.some((w) => w.done > 0 || w.created > 0)) {
+    const cells = trends.throughput
+      .slice(-DIGEST_WEEKS)
+      .map((w, i, arr) => `${w.done}/${w.created}${i === arr.length - 1 ? "*" : ""}`)
+      .join(" ");
+    lines.push(`Tasks done/created, last ${DIGEST_WEEKS} wks: ${cells}`);
+  }
+  if (trends.stalled?.length) {
+    lines.push(`Stalled: ${trends.stalled.map((s) => `${s.name} (${s.days}d idle)`).join(", ")}`);
+  }
   for (const h of trends.habits) {
     const cells = h.weeks
       .slice(-DIGEST_WEEKS)
       .map((w) => `${w.met}/${w.days}${w.partial ? "*" : ""}`)
       .join(" ");
-    lines.push(`${h.id} ${h.name}: last ${DIGEST_WEEKS} wks ${cells} · streak ${h.streak} · ${ago(h.daysSinceLogged)}`);
+    lines.push(
+      `${h.id} ${h.name}: last ${DIGEST_WEEKS} wks ${cells} · streak ${h.streak} · trend ${trendWord(h.slope)} · ${ago(h.daysSinceLogged)}`,
+    );
   }
   for (const r of trends.rhythms) {
     const cells = r.weeks

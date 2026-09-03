@@ -37,5 +37,6 @@ export const toolImplMap: Record<ToolName, ImplFn> = {
   list_targets: (a) => toolImpls.listTargets(a as { project?: string }),
   list_components: (a) => toolImpls.listComponents(a as { project: string }),
   weekly_summary: () => toolImpls.weeklySummary(),
+  life_trends: () => toolImpls.lifeTrends(),
   propose_changes: toolImpls.proposeChanges as ImplFn,
 };

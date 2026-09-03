@@ -26,7 +26,7 @@ picked up automatically; an explicit `env` entry in the client config always win
 ## What is exposed
 
 Read tools: `list_projects`, `list_areas`, `get_context`, `list_events`, `get_daily`,
-`next_actions`, `weekly_summary`, `search_knowledge`, `read_note`, `read_task_detail`, `list_targets`.
+`next_actions`, `weekly_summary`, `life_trends`, `search_knowledge`, `read_note`, `read_task_detail`, `list_targets`.
 
 Write tools: `create_task`, `update_task`, `decompose_task`, `move_to_parking_lot`, `add_journal`,
 `create_event`, `update_event`, `log_daily`, `add_grocery`, `set_grocery`, `add_note`,

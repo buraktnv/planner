@@ -170,6 +170,7 @@ const baseShapes = {
   list_targets: { project: z.string().optional() },
   list_components: { project: z.string() },
   weekly_summary: {},
+  life_trends: {},
 } satisfies Record<string, ZodRawShape>;
 
 export const proposalActionSchema = z.discriminatedUnion("kind", [
@@ -309,6 +310,8 @@ export const toolDescriptions: Record<ToolName, string> = {
   list_components:
     "Read a project's system map: its components (knowledge notes on its canvas), what each one requires or is required by, what it triggers, and how much of its delegated work is done. Read this before changing a component — it says what must exist first.",
   weekly_summary: "Get insights and the last 7 days of journal digest.",
+  life_trends:
+    "Eight weeks of trend: per habit the weekly adherence, streak, slope in percentage points per week and days since last logged; per rhythm the count against its target by week; task throughput by week; open and done per charter; and charters idle for more than two weeks. Read this before saying how things are going, and project forward from the slope rather than from today alone.",
   propose_changes:
     "Propose a batch of changes without writing anything — tasks, events and knowledge notes. Returns a preview the user must Accept before it is applied. Use this for any set of writes; use the direct tools only for a single, explicitly requested change.",
 };
