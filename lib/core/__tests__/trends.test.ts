@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { DailyData, DailyLogEntry } from "../types";
-import { habitTrends, renderTrendsDigest, rhythmTrends, weekStarts } from "../trends";
+import { shiftIso } from "../../ui/momentum";
+import type { Insights } from "../insights";
+import {
+  buildLifeTrends,
+  habitTrends,
+  renderTrendsDigest,
+  rhythmTrends,
+  slopeOf,
+  weekStarts,
+} from "../trends";
 
 function log(rows: [string, string, number | "reset"][]): DailyLogEntry[] {
   return rows.map(([date, id, delta]) => ({ date, time: "09:00", id, delta }));
@@ -66,6 +75,27 @@ describe("habitTrends", () => {
   });
 });
 
+describe("slopeOf and adherence windows", () => {
+  it("fits a line through weekly values", () => {
+    expect(slopeOf([50, 50, 50])).toBe(0);
+    expect(slopeOf([0, 10, 20, 30])).toBe(10);
+    expect(slopeOf([30, 20, 10, 0])).toBe(-10);
+    expect(slopeOf([42])).toBe(0);
+    expect(slopeOf([])).toBe(0);
+  });
+
+  it("splits complete weeks into the recent four and the ones before, ignoring the partial week", () => {
+    const rows: [string, string, number][] = [];
+    for (let i = 0; i < 28; i += 1) rows.push([shiftIso(TODAY, -4 - i), "H-001", 1]);
+    const d = data({ habits: [{ id: "H-001", name: "Walk", goal: 1 }], log: log(rows) });
+    const [walk] = habitTrends(d, TODAY);
+    expect(walk.weeks.filter((w) => !w.partial)).toHaveLength(7);
+    expect(walk.recent4).toBe(100);
+    expect(walk.prior4).toBe(0);
+    expect(walk.slope).toBeGreaterThan(0);
+  });
+});
+
 describe("rhythmTrends", () => {
   it("counts a rhythm per Mon–Sun week against its target", () => {
     const d = data({
@@ -94,8 +124,26 @@ describe("renderTrendsDigest", () => {
     const text = renderTrendsDigest({ habits: habitTrends(d, TODAY), rhythms: rhythmTrends(d, TODAY) });
     const lines = text.split("\n");
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toBe("H-001 Walk: last 4 wks 0/7 0/7 0/7 1/4* · streak 0 · last logged 2d ago");
+    expect(lines[0]).toBe(
+      "H-001 Walk: last 4 wks 0/7 0/7 0/7 1/4* · streak 0 · trend flat · last logged 2d ago",
+    );
     expect(lines[1]).toBe("R-001 Laundry: last 4 wks 0/3 0/3 0/3 0/3* (per week)");
+  });
+
+  it("puts throughput and stalled charters first when given the whole picture", () => {
+    const insights: Insights = {
+      weeks: weekStarts(TODAY, 8).map((weekStart, i) => ({ weekStart, done: i, created: 8 - i })),
+      perProject: [],
+      stalled: [{ slug: "old", name: "Old thing", days: 21 }],
+      balance: { projects: 0, areas: 0 },
+    };
+    const life = buildLifeTrends(data({ habits: [{ id: "H-001", name: "Walk", goal: 1 }] }), insights, TODAY);
+    expect(life.weeks).toHaveLength(8);
+    expect(life.throughput).toBe(insights.weeks);
+    const lines = renderTrendsDigest(life).split("\n");
+    expect(lines[0]).toBe("Tasks done/created, last 4 wks: 4/4 5/3 6/2 7/1*");
+    expect(lines[1]).toBe("Stalled: Old thing (21d idle)");
+    expect(lines[2]).toMatch(/^H-001 Walk/);
   });
 
   it("caps the number of lines and says how many were cut", () => {

@@ -42,6 +42,7 @@ import { fileProposal } from "../core/proposals";
 import { fileNote, type FileNoteResult } from "./file-note";
 import type { KnowledgeHit, KnowledgeNote } from "../core/types";
 import { getInsights, type Insights } from "../core/insights";
+import { getLifeTrends, type LifeTrends } from "../core/trends";
 import { getAbout } from "../core/store";
 import { appendJournal, readJournal } from "../core/journal";
 
@@ -827,6 +828,10 @@ export const toolImpls = {
       body: `${body}${body === "" ? "" : "\n\n"}![${alt}](${saved.ref})\n`,
     });
     return { ...saved, noteId: input.noteId };
+  },
+
+  async lifeTrends(): Promise<LifeTrends> {
+    return getLifeTrends();
   },
 
   async weeklySummary(): Promise<{

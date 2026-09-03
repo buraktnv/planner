@@ -73,7 +73,7 @@ describe("buildSystemContext without a focus", () => {
     expect(ctx).toContain("## Journal (last 7 days)");
     expect(ctx).toContain("- 09:12 [life] Mood: good");
     expect(ctx).toContain("## Habits and rhythms (last 8 weeks, current week starred)");
-    expect(ctx).toMatch(/H-001 Walk: last 4 wks .* · streak 2 · logged today/);
+    expect(ctx).toMatch(/H-001 Walk: last 4 wks .* · streak 2 · trend .* · logged today/);
     expect(ctx).toContain("Areas: area:health (Health)");
     expect(ctx).toContain("# Capture");
   });

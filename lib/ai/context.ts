@@ -3,7 +3,7 @@ import { readJournal, type JournalDay } from "../core/journal";
 import { listEvents } from "../core/calendar";
 import { daysUntil, isSurfaced, nextOccurrence } from "../core/recurrence";
 import { countIn, countOnDay, getDaily } from "../core/daily";
-import { habitTrends, renderTrendsDigest, rhythmTrends, TREND_WEEKS } from "../core/trends";
+import { getLifeTrends, renderTrendsDigest, TREND_WEEKS } from "../core/trends";
 import { rankOpenTasks } from "../core/next";
 import { knowledgeSection } from "../core/knowledge";
 import { isoToday, weekRange } from "../ui/momentum";
@@ -54,12 +54,8 @@ async function areasLine(): Promise<string> {
  * "how has my week been?" was answered from About and a habit count for today.
  */
 async function lifeSection(): Promise<string> {
-  const today = isoToday();
-  const [data, days] = await Promise.all([getDaily(), readJournal(7)]);
-  const trends = renderTrendsDigest({
-    habits: habitTrends(data, today),
-    rhythms: rhythmTrends(data, today),
-  });
+  const [life, days] = await Promise.all([getLifeTrends(), readJournal(7)]);
+  const trends = renderTrendsDigest(life);
   if (!trends && days.length === 0) return "";
   const trendsBlock = trends
     ? `\n\n## Habits and rhythms (last ${TREND_WEEKS} weeks, current week starred)\n${trends}`
