@@ -58,6 +58,8 @@ function parseScope(project: string): ScopeRef {
 }
 
 const NEUTRAL = "#a9a3b5";
+/** The raw log is append-only and grows for ever; the model gets a window of it. */
+const DAILY_LOG_DAYS = 28;
 
 function eventNote(when: string, repeat?: string, lead?: number): string {
   return [when, repeat || null, lead ? `lead ${lead}d` : null].filter(Boolean).join(" · ");
@@ -698,8 +700,10 @@ export const toolImpls = {
     return getNextActions();
   },
 
-  async getDaily(): Promise<DailyData> {
-    return getDaily();
+  async getDaily(): Promise<DailyData & { logDays: number }> {
+    const data = await getDaily();
+    const from = shiftIso(isoToday(), -(DAILY_LOG_DAYS - 1));
+    return { ...data, log: data.log.filter((e) => e.date >= from), logDays: DAILY_LOG_DAYS };
   },
 
   async logDaily(input: { id: string }): Promise<{ id: string; delta: number | "reset" }> {

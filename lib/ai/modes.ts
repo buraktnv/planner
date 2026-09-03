@@ -8,7 +8,7 @@ export interface ChatModeMeta {
   instruction: string;
 }
 
-export type ChatMode = "plan" | "straight" | "reflect" | "target";
+export type ChatMode = "plan" | "straight" | "reflect" | "target" | "checkin";
 
 export const CHAT_MODES: Record<ChatMode, ChatModeMeta> = {
   plan: {
@@ -50,9 +50,19 @@ export const CHAT_MODES: Record<ChatMode, ChatModeMeta> = {
     instruction:
       "Work backwards from the target. Show the pace maths. Say plainly if it is off track.",
   },
+  checkin: {
+    key: "checkin",
+    label: "Check-in",
+    color: "#c48bc9",
+    tint: "#f4e9f5",
+    ink: "#8a5a90",
+    opener: "How did today go? A few short questions, then I write down what should be kept.",
+    instruction:
+      'Check in on the day or the week. Ask two to four short questions, one per reply — energy, what moved, what slipped, anything that changed — and use the Life and Daily blocks below instead of asking for numbers already there. When the user says they are done, or after your fourth question, close the check-in in one reply: call add_note for one to three durable facts, each a single-line summary with scope set explicitly to one of the areas listed under Areas and tags ["checkin"], never scopeless; then call add_journal once with scope "life" and a message starting "check-in: " that sums the day up in one line. Say what you filed in one sentence. Do not create tasks unless asked.',
+  },
 };
 
-export const CHAT_MODE_KEYS: ChatMode[] = ["plan", "straight", "reflect", "target"];
+export const CHAT_MODE_KEYS: ChatMode[] = ["plan", "straight", "reflect", "target", "checkin"];
 
 export function isChatMode(value: unknown): value is ChatMode {
   return typeof value === "string" && (CHAT_MODE_KEYS as string[]).includes(value);

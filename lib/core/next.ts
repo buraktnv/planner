@@ -51,6 +51,23 @@ function compareActions(a: NextAction, b: NextAction, todayStr: string): number 
   return a.task.title.localeCompare(b.task.title);
 }
 
+/**
+ * One charter's open tasks in the order the assistant would recommend them —
+ * the same tiers as `getNextActions`, so a capped list in the system prompt
+ * shows the tasks that matter rather than the first thirty in the file.
+ */
+export function rankOpenTasks(
+  tasks: Task[],
+  charter: Charter,
+  todayStr: string = today(),
+): Task[] {
+  const actions: NextAction[] = tasks
+    .filter((t) => t.section !== "done" && !t.done)
+    .map((t) => ({ task: t, charter, blocked: isBlocked(t, tasks) }));
+  actions.sort((a, b) => compareActions(a, b, todayStr));
+  return actions.map((a) => a.task);
+}
+
 export async function getNextActions(
   limit = 10,
   todayStr: string = today(),

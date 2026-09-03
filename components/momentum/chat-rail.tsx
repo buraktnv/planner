@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { CHAT_MODES, CHAT_MODE_KEYS, type ChatMode } from "@/lib/ai/modes";
+import { windowMessages } from "@/lib/view/chat-window";
 import { toolNames, type Proposal, type ProposalApplyResult } from "@/lib/ai/schemas";
 import type { ProviderEffort, ProviderProfile, ProvidersFile } from "@/lib/core/types";
 import { isProviderEffort, nextEffort } from "@/lib/ui/providers";
@@ -185,6 +186,21 @@ export default function ChatRail({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: { profileId, focus, mode: mode ?? undefined, effort },
+      // The full transcript stays in state and in localStorage; only the wire
+      // payload is windowed, with a digest of what was left out.
+      prepareSendMessagesRequest: ({ id, messages: all, body, trigger, messageId }) => {
+        const windowed = windowMessages(all);
+        return {
+          body: {
+            ...body,
+            id,
+            trigger,
+            messageId,
+            messages: windowed.messages,
+            ...(windowed.digest ? { digest: windowed.digest } : {}),
+          },
+        };
+      },
     }),
   });
 
