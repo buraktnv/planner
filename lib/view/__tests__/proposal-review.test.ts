@@ -151,6 +151,20 @@ describe("applyEdit", () => {
     expect(d.rows[1].edited).toBe(false);
   });
 
+  it("stores lead as a number and drops it when emptied", () => {
+    const batch: ProposalAction[] = [{ kind: "create_event", date: "2026-09-24", title: "Passport" }];
+    let d = buildDraft(proposalOf(batch), "c");
+    d = applyEdit(d, 0, "lead", "21");
+    expect((d.rows[0].action as { lead?: number }).lead).toBe(21);
+    expect(validateAction(d.rows[0].action).ok).toBe(true);
+    d = applyEdit(d, 0, "lead", "");
+    expect("lead" in d.rows[0].action).toBe(false);
+    d = applyEdit(d, 0, "repeat", "yearly");
+    d = applyEdit(d, 0, "repeat", "");
+    expect((d.rows[0].action as { repeat?: string }).repeat).toBe("");
+    expect(validateAction(d.rows[0].action).ok).toBe(true);
+  });
+
   it("adds a due date to a task that had none", () => {
     let d = buildDraft(proposalOf(BATCH), "c");
     d = applyEdit(d, 1, "due", "2026-09-04");
@@ -327,6 +341,21 @@ describe("opaqueFieldsFor", () => {
 });
 
 describe("validateAction", () => {
+  it("rejects a negative or fractional lead and a cadence the calendar cannot hold", () => {
+    const bad = validateAction({ kind: "create_event", date: "2026-09-04", title: "x", lead: -1 });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.issues[0].key).toBe("lead");
+    expect(
+      validateAction({ kind: "create_event", date: "2026-09-04", title: "x", lead: 2.5 }).ok,
+    ).toBe(false);
+    expect(
+      validateAction({ kind: "create_event", date: "2026-09-04", title: "x", repeat: "daily" }).ok,
+    ).toBe(false);
+    expect(
+      validateAction({ kind: "update_event", id: "E-001", repeat: "", lead: 0 }).ok,
+    ).toBe(true);
+  });
+
   it("accepts a well-formed action", () => {
     expect(validateAction(BATCH[1]).ok).toBe(true);
   });

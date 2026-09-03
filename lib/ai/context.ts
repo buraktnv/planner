@@ -1,12 +1,15 @@
 import { getAbout, getCharter, listTasks } from "../core/store";
 import { readJournal } from "../core/journal";
 import { listEvents } from "../core/calendar";
+import { daysUntil, isSurfaced, nextOccurrence } from "../core/recurrence";
 import { countIn, countOnDay, getDaily } from "../core/daily";
 import { knowledgeSection } from "../core/knowledge";
 import { isoToday, weekRange } from "../ui/momentum";
 import type { Task } from "../core/types";
 import { CHAT_MODES, type ChatMode } from "./modes";
 import { renderRevisePrompt, type RevisePayload } from "./revise";
+
+const CALENDAR_DAYS = 14;
 
 function openTasks(tasks: Task[]): Task[] {
   return tasks.filter((t) => !t.done && t.section !== "done");
@@ -19,19 +22,26 @@ function isoShift(days: number): string {
 }
 
 async function calendarSection(): Promise<string> {
-  const events = await listEvents({ from: isoShift(0), to: isoShift(14) });
-  const open = events.filter((e) => !e.done);
-  const lines = open.map((e) => {
-    const bits = [e.time ? `at ${e.time}` : null, e.scope ? `scope ${e.scope}` : null]
+  const today = isoShift(0);
+  const horizon = isoShift(CALENDAR_DAYS);
+  const upcoming = (await listEvents())
+    .filter((e) => !e.done)
+    .map((e) => ({ e, occurs: nextOccurrence(e, today) }))
+    .filter(({ e, occurs }) => (occurs >= today && occurs <= horizon) || isSurfaced(e, today))
+    .sort((a, b) => a.occurs.localeCompare(b.occurs) || a.e.id.localeCompare(b.e.id));
+  const lines = upcoming.map(({ e, occurs }) => {
+    const bits = [e.time ? `at ${e.time}` : null, e.scope ? `scope ${e.scope}` : null, e.repeat ?? null]
       .filter(Boolean)
       .join(", ");
     const tail = [bits ? `(${bits})` : null, e.note ? `note: ${e.note}` : null, e.action ? `ACTION NEEDED: ${e.action}` : null]
       .filter(Boolean)
       .join(" — ");
-    return `- ${e.date} ${e.id} ${e.title}${tail ? ` ${tail}` : ""}`;
+    const days = daysUntil(occurs, today);
+    const when = days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+    return `- ${occurs} (${when}) ${e.id} ${e.title}${tail ? ` ${tail}` : ""}`;
   });
   const body = lines.length ? lines.join("\n") : "(no events)";
-  return `\n\n# Calendar (next 14 days)\n${body}`;
+  return `\n\n# Calendar (next ${CALENDAR_DAYS} days, plus anything inside its lead window)\n${body}`;
 }
 
 async function dailySection(): Promise<string> {

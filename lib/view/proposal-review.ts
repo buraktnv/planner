@@ -83,7 +83,7 @@ export function setAllSelected(draft: ReviewDraft, selected: boolean): ReviewDra
   };
 }
 
-const NUMERIC_KEYS = new Set(["goal", "per", "servings"]);
+const NUMERIC_KEYS = new Set(["goal", "per", "servings", "lead"]);
 
 /**
  * Never throws. A field editor is a text input the user can put anything in,
@@ -106,7 +106,8 @@ export function applyEdit(
       else delete next[key];
     } else if (NUMERIC_KEYS.has(key)) {
       const n = Number(value);
-      next[key] = value.trim() === "" || Number.isNaN(n) ? value : n;
+      if (value.trim() === "" && !isRequired(row.kind, key)) delete next[key];
+      else next[key] = value.trim() === "" || Number.isNaN(n) ? value : n;
     } else if (value === "" && !isRequired(row.kind, key)) {
       // An empty optional is absent, not the empty string — except where the
       // tool layer reads "" as "clear this field", which is its own meaning.
@@ -127,7 +128,7 @@ export function applyEdit(
  * `waitsOn`, `target` and `note` read an empty string as "clear it" in the tool
  * layer, so emptying one of those must survive as "" rather than vanishing.
  */
-const CLEARABLE = new Set(["waitsOn", "target", "note", "time", "action", "scope", "source"]);
+const CLEARABLE = new Set(["waitsOn", "target", "note", "time", "action", "scope", "source", "repeat"]);
 
 function sameAction(a: ProposalAction, b: ProposalAction): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
@@ -188,6 +189,7 @@ export interface FieldDescriptor {
 const SIZES = ["S", "M", "L"] as const;
 const LANES = ["quick", "deep", "wait", "some"] as const;
 const SECTIONS = ["backlog", "in-progress", "done"] as const;
+const REPEATS = ["yearly", "monthly", "weekly"] as const;
 
 /**
  * Hand-written rather than introspected out of zod: introspection yields no
@@ -237,6 +239,8 @@ const FIELDS = {
     { key: "note", label: "Note", type: "text", required: false },
     { key: "scope", label: "Scope", type: "text", required: false, placeholder: "area:admin" },
     { key: "action", label: "Needs doing first", type: "text", required: false },
+    { key: "repeat", label: "Repeats", type: "select", options: REPEATS, required: false },
+    { key: "lead", label: "Lead days", type: "number", required: false, placeholder: "21" },
   ],
   update_event: [
     { key: "id", label: "Event", type: "text", required: true },
@@ -246,6 +250,8 @@ const FIELDS = {
     { key: "note", label: "Note", type: "text", required: false },
     { key: "scope", label: "Scope", type: "text", required: false },
     { key: "action", label: "Needs doing first", type: "text", required: false },
+    { key: "repeat", label: "Repeats", type: "select", options: REPEATS, required: false },
+    { key: "lead", label: "Lead days", type: "number", required: false },
     { key: "done", label: "Mark done", type: "boolean", required: false },
   ],
   add_note: [

@@ -1,6 +1,6 @@
 import type { JournalDay } from "@/lib/core/journal";
 import type { CardModel, Workspace } from "./workspace";
-import type { EventModel } from "./calendar";
+import { comingUpOf, type EventModel } from "./calendar";
 import { LANES, parseIso, shortDate } from "@/lib/ui/momentum";
 
 export interface RankedItem {
@@ -20,6 +20,8 @@ export interface StreakModel {
 export interface FocusModel {
   ranked: RankedItem[];
   todayEvents: EventModel[];
+  /** Events inside their lead window, nearest first, so the preparation surfaces before the day. */
+  comingUp: EventModel[];
   oneThing: RankedItem | null;
   /**
    * Index of oneThing in `ranked`, so the view can start there and still do
@@ -38,6 +40,7 @@ export interface FocusModel {
 }
 
 const EFFORT: Record<string, string> = { S: "15 min", M: "1 h", L: "2 h+" };
+const COMING_UP_LIMIT = 3;
 
 /** A low mood cuts the day's plan to two rows. Moods are 1-4; 1-2 is a low day. */
 export function isLowDay(mood: number | null): boolean {
@@ -164,8 +167,9 @@ export function buildFocus(
   daily?: { habitsLeft: number },
 ): FocusModel {
   const todayEvents = events
-    .filter((e) => !e.done && e.date === ws.today)
+    .filter((e) => !e.done && e.occurs === ws.today)
     .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? "") || a.id.localeCompare(b.id));
+  const comingUp = comingUpOf(events, COMING_UP_LIMIT);
   const ranked = rankCards(ws);
   const overdue = ranked.filter((r) => r.card.overdue).length;
   const sorted = [...journal].sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -256,6 +260,7 @@ export function buildFocus(
   return {
     ranked,
     todayEvents,
+    comingUp,
     oneThing: firstUnblocked === -1 ? null : ranked[firstUnblocked],
     oneIndex,
     streaks,

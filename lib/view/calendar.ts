@@ -1,6 +1,7 @@
-import type { CalendarEvent, ProjectType } from "@/lib/core/types";
+import type { CalendarEvent, EventRepeat, ProjectType } from "@/lib/core/types";
 import type { CardModel, Workspace } from "./workspace";
 import { hueOf, monthName, parseIso, weekdayOf } from "@/lib/ui/momentum";
+import { daysUntil, nextOccurrence, occurrencesBetween, surfaceDate } from "@/lib/core/recurrence";
 
 export interface EventModel {
   key: string;
@@ -12,12 +13,20 @@ export interface EventModel {
   note?: string;
   action?: string;
   scope?: string;
+  repeat?: EventRepeat;
+  lead?: number;
   scopeType?: ProjectType;
   scopeSlug?: string;
   charterName?: string;
   color: string;
   tint: string;
   past: boolean;
+  /** The next date this event happens: the anchor, or the next repeat on or after today. */
+  occurs: string;
+  /** First day it belongs on Today and in context: `occurs` less the lead. */
+  surfaceFrom: string;
+  daysUntil: number;
+  surfaced: boolean;
 }
 
 export interface CalendarDot {
@@ -43,6 +52,7 @@ export interface CalendarModel {
   rows: CalendarDay[][];
   upNext: CalendarDay[];
   needsAction: EventModel[];
+  comingUp: EventModel[];
   overdueCards: CardModel[];
   pastEvents: EventModel[];
   eventCount: number;
@@ -78,6 +88,8 @@ export function toEventModels(events: CalendarEvent[], ws: Workspace): EventMode
       ? (ws.byId.get(`${ref.type}/${ref.slug}`) ?? ws.byId.get(`project/${ref.slug}`) ?? ws.byId.get(`area/${ref.slug}`))
       : undefined;
     const tone = ref ? hueOf(charter?.id ?? ref.slug) : EVENT_FALLBACK;
+    const occurs = nextOccurrence(e, ws.today);
+    const surfaceFrom = surfaceDate(e, occurs);
     return {
       key: `event/${e.id}`,
       id: e.id,
@@ -88,28 +100,48 @@ export function toEventModels(events: CalendarEvent[], ws: Workspace): EventMode
       note: e.note,
       action: e.action,
       scope: e.scope,
+      repeat: e.repeat,
+      lead: e.lead,
       scopeType: charter?.type ?? ref?.type,
       scopeSlug: charter?.id ?? ref?.slug,
       charterName: charter?.name,
       color: tone.color,
       tint: tone.tint,
-      past: !e.done && e.date < ws.today,
+      past: !e.done && !e.repeat && e.date < ws.today,
+      occurs,
+      surfaceFrom,
+      daysUntil: daysUntil(occurs, ws.today),
+      surfaced: surfaceFrom <= ws.today,
     };
   });
 }
 
+export function comingUpOf(events: EventModel[], limit = Infinity): EventModel[] {
+  return events
+    .filter((e) => !e.done && !!e.lead && e.surfaced && e.daysUntil > 0)
+    .sort((a, b) => a.occurs.localeCompare(b.occurs) || a.id.localeCompare(b.id))
+    .slice(0, limit);
+}
+
 export function buildCalendar(ws: Workspace, events: CalendarEvent[]): CalendarModel {
   const models = toEventModels(events, ws).sort(
-    (a, b) => a.date.localeCompare(b.date) || (a.time ?? "").localeCompare(b.time ?? "") || a.id.localeCompare(b.id),
+    (a, b) => a.occurs.localeCompare(b.occurs) || (a.time ?? "").localeCompare(b.time ?? "") || a.id.localeCompare(b.id),
   );
   const openEvents = models.filter((e) => !e.done);
   const datedCards = ws.cards.filter((c) => !c.done && !!c.due);
 
+  const todayDate = parseIso(ws.today);
+  const gridStart = shiftIso(ws.today, -((todayDate.getDay() + 6) % 7));
+  const windowEnd = shiftIso(ws.today, UP_NEXT_DAYS);
+
   const eventsByDay = new Map<string, EventModel[]>();
   for (const e of openEvents) {
-    const list = eventsByDay.get(e.date) ?? [];
-    list.push(e);
-    eventsByDay.set(e.date, list);
+    const days = e.repeat ? occurrencesBetween(e, gridStart, windowEnd) : [e.date];
+    for (const day of days) {
+      const list = eventsByDay.get(day) ?? [];
+      list.push(e);
+      eventsByDay.set(day, list);
+    }
   }
   const cardsByDay = new Map<string, CardModel[]>();
   for (const c of datedCards) {
@@ -138,8 +170,6 @@ export function buildCalendar(ws: Workspace, events: CalendarEvent[]): CalendarM
     };
   };
 
-  const todayDate = parseIso(ws.today);
-  const gridStart = shiftIso(ws.today, -((todayDate.getDay() + 6) % 7));
   const rows: CalendarDay[][] = [0, 1, 2].map((w) =>
     [0, 1, 2, 3, 4, 5, 6].map((i) => dayAt(shiftIso(gridStart, w * 7 + i))),
   );
@@ -162,7 +192,8 @@ export function buildCalendar(ws: Workspace, events: CalendarEvent[]): CalendarM
     label,
     rows,
     upNext,
-    needsAction: openEvents.filter((e) => !!e.action),
+    needsAction: openEvents.filter((e) => !!e.action && e.surfaced),
+    comingUp: comingUpOf(openEvents),
     overdueCards: datedCards.filter((c) => c.overdue),
     pastEvents: openEvents.filter((e) => e.past),
     eventCount: openEvents.length,

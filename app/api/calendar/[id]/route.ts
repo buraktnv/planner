@@ -16,6 +16,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (typeof body.note === "string") patch.note = body.note;
     if (typeof body.scope === "string") patch.scope = body.scope;
     if (typeof body.action === "string") patch.action = body.action;
+    if (typeof body.repeat === "string") patch.repeat = body.repeat;
+    if (typeof body.lead === "number") patch.lead = body.lead;
     if (typeof body.done === "boolean") patch.done = body.done;
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: "no supported fields in patch" }, { status: 400 });

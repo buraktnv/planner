@@ -76,6 +76,11 @@ export default function CalendarView({ model }: { model: CalendarModel }) {
           <div className="flex flex-wrap items-baseline gap-2.5">
             <Mono className="text-[9px] tracking-[0.14em] text-faint">EVENT</Mono>
             {e.time && <Mono className="text-[10.5px] text-ink">{e.time}</Mono>}
+            {e.repeat && (
+              <Mono className="rounded-[5px] bg-edge2 px-[7px] py-[3px] text-[8px] tracking-[0.08em] text-dim">
+                {e.repeat.toUpperCase()}
+              </Mono>
+            )}
             {e.past && !done && (
               <Mono className="rounded-[5px] bg-wait-tint px-[7px] py-[3px] text-[8px] tracking-[0.08em] text-wait-ink">
                 PASSED
@@ -235,9 +240,36 @@ export default function CalendarView({ model }: { model: CalendarModel }) {
                 <div className="flex min-w-0 flex-col gap-[3px]">
                   <div className="flex flex-wrap items-baseline gap-2">
                     <span className="text-[13px] font-medium leading-[1.35]">{e.title}</span>
-                    <Mono className="text-[9px] text-faint">{shortDate(e.date)}</Mono>
+                    <Mono className="text-[9px] text-faint">{shortDate(e.occurs)}</Mono>
                   </div>
                   <span className="text-[12.5px] leading-[1.5] text-wait-ink">{e.action}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {model.comingUp.length > 0 && (
+        <div className="mb-[26px] rounded-[18px] border border-edge bg-surf px-[18px] py-4">
+          <Mono className="mb-3 block text-[9px] tracking-[0.14em] text-faint">COMING UP</Mono>
+          <div className="flex flex-col gap-2.5">
+            {model.comingUp.map((e) => (
+              <div key={e.key} className="flex min-w-0 items-start gap-2.5">
+                <span
+                  className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-[2px]"
+                  style={{ background: e.color }}
+                />
+                <div className="flex min-w-0 flex-col gap-[3px]">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <span className="text-[13px] font-medium leading-[1.35]">{e.title}</span>
+                    <Mono className="text-[9px] text-faint">
+                      {shortDate(e.occurs)} · IN {e.daysUntil} {e.daysUntil === 1 ? "DAY" : "DAYS"}
+                    </Mono>
+                  </div>
+                  {e.action && (
+                    <span className="text-[12.5px] leading-[1.5] text-wait-ink">{e.action}</span>
+                  )}
                 </div>
               </div>
             ))}
