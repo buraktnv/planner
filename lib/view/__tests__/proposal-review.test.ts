@@ -360,6 +360,27 @@ describe("validateAction", () => {
     expect(validateAction(BATCH[1]).ok).toBe(true);
   });
 
+  /**
+   * An arrow is caught here rather than at apply time for the same reason a
+   * date is: a bad ref draws nothing visible, so the row would look applied.
+   */
+  it("checks both ends of an arrow, and refuses one pointing at itself", () => {
+    expect(
+      validateAction({ kind: "connect_cards", project: "acme-app", from: "K-001", to: "K-002" }).ok,
+    ).toBe(true);
+    expect(
+      validateAction({ kind: "connect_cards", from: "K-001", to: "group:core" }).ok,
+    ).toBe(true);
+
+    const bad = validateAction({ kind: "connect_cards", from: "camera", to: "K-002" });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.issues[0]).toMatchObject({ key: "from" });
+
+    const loop = validateAction({ kind: "disconnect_cards", from: "K-001", to: "K-001" });
+    expect(loop.ok).toBe(false);
+    if (!loop.ok) expect(loop.issues[0]).toMatchObject({ key: "to" });
+  });
+
   it("rejects a date that is not ISO", () => {
     const result = validateAction({
       kind: "create_task",

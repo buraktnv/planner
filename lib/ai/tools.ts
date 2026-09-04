@@ -34,7 +34,16 @@ import type {
 } from "./schemas";
 import { deriveTitle, listNotes, readNote, searchNotes, updateNote } from "../core/knowledge";
 import { saveAsset } from "../core/assets";
-import { readCanvas } from "../core/canvas";
+import {
+  addCanvasEdge,
+  canvasRefOk,
+  edgeKey,
+  readCanvas,
+  removeCanvasEdge,
+  saveNodePositions,
+  type CanvasEdgeKind,
+  type CanvasSurface,
+} from "../core/canvas";
 import { noteProgress } from "../view/canvas";
 import { readDetail, writeDetail } from "../core/details";
 import { appendComment, readComments } from "../core/comments";
@@ -56,6 +65,99 @@ function parseScope(project: string): ScopeRef {
     return { type: "area", slug: project.slice("area:".length) };
   }
   return { type: "project", slug: project };
+}
+
+export interface CanvasToolInput {
+  project?: string;
+  map?: "system" | "tasks";
+}
+
+/** What one card on a map looks like to a caller that cannot see the screen. */
+export interface CanvasCardView {
+  ref: string;
+  title: string;
+  type: "note" | "task" | "target" | "group" | "missing";
+  /** null when the card exists but has never been placed, so the board auto-positions it. */
+  x: number | null;
+  y: number | null;
+  w?: number;
+  h?: number;
+  placed: boolean;
+}
+
+/** A whole board is a poor answer to a question about one map; cap it. */
+const CANVAS_CARD_CAP = 200;
+
+/**
+ * Which canvas a tool call means: no `project` is the global knowledge board,
+ * and with a project `map` picks its component map or its task map.
+ *
+ * The charter is resolved through `getCharter` before anything else, and the
+ * surface carries `charter.id` rather than the caller's string. `canvasPathFor`
+ * interpolates the slug straight into a file path, and a slug that resolved to
+ * a real charter cannot be a traversal.
+ */
+async function canvasSurfaceOf(input: CanvasToolInput): Promise<CanvasSurface> {
+  if (!input.project) {
+    if (input.map) {
+      throw new Error("map applies to a project or area — omit it for the knowledge board");
+    }
+    return { kind: "knowledge" };
+  }
+  const { type, slug } = parseScope(input.project);
+  const charter = await getCharter(type, slug);
+  return { kind: input.map ?? "system", type, slug: charter.id };
+}
+
+/**
+ * The cards that *could* be on this map, by ref. A node line records where a
+ * card sits and nothing about what it is, so this is the only thing that can
+ * turn `K-014` back into a title — and the only way to tell a card whose note
+ * was deleted from one that is merely unplaced.
+ */
+async function canvasCards(
+  surface: CanvasSurface,
+): Promise<Map<string, { title: string; type: CanvasCardView["type"] }>> {
+  const out = new Map<string, { title: string; type: CanvasCardView["type"] }>();
+
+  if (surface.kind === "tasks") {
+    const [tasks, charter] = await Promise.all([
+      listTasks(surface.type, surface.slug).catch(() => []),
+      getCharter(surface.type, surface.slug),
+    ]);
+    for (const t of tasks) out.set(t.id, { title: t.title, type: "task" });
+    for (const g of targetsOf(charter.mvpScope)) {
+      if (g.id) out.set(g.id, { title: g.title, type: "target" });
+    }
+    return out;
+  }
+
+  const scopeKey =
+    surface.kind === "system"
+      ? surface.type === "area"
+        ? `area:${surface.slug}`
+        : surface.slug
+      : null;
+  for (const n of await listNotes()) {
+    if (scopeKey && !n.scope.includes(scopeKey)) continue;
+    out.set(n.id, { title: n.title, type: "note" });
+  }
+  return out;
+}
+
+/** `group:core` is synthetic — the charter's own Why, with no record behind it. */
+function isGroupRef(ref: string): boolean {
+  return ref.toLowerCase().startsWith("group:");
+}
+
+function cleanRef(value: unknown, field: string): string {
+  const ref = typeof value === "string" ? value.trim() : "";
+  if (!canvasRefOk(ref)) {
+    throw new Error(
+      `${field} is not a card ref: ${ref || "(empty)"} — use a note (K-001), a task (T-007) or a target (G-001) id`,
+    );
+  }
+  return ref;
 }
 
 const NEUTRAL = "#a9a3b5";
@@ -233,6 +335,23 @@ async function previewRow(
           ),
       charterName: tone.name,
       color: tone.color,
+    };
+  }
+  if (action.kind === "connect_cards" || action.kind === "disconnect_cards") {
+    const tone = await charterTone(action.project, cache);
+    const map = action.project ? `${action.map ?? "system"} map` : "knowledge board";
+    const relation = action.relation ?? "rel";
+    return {
+      kind: action.kind,
+      id: "ARROW",
+      title: `${action.from} → ${action.to}`,
+      lane: null,
+      note:
+        action.kind === "connect_cards"
+          ? `${relation} · ${map}`
+          : `remove ${relation} · ${map}`,
+      charterName: action.project ? tone.name : "knowledge",
+      color: action.project ? tone.color : NEUTRAL,
     };
   }
   if (action.kind === "create_habit") {
@@ -695,6 +814,167 @@ export const toolImpls = {
         tasks: { done: p.done, total: p.total },
       };
     });
+  },
+
+  /**
+   * A map as data. `list_components` answers "what requires what" for a
+   * project's system map; this answers "what is actually drawn, and where" for
+   * any of the three, which is what a caller needs before it moves a card or
+   * draws an arrow. Positions are absolute, so placing blind overlaps.
+   *
+   * The bare `readCanvas` calls below are the `lib/core` reader, not this
+   * method — an object's own method names are not in scope inside it.
+   */
+  async readCanvas(input: CanvasToolInput): Promise<{
+    map: CanvasSurface["kind"];
+    project: string | null;
+    cards: CanvasCardView[];
+    truncated: number;
+    edges: { from: string; to: string; relation: CanvasEdgeKind; label?: string }[];
+    orphans: string[];
+  }> {
+    const surface = await canvasSurfaceOf(input);
+    const [file, live] = await Promise.all([readCanvas(surface), canvasCards(surface)]);
+
+    const placed: CanvasCardView[] = file.nodes.map((n) => {
+      const hit = live.get(n.ref);
+      return {
+        ref: n.ref,
+        title: hit?.title ?? (isGroupRef(n.ref) ? n.ref : ""),
+        type: hit?.type ?? (isGroupRef(n.ref) ? "group" : "missing"),
+        x: n.x,
+        y: n.y,
+        ...(n.w !== undefined ? { w: n.w } : {}),
+        ...(n.h !== undefined ? { h: n.h } : {}),
+        placed: true,
+      };
+    });
+    const seen = new Set(file.nodes.map((n) => n.ref));
+    const unplaced: CanvasCardView[] = [...live]
+      .filter(([ref]) => !seen.has(ref))
+      .map(([ref, v]) => ({ ref, title: v.title, type: v.type, x: null, y: null, placed: false }));
+
+    const byRef = (a: CanvasCardView, b: CanvasCardView) => a.ref.localeCompare(b.ref);
+    const cards = [...placed.sort(byRef), ...unplaced.sort(byRef)];
+
+    return {
+      map: surface.kind,
+      project: input.project ?? null,
+      cards: cards.slice(0, CANVAS_CARD_CAP),
+      truncated: Math.max(0, cards.length - CANVAS_CARD_CAP),
+      edges: file.edges.map((e) => ({
+        from: e.from,
+        to: e.to,
+        relation: e.kind,
+        ...(e.label ? { label: e.label } : {}),
+      })),
+      orphans: file.nodes.filter((n) => !live.has(n.ref) && !isGroupRef(n.ref)).map((n) => n.ref),
+    };
+  },
+
+  async placeCard(
+    input: CanvasToolInput & { ref: string; x: number; y: number; w?: number; h?: number },
+  ): Promise<{ ref: string; x: number; y: number; w?: number; h?: number }> {
+    const surface = await canvasSurfaceOf(input);
+    const ref = cleanRef(input.ref, "ref");
+    const x = Number(input.x);
+    const y = Number(input.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new Error("placeCard requires x and y as numbers");
+    }
+
+    // applyMoves silently skips a ref it does not like, so a card that is not
+    // on this map would otherwise be a successful call that wrote nothing.
+    const live = await canvasCards(surface);
+    if (!live.has(ref) && !isGroupRef(ref)) {
+      throw new Error(`placeCard: ${ref} is not a card on this map — read_canvas lists the ones that are`);
+    }
+
+    const file = await saveNodePositions(surface, [
+      {
+        ref,
+        x,
+        y,
+        ...(input.w !== undefined ? { w: Number(input.w) } : {}),
+        ...(input.h !== undefined ? { h: Number(input.h) } : {}),
+      },
+    ]);
+    const node = file.nodes.find((n) => n.ref === ref);
+    return {
+      ref,
+      x: node?.x ?? Math.round(x),
+      y: node?.y ?? Math.round(y),
+      ...(node?.w !== undefined ? { w: node.w } : {}),
+      ...(node?.h !== undefined ? { h: node.h } : {}),
+    };
+  },
+
+  /**
+   * Both refs must be cards on this map. The parser tolerates a stale ref — it
+   * has to, since a note can be deleted after the arrow was drawn — but a
+   * *new* arrow to a ref that is not there draws nothing visible, so a typo
+   * would look like success and cost an empty commit.
+   */
+  async connectCards(
+    input: CanvasToolInput & {
+      from: string;
+      to: string;
+      relation?: CanvasEdgeKind;
+      label?: string;
+    },
+  ): Promise<{ from: string; to: string; relation: CanvasEdgeKind; label?: string; added: boolean }> {
+    const surface = await canvasSurfaceOf(input);
+    const from = cleanRef(input.from, "from");
+    const to = cleanRef(input.to, "to");
+    if (from === to) throw new Error("connectCards: a card cannot point at itself");
+
+    const relation: CanvasEdgeKind = input.relation ?? "rel";
+    const live = await canvasCards(surface);
+    for (const [field, ref] of [
+      ["from", from],
+      ["to", to],
+    ] as const) {
+      if (!live.has(ref) && !isGroupRef(ref)) {
+        throw new Error(`connectCards: ${field} ${ref} is not a card on this map`);
+      }
+    }
+
+    // Informational only — addCanvasEdge re-reads inside the lock and merges,
+    // so nothing is decided by what this read saw.
+    const before = await readCanvas(surface);
+    const key = edgeKey({ from, to, kind: relation });
+    const existed = before.edges.some((e) => edgeKey(e) === key);
+
+    await addCanvasEdge(surface, {
+      from,
+      to,
+      kind: relation,
+      ...(input.label ? { label: input.label } : {}),
+    });
+    return {
+      from,
+      to,
+      relation,
+      ...(input.label ? { label: input.label } : {}),
+      added: !existed,
+    };
+  },
+
+  /** No existence check: removing an arrow to a note that is already gone is the point. */
+  async disconnectCards(
+    input: CanvasToolInput & { from: string; to: string; relation?: CanvasEdgeKind },
+  ): Promise<{ from: string; to: string; relation: CanvasEdgeKind; removed: boolean }> {
+    const surface = await canvasSurfaceOf(input);
+    const from = cleanRef(input.from, "from");
+    const to = cleanRef(input.to, "to");
+    const relation: CanvasEdgeKind = input.relation ?? "rel";
+
+    const before = await readCanvas(surface);
+    const key = edgeKey({ from, to, kind: relation });
+    const existed = before.edges.some((e) => edgeKey(e) === key);
+
+    await removeCanvasEdge(surface, { from, to, kind: relation });
+    return { from, to, relation, removed: existed };
   },
 
   async nextActions(): Promise<NextAction[]> {

@@ -43,6 +43,7 @@ A NOTE’S summary IS ONE LINE and is the only text later auto-loaded into a
 context window. Make it a claim, not a topic. The first tag groups it on the
 project’s docs page: prefer architecture, protocol, decision, runbook, reference.
 [[K-nnn]] links become canvas arrows: link where the relationship is real.
+read_canvas shows a map; connect_cards draws only what a link cannot say.
 
 WHAT YOU CANNOT DO HERE. You cannot write a charter, only propose one: a new
 project or area goes through propose_changes as a create_project or create_area

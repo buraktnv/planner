@@ -15,6 +15,7 @@ export const READ_TOOLS: ToolName[] = [
   "next_actions",
   "list_targets",
   "list_components",
+  "read_canvas",
   "weekly_summary",
   "life_trends",
   "search_knowledge",
@@ -42,6 +43,16 @@ export const WRITE_TOOLS: ToolName[] = [
   "write_task_detail",
   "add_task_comment",
   "attach_image",
+  /**
+   * Canvas writes sit here rather than being owner-only: a map records where
+   * cards sit and what connects to what, every change is one commit in the
+   * data repo, and the UI can undo any of it by dragging. `connect_cards` and
+   * `disconnect_cards` are *also* proposable, so a readonly agent can still
+   * say what it thinks connects to what.
+   */
+  "place_card",
+  "connect_cards",
+  "disconnect_cards",
 ];
 
 export const OWNER_ONLY_TOOLS: ToolName[] = ["create_project", "create_area"];

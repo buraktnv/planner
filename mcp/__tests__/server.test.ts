@@ -87,6 +87,46 @@ describe("allowedToolNames", () => {
   });
 
   /**
+   * A map is knowledge — an arrow saying one component must exist before
+   * another is a claim, and a claim only the canvas can see is one the
+   * assistant cannot use. Reading a map therefore survives readonly; drawing
+   * on it does not, and an agent that cannot draw can still propose an arrow.
+   */
+  it("exposes the canvas, and gates drawing on it on readonly", () => {
+    const names = allowedToolNames({});
+    expect(names).toContain("read_canvas");
+    expect(names).toContain("place_card");
+    expect(names).toContain("connect_cards");
+    expect(names).toContain("disconnect_cards");
+
+    const ro = allowedToolNames({ PLANNER_MCP_READONLY: "1" });
+    expect(ro).toContain("read_canvas");
+    expect(ro).not.toContain("place_card");
+    expect(ro).not.toContain("connect_cards");
+
+    expect(
+      proposalActionSchema.safeParse({
+        kind: "connect_cards",
+        project: "acme-app",
+        from: "K-001",
+        to: "K-002",
+        relation: "requires",
+      }).success,
+    ).toBe(true);
+    expect(
+      proposalActionSchema.safeParse({
+        kind: "disconnect_cards",
+        from: "K-001",
+        to: "K-002",
+      }).success,
+    ).toBe(true);
+    // Where a card sits is not a claim, so it is never a review row.
+    expect(
+      proposalActionSchema.safeParse({ kind: "place_card", ref: "K-001", x: 0, y: 0 }).success,
+    ).toBe(false);
+  });
+
+  /**
    * The asymmetry this whole design rests on: an agent may *propose* a charter
    * and may never *write* one. If create_project ever appears in the callable
    * list, the review step that is the only chance to fix a Why or an MVP scope

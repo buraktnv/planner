@@ -169,6 +169,41 @@ const baseShapes = {
   next_actions: {},
   list_targets: { project: z.string().optional() },
   list_components: { project: z.string() },
+  /**
+   * The three canvas shapes share one surface selector: no `project` is the
+   * global knowledge board, and with a project `map` picks its component map or
+   * its task map. The edge kind is called `relation` rather than `kind` on
+   * purpose — `kind` is the discriminant of `proposalActionSchema`, so a field
+   * of that name would be overwritten by the spread that builds the union.
+   */
+  read_canvas: {
+    project: z.string().optional(),
+    map: z.enum(["system", "tasks"]).optional(),
+  },
+  place_card: {
+    project: z.string().optional(),
+    map: z.enum(["system", "tasks"]).optional(),
+    ref: z.string(),
+    x: z.number().int(),
+    y: z.number().int(),
+    w: z.number().int().positive().optional(),
+    h: z.number().int().positive().optional(),
+  },
+  connect_cards: {
+    project: z.string().optional(),
+    map: z.enum(["system", "tasks"]).optional(),
+    from: z.string(),
+    to: z.string(),
+    relation: z.enum(["requires", "triggers", "rel"]).optional(),
+    label: z.string().optional(),
+  },
+  disconnect_cards: {
+    project: z.string().optional(),
+    map: z.enum(["system", "tasks"]).optional(),
+    from: z.string(),
+    to: z.string(),
+    relation: z.enum(["requires", "triggers", "rel"]).optional(),
+  },
   weekly_summary: {},
   life_trends: {},
 } satisfies Record<string, ZodRawShape>;
@@ -182,6 +217,14 @@ export const proposalActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("update_event"), ...baseShapes.update_event }),
   z.object({ kind: z.literal("add_note"), ...baseShapes.add_note }),
   z.object({ kind: z.literal("update_note"), ...baseShapes.update_note }),
+  /**
+   * An arrow is a claim about structure, so it is proposable as well as
+   * writable — a readonly agent that has read a map can still say what it
+   * thinks connects to what. `place_card` deliberately is not: where a card
+   * sits is not a claim, and a review row reading "moved 40px" is noise.
+   */
+  z.object({ kind: z.literal("connect_cards"), ...baseShapes.connect_cards }),
+  z.object({ kind: z.literal("disconnect_cards"), ...baseShapes.disconnect_cards }),
   z.object({ kind: z.literal("create_habit"), ...baseShapes.create_habit }),
   z.object({ kind: z.literal("create_rhythm"), ...baseShapes.create_rhythm }),
   z.object({ kind: z.literal("create_meal"), ...baseShapes.create_meal }),
@@ -309,6 +352,14 @@ export const toolDescriptions: Record<ToolName, string> = {
     "List the goals (targets) on a charter, with their G- ids, milestone grouping and progress. Read this before setting target: on a task — an id that does not exist simply shows no link.",
   list_components:
     "Read a project's system map: its components (knowledge notes on its canvas), what each one requires or is required by, what it triggers, and how much of its delegated work is done. Read this before changing a component — it says what must exist first.",
+  read_canvas:
+    "Read a canvas map: every card on it with its position and size, every arrow between them, which live cards are not placed yet, and which placed refs point at something that no longer exists. Omit project for the global knowledge board; with a project, map is 'system' for its component map (knowledge notes) or 'tasks' for its task map. Read this before drawing an arrow or moving a card — it is the only way to see what is already there.",
+  place_card:
+    "Put one card at a position on a canvas map, or resize it. ref is a note (K-001), a task (T-007) or a target (G-001) — it must already exist. x and y are absolute board coordinates, so read_canvas first and place relative to what is there. w and h are optional; a bigger card shows its summary or its full body instead of just a title. A card that is already placed is moved.",
+  connect_cards:
+    "Draw an arrow between two cards on a canvas map. relation is 'requires' (from cannot be built until to exists), 'triggers' (from causes to) or 'rel' (a plain relationship, the default). Arrows are rationed on purpose: a [[K-nnn]] link in a note body already draws one, so only draw an arrow for something the note text does not say. Both refs must exist on that map's charter.",
+  disconnect_cards:
+    "Remove an arrow between two cards on a canvas map. relation must match the arrow being removed ('rel' by default). An arrow derived from a [[K-nnn]] link cannot be removed here — edit the note body instead.",
   weekly_summary: "Get insights and the last 7 days of journal digest.",
   life_trends:
     "Eight weeks of trend: per habit the weekly adherence, streak, slope in percentage points per week and days since last logged; per rhythm the count against its target by week; task throughput by week; open and done per charter; and charters idle for more than two weeks. Read this before saying how things are going, and project forward from the slope rather than from today alone.",
