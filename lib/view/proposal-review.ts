@@ -190,6 +190,8 @@ const SIZES = ["S", "M", "L"] as const;
 const LANES = ["quick", "deep", "wait", "some"] as const;
 const SECTIONS = ["backlog", "in-progress", "done"] as const;
 const REPEATS = ["yearly", "monthly", "weekly"] as const;
+const MAPS = ["system", "tasks"] as const;
+const RELATIONS = ["requires", "triggers", "rel"] as const;
 
 /**
  * Hand-written rather than introspected out of zod: introspection yields no
@@ -273,6 +275,26 @@ const FIELDS = {
     { key: "body", label: "Body", type: "textarea", required: false },
     { key: "source", label: "Source", type: "text", required: false },
   ],
+  /**
+   * `project` is optional here and nowhere else: an arrow with no charter is
+   * one on the global knowledge board. Leave Map blank and it means the
+   * charter's component map, which is what an agent almost always intends.
+   */
+  connect_cards: [
+    { key: "project", label: "Charter", type: "text", required: false, placeholder: "acme-app" },
+    { key: "map", label: "Map", type: "select", options: MAPS, required: false },
+    { key: "from", label: "From", type: "text", required: true, placeholder: "K-001" },
+    { key: "to", label: "To", type: "text", required: true, placeholder: "K-002" },
+    { key: "relation", label: "Relation", type: "select", options: RELATIONS, required: false },
+    { key: "label", label: "Label", type: "text", required: false },
+  ],
+  disconnect_cards: [
+    { key: "project", label: "Charter", type: "text", required: false, placeholder: "acme-app" },
+    { key: "map", label: "Map", type: "select", options: MAPS, required: false },
+    { key: "from", label: "From", type: "text", required: true, placeholder: "K-001" },
+    { key: "to", label: "To", type: "text", required: true, placeholder: "K-002" },
+    { key: "relation", label: "Relation", type: "select", options: RELATIONS, required: false },
+  ],
   create_habit: [
     { key: "name", label: "Habit", type: "text", required: true },
     { key: "goal", label: "Times a day", type: "number", required: true },
@@ -355,6 +377,8 @@ const TARGET_ID = /^G-\d{3,}$/;
 const NOTE_ID = /^K-\d{3,}$/;
 const TASK_ID = /^T-\d+(\.\d+)*$/;
 const EVENT_ID = /^E-\d{3,}$/;
+/** Mirrors REF_RE in lib/core/canvas.ts — a client cannot import it, that module reaches simple-git. */
+const CARD_REF = /^(K-\d{3,}|T-\d+(\.\d+)*|G-\d{3,}|group:[a-z0-9][a-z0-9-]*)$/i;
 
 /**
  * Catching a bad field here rather than at apply time matters more than it
@@ -394,6 +418,13 @@ export function validateAction(
 
   if (action.kind === "update_task" || action.kind === "decompose_task") {
     shape("id", TASK_ID, "A task id looks like T-007, or T-007.2 for a subtask");
+  }
+  if (action.kind === "connect_cards" || action.kind === "disconnect_cards") {
+    shape("from", CARD_REF, "A card ref looks like K-001, T-007 or G-001");
+    shape("to", CARD_REF, "A card ref looks like K-001, T-007 or G-001");
+    if (action.from !== "" && action.from === action.to) {
+      issues.push({ key: "to", message: "A card cannot point at itself" });
+    }
   }
   if (action.kind === "update_event") shape("id", EVENT_ID, "An event id looks like E-001");
   if (action.kind === "update_note") shape("id", NOTE_ID, "A note id looks like K-001");

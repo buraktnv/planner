@@ -36,6 +36,14 @@ export const toolImplMap: Record<ToolName, ImplFn> = {
   next_actions: () => toolImpls.nextActions(),
   list_targets: (a) => toolImpls.listTargets(a as { project?: string }),
   list_components: (a) => toolImpls.listComponents(a as { project: string }),
+  read_canvas: toolImpls.readCanvas as ImplFn,
+  // Spelled out rather than cast: these take an intersection type, which is not
+  // structurally comparable to Record<string, unknown> the way the others are.
+  place_card: (a) => toolImpls.placeCard(a as unknown as Parameters<typeof toolImpls.placeCard>[0]),
+  connect_cards: (a) =>
+    toolImpls.connectCards(a as unknown as Parameters<typeof toolImpls.connectCards>[0]),
+  disconnect_cards: (a) =>
+    toolImpls.disconnectCards(a as unknown as Parameters<typeof toolImpls.disconnectCards>[0]),
   weekly_summary: () => toolImpls.weeklySummary(),
   life_trends: () => toolImpls.lifeTrends(),
   propose_changes: toolImpls.proposeChanges as ImplFn,
