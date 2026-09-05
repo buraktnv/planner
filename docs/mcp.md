@@ -22,6 +22,44 @@ picked up automatically; an explicit `env` entry in the client config always win
 | `PLANNER_DATA_DIR` | Path to the `planner-data` repo. Required; the server exits with a stderr message if the directory does not exist. |
 | `PLANNER_AGENT` | Display name for this client, used for the journal trail and the Agents page. Default `agent`. |
 | `PLANNER_MCP_READONLY` | Set to `1` (anything other than empty / `0` / `false`) to expose read tools and `propose_changes` only. |
+| `PLANNER_MCP_TOKEN` | HTTP transport only. When set, a request must carry `Authorization: Bearer <token>` or it is refused with 401. Unset by default. |
+
+## Two transports, one server
+
+Everything above describes the **stdio** transport, which is what `npm run mcp` starts. Stdio means
+the client launches the server as a child process and talks down a pipe, so the client, the planner
+checkout and the `planner-data` repo all have to be on one machine.
+
+The **HTTP** transport removes that constraint. `POST /api/mcp` in the running web app speaks
+Streamable HTTP, so a client on another machine — over Tailscale, a LAN, anything that can reach the
+app — registers it with no install and no clone:
+
+```bash
+claude mcp add --transport http planner http://<host>/api/mcp
+```
+
+`app/api/mcp/route.ts` is a five-line shell over `handleMcpRequest` in `mcp/http.ts`; below the
+transport it is the same `buildServer()`, the same allowlist and the same tool implementations, so
+the two doors expose an identical tool list by construction (`mcp/__tests__/http.test.ts` asserts it
+against `allowedToolNames`).
+
+Three things differ from stdio, all deliberate:
+
+- **It is stateless.** No session ids, one server per request. A session map would be module-level
+  state in the Next process, which the `post-merge` rebuild restarts — a session id handed out
+  before a deploy would come back to a process that never heard of it.
+- **The agent name comes from a header.** Send `x-planner-agent: macbook` and the journal and
+  `/agents` will distinguish it from the desktop. A client may also send `x-planner-readonly: 1` to
+  restrict *itself* to reads; it can never clear a restriction the server set with
+  `PLANNER_MCP_READONLY`, which stays server-side for that reason.
+- **A cross-origin request is refused.** A real MCP client sends no `Origin` header. One whose
+  `Origin` does not match `Host` gets a 403, because this route sits on a local port and a page in
+  the owner's browser could otherwise be made to drive it.
+
+**There is no authentication by default**, exactly like the web app it is mounted in. That is the
+right default on a personal tailnet and the wrong one anywhere else: set `PLANNER_MCP_TOKEN` if the
+app is reachable by anything you do not control, and never put it behind `tailscale funnel`, which
+would publish it to the internet.
 
 ## What is exposed
 
