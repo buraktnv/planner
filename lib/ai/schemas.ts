@@ -135,6 +135,13 @@ const baseShapes = {
     id: z.string(),
     body: z.string(),
   },
+  post_status: {
+    project: z.string(),
+    id: z.string(),
+    happened: z.string(),
+    changed: z.string().optional(),
+    next: z.string().optional(),
+  },
   search_knowledge: {
     query: z.string(),
     scope: z.string().optional(),
@@ -162,6 +169,7 @@ const baseShapes = {
     tags: z.array(z.string()).optional(),
     source: z.string().optional(),
     forAi: z.string().optional(),
+    confirmAi: z.boolean().optional(),
   },
   attach_image: {
     path: z.string(),
@@ -340,13 +348,15 @@ export const toolDescriptions: Record<ToolName, string> = {
     "Read the log for one task or subtask: every dated entry, oldest first, including approaches that did not work. Read it with read_task_detail before restarting work — the description says what was intended, the log says what actually happened. limit returns only the most recent entries.",
   add_task_comment:
     "Append one dated entry to a task's log. Nothing is overwritten and nothing can be edited afterwards, so this is where an approach that failed belongs: say what you tried and why you abandoned it. Log it when you turn back, not only when you finish. id accepts a subtask id like T-007.2.",
+  post_status:
+    "Post a structured status entry to a task's log — the same append-only log as add_task_comment, marked as a status. Use it the moment a decision lands, work reveals a follow-up task (create it first, then name its id), or another note proves wrong (update or propose it, then name its id). happened: what was done or decided. changed: every note, task or decision touched as a result, by id — the part people skip and the part the owner needs. next: what comes next. It shows on the Focus page, so write it when you turn, not when you finish.",
   search_knowledge:
     "Search the knowledge base and get ranked snippets. Use this whenever the answer might already be written down — the system prompt only lists notes for the focused scope. scope filters to a project slug or area:<slug>; tags must all match.",
   read_note: "Read one knowledge note in full, with the notes it links to and the notes linking back to it.",
   add_note:
     "File a knowledge note. summary must be a single line stating the conclusion, not the topic — it is the only text loaded into context until someone searches. title is optional and is derived from the summary when omitted. Leave scope empty and it is categorised automatically into the right area or project; pass it only when you are certain. File the note even when no task is being created for the idea: work that becomes a task is at least visible on a board, so an idea nobody is scheduling is the one actually at risk of being lost. forAi is optional text written for the assistant rather than the reader — terse facts, constraints, what to do with them — kept under a ## For the AI heading at the end of the body; the body itself is for the person.",
   update_note:
-    "Amend a knowledge note. Only the fields you pass change; updated is bumped. Pass source as an empty string to clear it. forAi replaces only the ## For the AI section (empty string removes it); body alone replaces the whole body, section included, so pass both when you mean to change both.",
+    "Amend a knowledge note. Only the fields you pass change; updated is bumped. Pass source as an empty string to clear it. forAi replaces only the ## For the AI section (empty string removes it); body alone replaces the whole body, section included, so pass both when you mean to change both. Changing the body without forAi marks the note's AI section unchecked; pass confirmAi: true when you have read the section against the new body and it still holds.",
   attach_image:
     "Copy an image file into the data repo and optionally append it to a knowledge note. path is read from the filesystem this server runs on. Use it for a screenshot or diagram that belongs with a note; the file is committed, so it survives and works on another machine. PNG, JPEG, GIF, WebP and AVIF only, up to 2 MB — SVG is refused. Identical images are stored once.",
   next_actions: "Get the prioritized list of next actions across the workspace.",

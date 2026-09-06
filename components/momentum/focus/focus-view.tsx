@@ -14,6 +14,7 @@ import {
 } from "@/lib/view/focus";
 import { LANES } from "@/lib/ui/momentum";
 import { useMomentum } from "../context";
+import StatusStrip from "./status-strip";
 import { Bar, Mono, Ring, Rule, Tick } from "../primitives";
 
 const MOODS = [
@@ -181,6 +182,7 @@ export default function FocusView({ model }: { model: FocusModel }) {
     return (
       <div className="mx-auto max-w-[680px] px-9 pt-16 pb-20">
         {eventStrip}
+      {model.statuses?.length ? <StatusStrip items={model.statuses} /> : null}
         <Mono className="text-[10px] tracking-[0.18em] text-faint">ONE THING</Mono>
         <h1 className="mt-3.5 mb-6 text-[31px] font-semibold leading-[1.22] tracking-[-0.03em]">
           Nothing is open.
@@ -227,6 +229,7 @@ export default function FocusView({ model }: { model: FocusModel }) {
       </div>
 
       {eventStrip}
+      {model.statuses?.length ? <StatusStrip items={model.statuses} /> : null}
 
       <div className="mb-[26px] rounded-[20px] border border-edge bg-surf px-[22px] py-5">
         <div className="mb-4 flex items-start gap-3">

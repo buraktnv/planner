@@ -1,6 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
-import { getNote } from "../core/knowledge";
+import { getNote, updateNote } from "../core/knowledge";
 import { splitAiSection } from "../core/note-sections";
 import type { ProvidersFile } from "../core/types";
 import { DistillError, pickDistillProfile } from "./distill";
@@ -86,6 +86,9 @@ export function compareToActions(
   const forAi = (result.forAi ?? "").trim();
   if (forAi && forAi !== (current.forAi ?? "").trim()) action.forAi = forAi;
   if (action.summary === undefined && action.forAi === undefined) return null;
+  // The section was read against the body and found adequate: accepting the
+  // card should also clear the unchecked flag, not leave it for a second pass.
+  if (action.forAi === undefined && current.forAi !== null) action.confirmAi = true;
   return action;
 }
 
@@ -117,7 +120,12 @@ export async function compareNote(input: {
 
   const action = compareToActions(result, { id: note.id, summary: note.summary, forAi });
   const verdict = result.verdict.trim();
-  if (!action) return { verdict, summaryStillTrue: result.summaryStillTrue, proposal: null };
+  if (!action) {
+    // Nothing to change is still a check that happened; recording it needs no
+    // review, and leaving the note flagged after a clean compare would be odd.
+    if (forAi !== null) await updateNote(note.id, { confirmAi: true });
+    return { verdict, summaryStillTrue: result.summaryStillTrue, proposal: null };
+  }
 
   const changed = [action.summary !== undefined ? "summary" : null, action.forAi !== undefined ? "For the AI section" : null]
     .filter(Boolean)

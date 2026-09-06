@@ -1,4 +1,5 @@
 import type { KnowledgeNote } from "@/lib/core/types";
+import { aiStatusOf } from "@/lib/core/note-sections";
 import { scopeChip, type KnowledgeRow, type TagFacet } from "./knowledge";
 
 export const PREFERRED_TAGS = ["architecture", "protocol", "decision", "runbook", "reference"];
@@ -28,6 +29,7 @@ function rowOf(note: KnowledgeNote): KnowledgeRow {
     tags: note.tags,
     created: note.created,
     updated: note.updated,
+    aiStatus: aiStatusOf(note),
   };
 }
 

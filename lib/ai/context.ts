@@ -138,7 +138,9 @@ File at most two notes per reply (the closing reply of a check-in may file three
  * not ask") were a mode; the rule is not.
  */
 const WRITE_INSTRUCTION = `# Writing
-For any batch of writes — two or more tasks, events, notes or routines — call propose_changes once with the whole set instead of writing them one by one; nothing lands until the user accepts the card. Use a direct writing tool only for a single change the user explicitly asked for. Put a due date on a task that has a real deadline rather than creating it bare. Something that repeats is a habit or a rhythm, not a task: create it with create_habit or create_rhythm instead of writing a task that says to set one up.`;
+For any batch of writes — two or more tasks, events, notes or routines — call propose_changes once with the whole set instead of writing them one by one; nothing lands until the user accepts the card. Use a direct writing tool only for a single change the user explicitly asked for. Put a due date on a task that has a real deadline rather than creating it bare. Something that repeats is a habit or a rhythm, not a task: create it with create_habit or create_rhythm instead of writing a task that says to set one up.
+When you change a note's body, pass forAi in the same update_note call, or pass confirmAi: true after checking the section still holds; a body changed alone leaves the note's AI section marked unchecked.
+While working a task, call post_status the moment a decision lands, work reveals a follow-up (create it with note: or waits: and name its id), or another note proves wrong (update it or propose the update, and name its id). Write it when you turn, not when you finish; the owner reads these on the Focus page.`;
 
 /**
  * Appended last, for recency: what the user pointed at this turn, then the

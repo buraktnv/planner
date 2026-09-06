@@ -1,6 +1,7 @@
 import type { JournalDay } from "@/lib/core/journal";
 import type { CardModel, Workspace } from "./workspace";
 import { comingUpOf, type EventModel } from "./calendar";
+import type { StatusFeedItem } from "./status-feed";
 import { LANES, parseIso, shortDate } from "@/lib/ui/momentum";
 
 export interface RankedItem {
@@ -37,6 +38,8 @@ export interface FocusModel {
   dailyNote: string | null;
   stuckFacts: string[];
   stuckOffers: { kind: "physical" | "small"; text: string; cardKey?: string }[];
+  /** Latest status entries across every live charter; the page adds these after building. */
+  statuses?: StatusFeedItem[];
 }
 
 const EFFORT: Record<string, string> = { S: "15 min", M: "1 h", L: "2 h+" };

@@ -42,6 +42,7 @@ export const WRITE_TOOLS: ToolName[] = [
   "update_note",
   "write_task_detail",
   "add_task_comment",
+  "post_status",
   "attach_image",
   /**
    * Canvas writes sit here rather than being owner-only: a map records where

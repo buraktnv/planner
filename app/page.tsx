@@ -5,6 +5,7 @@ import { buildFocus } from "@/lib/view/focus";
 import { toEventModels } from "@/lib/view/calendar";
 import { buildDaily } from "@/lib/view/daily";
 import { loadWorkspace } from "@/lib/view/workspace";
+import { loadStatusFeed } from "@/lib/view/status-feed";
 import FocusView from "@/components/momentum/focus/focus-view";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,10 @@ export default async function FocusPage() {
     listEvents(),
     getDaily(),
   ]);
-  const model = buildFocus(ws, journal, toEventModels(events, ws), buildDaily(daily, ws.today));
+  const statuses = await loadStatusFeed(ws);
+  const model = {
+    ...buildFocus(ws, journal, toEventModels(events, ws), buildDaily(daily, ws.today)),
+    statuses,
+  };
   return <FocusView model={model} />;
 }

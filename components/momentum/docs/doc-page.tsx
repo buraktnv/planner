@@ -108,6 +108,8 @@ export default function DocPage({
             summary={note.summary}
             body={model.body}
             forAi={model.forAi}
+            aiStatus={model.aiStatus}
+            scope={note.scope}
             toc={model.toc}
           />
 

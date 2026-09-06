@@ -1,5 +1,5 @@
 import type { KnowledgeNote } from "@/lib/core/types";
-import { splitAiSection } from "@/lib/core/note-sections";
+import { aiStatusOf, splitAiSection, type AiStatus } from "@/lib/core/note-sections";
 import { buildDocs, type DocGroup } from "./docs";
 
 const FENCE_RE = /^\s*(```|~~~)/;
@@ -30,6 +30,7 @@ export interface DocPageModel {
   body: string;
   /** The `## For the AI` section, linkified; null when the note has none. */
   forAi: string | null;
+  aiStatus: AiStatus;
   toc: TocEntry[];
   links: DocLink[];
   backlinks: DocLink[];
@@ -197,6 +198,7 @@ export function buildDocPage(
     note,
     body: linkifyNoteRefs(human, titleById),
     forAi: forAi === null ? null : linkifyNoteRefs(forAi, titleById),
+    aiStatus: aiStatusOf(note),
     toc: tocOf(human),
     links,
     backlinks,

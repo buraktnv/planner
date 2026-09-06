@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { appendComment, readComments } from "@/lib/core/comments";
+import { STATUS_MARKER, renderStatus } from "@/lib/core/status";
 import type { ProjectType } from "@/lib/core/types";
 
 export const dynamic = "force-dynamic";
@@ -34,10 +35,25 @@ export async function POST(req: Request, { params }: Ctx) {
   }
   try {
     const payload = (await req.json()) as Record<string, unknown>;
-    if (typeof payload.body !== "string") {
-      return NextResponse.json({ error: "body must be a string" }, { status: 400 });
+    // A status is the same append with a marker and a fixed body shape; the
+    // three parts arrive separately so the page cannot post one without them.
+    const status = payload.status as Record<string, unknown> | undefined;
+    if (status && typeof status === "object") {
+      if (typeof status.happened !== "string" || !status.happened.trim()) {
+        return NextResponse.json({ error: "status.happened must be a string" }, { status: 400 });
+      }
+      const body = renderStatus({
+        happened: status.happened,
+        changed: typeof status.changed === "string" ? status.changed : "",
+        next: typeof status.next === "string" ? status.next : "",
+      });
+      await appendComment(type as ProjectType, slug, taskId, body, STATUS_MARKER);
+    } else {
+      if (typeof payload.body !== "string") {
+        return NextResponse.json({ error: "body must be a string" }, { status: 400 });
+      }
+      await appendComment(type as ProjectType, slug, taskId, payload.body);
     }
-    await appendComment(type as ProjectType, slug, taskId, payload.body);
     const entries = await readComments(type as ProjectType, slug, taskId);
     return NextResponse.json({ taskId, entries });
   } catch (e) {
