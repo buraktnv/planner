@@ -139,6 +139,14 @@ export interface KnowledgeNote {
   updated: string;
   source?: string;
   body: string;
+  /**
+   * A sixteen-hex-character hash of the human part of the body when the
+   * `## For the AI` section was last confirmed against it (`humanHash` in
+   * `note-sections.ts`). A hash rather than a date: `updated` has day
+   * resolution and a re-save that changed nothing would flag a note that is
+   * still true.
+   */
+  aiChecked?: string;
 }
 
 export interface KnowledgeHit {

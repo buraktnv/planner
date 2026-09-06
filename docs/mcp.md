@@ -68,8 +68,14 @@ Read tools: `list_projects`, `list_areas`, `get_context`, `list_events`, `get_da
 
 Write tools: `create_task`, `update_task`, `decompose_task`, `move_to_parking_lot`, `add_journal`,
 `create_event`, `update_event`, `log_daily`, `add_grocery`, `set_grocery`, `add_note`,
-`update_note`, `write_task_detail`, plus `propose_changes` (which writes nothing and returns a
-preview).
+`update_note`, `write_task_detail`, `add_task_comment`, `post_status`, plus `propose_changes`
+(which writes nothing and returns a preview).
+
+`post_status` is the task log with a fixed shape and a marker: what happened, what changed
+elsewhere (every note, task or decision touched, by id), what is next. Post one the moment a
+decision lands, work reveals a follow-up task (create it, then name its id) or another note proves
+wrong (update or propose it, then name its id). The owner reads these on the Focus page, so write it
+when you turn, not when you finish.
 
 The knowledge tools are how an agent reads and writes the owner's second brain. Only notes scoped to
 the focused project or area are ever loaded automatically — reach for `search_knowledge` before
@@ -88,7 +94,10 @@ into chat before any body is read, so state the conclusion in it, not the topic.
 carry a `## For the AI` section — pass `forAi` to `add_note` or `update_note` — which is the terse
 version written for an assistant rather than a reader: it is what the owner's chat injects when they
 `@`-mention the note, and `read_note` returns it as `forAi` beside the full body. Write there what
-you would want the next agent to know before it reads the rest. Note that scoped
+you would want the next agent to know before it reads the rest. Changing a body without passing
+`forAi` marks the note's AI section **unchecked** — the owner sees the list and the chat is told —
+so pass `forAi` in the same call, or `confirmAi: true` once you have read the section against the
+new body and it still holds. Note that scoped
 notes live in `knowledge/` and therefore do **not** move into `archive/` with a charter; project
 documentation deliberately outlives the project.
 

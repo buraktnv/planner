@@ -144,6 +144,20 @@ the app edits or deletes one. It is for the doing, not the reporting:
 - Never tidy the log into agreeing with how things turned out. There is no edit
   and no delete, deliberately.
 
+`post_status` is the same log with a fixed shape — what happened, what changed
+elsewhere, what is next — and a marker that puts it on the owner's Focus page.
+Post one **when you turn**, not when you finish: a decision landed; the work
+revealed a follow-up, which you create first (`note:` or `waits:` linking it)
+and then name by id; or another note turned out to be wrong, which you update
+(or propose, if unsure) and then name by id. The middle part is the one people
+skip and the one the owner needs: never fix a second document silently.
+
+A note has two readings. The body is for the person; `forAi` is the terse text
+an assistant gets when the note is mentioned. If you change a body, pass
+`forAi` in the same `update_note` call, or `confirmAi: true` once you have read
+the section against the new body and it still holds. A body changed alone
+leaves the note marked unchecked, and the owner sees the list.
+
 ## Step 7 — Land it, then report
 
 Put the whole set through `propose_changes` so it arrives as one

@@ -33,6 +33,7 @@ import type {
   ProposalPreviewRow,
 } from "./schemas";
 import { deriveTitle, listNotes, readNote, searchNotes, updateNote } from "../core/knowledge";
+import { STATUS_MARKER, renderStatus } from "../core/status";
 import { saveAsset } from "../core/assets";
 import {
   addCanvasEdge,
@@ -651,6 +652,37 @@ export const toolImpls = {
       throw new Error(`Task not found: ${input.id} in ${input.project}`);
     }
     const entry = await appendComment(scope.type, scope.slug, input.id, input.body);
+    return { id: input.id, entry: { date: entry.date, time: entry.time, body: entry.body } };
+  },
+
+  /**
+   * The same append as addTaskComment with a marker and a fixed shape. The
+   * three parts are separate arguments so the middle one — what changed
+   * elsewhere, by id — cannot be skipped, which is the part the owner needs.
+   */
+  async postStatus(input: {
+    project: string;
+    id: string;
+    happened: string;
+    changed?: string;
+    next?: string;
+  }): Promise<{ id: string; entry: { date: string; time: string; body: string } }> {
+    if (!input.project) throw new Error("postStatus requires a project (slug or area:<slug>)");
+    if (!input.id) throw new Error("postStatus requires an id");
+    if (typeof input.happened !== "string" || !input.happened.trim()) {
+      throw new Error("postStatus requires happened: what was done or decided");
+    }
+    const scope = parseScope(input.project);
+    const tasks = await listTasks(scope.type, scope.slug);
+    if (!tasks.some((t) => t.id === input.id)) {
+      throw new Error(`Task not found: ${input.id} in ${input.project}`);
+    }
+    const body = renderStatus({
+      happened: input.happened,
+      changed: input.changed ?? "",
+      next: input.next ?? "",
+    });
+    const entry = await appendComment(scope.type, scope.slug, input.id, body, STATUS_MARKER);
     return { id: input.id, entry: { date: entry.date, time: entry.time, body: entry.body } };
   },
 

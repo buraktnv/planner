@@ -168,6 +168,46 @@ describe("task comments", () => {
   });
 });
 
+describe("entry kinds", () => {
+  it("writes a marker on the stamp line and reads it back", async () => {
+    const { appendComment, readComments } = await import("../comments");
+    const entry = await appendComment("project", "acme-app", "T-001", "**What happened:** x", "status");
+    expect(entry.marker).toBe("status");
+    const raw = await fs.readFile(path.join(tmp, "projects", "acme-app", "comments", "T-001.md"), "utf8");
+    expect(raw).toMatch(/^## \d{4}-\d{2}-\d{2} \d{2}:\d{2} · status$/m);
+    const [read] = await readComments("project", "acme-app", "T-001");
+    expect(read.marker).toBe("status");
+    expect(read.body).toBe("**What happened:** x");
+  });
+
+  it("refuses a marker that could break the stamp", async () => {
+    const { appendComment } = await import("../comments");
+    await expect(appendComment("project", "acme-app", "T-001", "x", "not a kind")).rejects.toThrow(/kind/);
+  });
+
+  it("lists marked entries across charters, newest first, capped", async () => {
+    const { appendComment, listMarkedEntries } = await import("../comments");
+    // An old status in another charter, written by hand with an earlier stamp,
+    // since two appends in one test land in the same minute.
+    await fs.mkdir(path.join(tmp, "areas", "health", "comments"), { recursive: true });
+    await fs.writeFile(
+      path.join(tmp, "areas", "health", "comments", "T-002.md"),
+      "# T-002 — log\n\n## 2020-01-01 09:00 · status\n**What happened:** old\n\n## 2020-01-02 09:00\nplain, not a status\n",
+    );
+    await appendComment("project", "acme-app", "T-001", "plain");
+    await appendComment("project", "acme-app", "T-001", "**What happened:** first", "status");
+    const charters = [
+      { type: "project" as const, slug: "acme-app" },
+      { type: "area" as const, slug: "health" },
+    ];
+    const all = await listMarkedEntries(charters, "status");
+    expect(all.map((e) => e.taskId)).toEqual(["T-001", "T-002"]);
+    expect(all[1]).toMatchObject({ type: "area", slug: "health", marker: "status", body: "**What happened:** old" });
+    expect(await listMarkedEntries(charters, "status", 1)).toHaveLength(1);
+    expect(await listMarkedEntries([{ type: "project", slug: "nowhere" }], "status")).toEqual([]);
+  });
+});
+
 describe("parseComments is total", () => {
   it("never throws, whatever the file holds", async () => {
     const { parseComments } = await import("../comments");

@@ -287,6 +287,7 @@ const FIELDS = {
       required: false,
       placeholder: "What the assistant should know, terse",
     },
+    { key: "confirmAi", label: "Mark the AI section checked", type: "boolean", required: false },
     { key: "source", label: "Source", type: "text", required: false },
   ],
   /**

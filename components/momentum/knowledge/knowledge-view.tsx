@@ -44,6 +44,8 @@ export default function KnowledgeView({
   );
 
   const [tags, setTags] = useState<string[]>([]);
+  /** Only notes whose body moved after their For the AI section was last checked. */
+  const [unchecked, setUnchecked] = useState(false);
   const [result, setResult] = useState<{ key: string; hits: KnowledgeHit[] } | null>(null);
   const [editor, setEditor] = useState<EditorValue | null>(null);
 
@@ -82,9 +84,10 @@ export default function KnowledgeView({
     return model.rows.filter((r: KnowledgeRow) => {
       if (scope && !r.scope.some((s) => s.key === scope)) return false;
       if (tags.length && !tags.every((t) => r.tags.includes(t))) return false;
+      if (unchecked && r.aiStatus !== "unchecked") return false;
       return true;
     });
-  }, [model.rows, scope, tags]);
+  }, [model.rows, scope, tags, unchecked]);
 
   const toggleTag = (tag: string) =>
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
@@ -138,8 +141,18 @@ export default function KnowledgeView({
         </div>
       ) : null}
 
-      {model.tags.length ? (
+      {model.tags.length || model.unchecked ? (
         <div className="mb-4 flex flex-wrap gap-1.5">
+          {model.unchecked ? (
+            <Chip
+              label="AI section unchecked"
+              count={model.unchecked}
+              color="var(--color-wait-ink)"
+              tint="var(--color-wait-tint)"
+              active={unchecked}
+              onClick={() => setUnchecked((v) => !v)}
+            />
+          ) : null}
           {model.tags.map((t) => (
             <Chip
               key={t.tag}
@@ -157,7 +170,7 @@ export default function KnowledgeView({
           {searching_ ? "RANKED BY RELEVANCE" : "NEWEST FIRST"} · {count}
         </Mono>
         <div className="h-px flex-1 bg-edge" />
-        {scope !== null || tags.length > 0 ? (
+        {scope !== null || tags.length > 0 || unchecked ? (
           <button
             type="button"
             onClick={() => {

@@ -1,5 +1,6 @@
 import { hueOf } from "@/lib/ui/momentum";
 import type { KnowledgeNote } from "@/lib/core/types";
+import { aiStatusOf, type AiStatus } from "@/lib/core/note-sections";
 
 export interface ScopeChip {
   key: string;
@@ -26,11 +27,14 @@ export interface KnowledgeRow {
   tags: string[];
   created: string;
   updated: string;
+  aiStatus: AiStatus;
 }
 
 export interface KnowledgeModel {
   total: number;
   scopeless: number;
+  /** Notes whose body moved after their For the AI section was last confirmed. */
+  unchecked: number;
   rows: KnowledgeRow[];
   scopes: ScopeFacet[];
   tags: TagFacet[];
@@ -69,8 +73,10 @@ export function buildKnowledge(
     tags: n.tags,
     created: n.created,
     updated: n.updated,
+    aiStatus: aiStatusOf(n),
   }));
   rows.sort(byUpdatedDesc);
+  const unchecked = rows.filter((r) => r.aiStatus === "unchecked").length;
 
   const scopeCounts = new Map<string, number>();
   const tagCounts = new Map<string, number>();
@@ -90,7 +96,7 @@ export function buildKnowledge(
     .map(([tag, count]) => ({ tag, count }))
     .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.tag.localeCompare(b.tag)));
 
-  return { total: notes.length, scopeless, rows, scopes, tags };
+  return { total: notes.length, scopeless, unchecked, rows, scopes, tags };
 }
 
 export function knowledgeNote(model: KnowledgeModel): string {

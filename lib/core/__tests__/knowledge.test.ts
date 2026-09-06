@@ -26,6 +26,8 @@ import {
   updateNote,
   withAiSection,
   AI_HEADING,
+  aiStatusOf,
+  humanHash,
 } from "../knowledge";
 import type { KnowledgeNote } from "../types";
 
@@ -287,6 +289,32 @@ describe("the For the AI section", () => {
     const body = `${AI_HEADING}\n\nFacts.\n\n### Detail\n\nMore facts.`;
     expect(splitAiSection(body).forAi).toBe("Facts.\n\n### Detail\n\nMore facts.");
   });
+
+  it("hashes the human part only, so editing the section alone does not flag it", () => {
+    const a = humanHash(`Body.\n\n${AI_HEADING}\n\nOne.`);
+    const b = humanHash(`Body.\n\n${AI_HEADING}\n\nTwo.`);
+    const c = humanHash(`Body changed.\n\n${AI_HEADING}\n\nOne.`);
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+    expect(a).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it("parses and rejects ai_checked by shape", () => {
+    const ok = parseNote(MINIMAL.replace("updated: 2026-08-01", 'updated: 2026-08-01\nai_checked: "0123456789abcdef"'));
+    expect(ok.aiChecked).toBe("0123456789abcdef");
+    expect(serializeNote(ok)).toContain('ai_checked: "0123456789abcdef"');
+    // All digits, unquoted: YAML reads a number and the leading zero is gone.
+    const digits = parseNote(MINIMAL.replace("updated: 2026-08-01", 'updated: 2026-08-01\nai_checked: "0000000000000001"'));
+    expect(parseNote(serializeNote(digits)).aiChecked).toBe("0000000000000001");
+    expect(() =>
+      parseNote(MINIMAL.replace("updated: 2026-08-01", "updated: 2026-08-01\nai_checked: nope")),
+    ).toThrow(/ai_checked/);
+    expect(() =>
+      parseNote(MINIMAL.replace("updated: 2026-08-01", "updated: 2026-08-01\nai_checked: 0000000000000001")),
+    ).toThrow(/ai_checked/);
+    expect(aiStatusOf({ body: "no section", aiChecked: "0123456789abcdef" })).toBe("none");
+    expect(aiStatusOf({ body: `x\n\n${AI_HEADING}\n\ny` })).toBe("unchecked");
+  });
 });
 
 describe("store", () => {
@@ -438,6 +466,50 @@ describe("store", () => {
     const added = await addNote({ title: "T", summary: "S.", body: "Old.", forAi: "Model." });
     const updated = await updateNote(added.id, { body: "Replaced." });
     expect(updated.body).toBe("Replaced.");
+  });
+
+  it("tracks whether the AI section was confirmed against the body it sits under", async () => {
+    const added = await addNote({ title: "T", summary: "S.", body: "One." });
+    expect(aiStatusOf(added)).toBe("none");
+    expect(added.aiChecked).toBeUndefined();
+
+    const withAi = await updateNote(added.id, { forAi: "Model." });
+    expect(withAi.aiChecked).toBe(humanHash(withAi.body));
+    expect(aiStatusOf(withAi)).toBe("fresh");
+
+    // The editor sends the body and the section together; an unchanged
+    // section beside a changed body is exactly the case that must flag.
+    const bodyMoved = await updateNote(added.id, { body: "Two.", forAi: "Model." });
+    expect(bodyMoved.aiChecked).toBe(withAi.aiChecked);
+    expect(aiStatusOf(bodyMoved)).toBe("unchecked");
+
+    // The old contract: a whole body carrying its own section, sent alone.
+    const wholeBody = await updateNote(added.id, { body: `Two b.\n\n${AI_HEADING}\n\nModel.` });
+    expect(aiStatusOf(wholeBody)).toBe("unchecked");
+
+    const confirmed = await updateNote(added.id, { confirmAi: true });
+    expect(aiStatusOf(confirmed)).toBe("fresh");
+    expect(confirmed.body).toBe(wholeBody.body);
+
+    const both = await updateNote(added.id, { body: "Three.", forAi: "New model." });
+    expect(aiStatusOf(both)).toBe("fresh");
+
+    const removed = await updateNote(added.id, { forAi: "" });
+    expect(removed.aiChecked).toBeUndefined();
+    expect(aiStatusOf(removed)).toBe("none");
+
+    const onDisk = await fs.readFile(path.join(tmp, "knowledge", "K-001-t.md"), "utf8");
+    expect(onDisk).not.toContain("ai_checked");
+    const again = await updateNote(added.id, { forAi: "Back." });
+    const disk2 = await fs.readFile(path.join(tmp, "knowledge", "K-001-t.md"), "utf8");
+    expect(disk2).toContain(`ai_checked: "${again.aiChecked}"`);
+    expect(parseNote(disk2)).toEqual(again);
+  });
+
+  it("confirming a note with no section is a no-op", async () => {
+    const added = await addNote({ title: "T", summary: "S.", body: "One." });
+    const out = await updateNote(added.id, { confirmAi: true });
+    expect(out.aiChecked).toBeUndefined();
   });
 
   it("returns links and backlinks from readNote", async () => {

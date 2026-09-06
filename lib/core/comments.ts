@@ -80,14 +80,20 @@ export function parseComments(raw: string): CommentLog {
  * `cleanTitle` rejects `" | "` there: a body already on disk is too late. An
  * indent rather than a refusal, because a body is text pasted from anywhere.
  */
-export function serializeComment(date: string, time: string, body: string): string {
+export function serializeComment(
+  date: string,
+  time: string,
+  body: string,
+  marker: string | null = null,
+): string {
   const safe = body
     .replace(/\r\n/g, "\n")
     .split("\n")
     .map((line) => (STAMP.test(line) ? `  ${line}` : line))
     .join("\n")
     .trim();
-  return `\n## ${date} ${time}\n${safe}\n`;
+  const tag = marker && /^[a-z][a-z0-9-]*$/.test(marker) ? ` · ${marker}` : "";
+  return `\n## ${date} ${time}${tag}\n${safe}\n`;
 }
 
 export async function readComments(
@@ -128,12 +134,16 @@ export async function appendComment(
   slug: string,
   taskId: string,
   body: string,
+  marker: string | null = null,
 ): Promise<TaskComment> {
   assertTaskId(taskId);
   const text = String(body ?? "").trim();
   if (!text) throw new Error("A comment needs a body");
   if (text.length > MAX_COMMENT_LENGTH) {
     throw new Error(`A comment is at most ${MAX_COMMENT_LENGTH} characters`);
+  }
+  if (marker !== null && !/^[a-z][a-z0-9-]*$/.test(marker)) {
+    throw new Error(`Invalid entry kind: ${marker}`);
   }
   return withDataLock(async () => {
     const now = new Date();
@@ -145,9 +155,39 @@ export async function appendComment(
       .access(file)
       .then(() => "")
       .catch(() => `# ${taskId} — log\n`);
-    await fs.appendFile(file, header + serializeComment(date, time, text), "utf8");
-    await appendJournal(slug, `${taskId} comment added`);
-    await commitData(`task comment: ${taskId} (${slug})`);
-    return { date, time, marker: null, body: text };
+    await fs.appendFile(file, header + serializeComment(date, time, text, marker), "utf8");
+    await appendJournal(slug, `${taskId} ${marker === "status" ? "status posted" : "comment added"}`);
+    await commitData(`task ${marker ?? "comment"}: ${taskId} (${slug})`);
+    return { date, time, marker, body: text };
   });
+}
+
+export interface LoggedEntry extends TaskComment {
+  type: ProjectType;
+  slug: string;
+  taskId: string;
+}
+
+/**
+ * Every entry carrying `marker` across the live charters, newest first. Reads
+ * every log file — fine for a personal repo, and built on request so it is
+ * never stale. Archived charters are deliberately not read: their logs travel
+ * with them and are reached from the archive page, not from the day's feed.
+ */
+export async function listMarkedEntries(
+  charters: { type: ProjectType; slug: string }[],
+  marker: string,
+  limit = 20,
+): Promise<LoggedEntry[]> {
+  const out: LoggedEntry[] = [];
+  for (const c of charters) {
+    for (const taskId of await listCommentedIds(c.type, c.slug)) {
+      const entries = await readComments(c.type, c.slug, taskId);
+      for (const e of entries) {
+        if (e.marker === marker) out.push({ ...e, type: c.type, slug: c.slug, taskId });
+      }
+    }
+  }
+  out.sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`));
+  return out.slice(0, limit);
 }

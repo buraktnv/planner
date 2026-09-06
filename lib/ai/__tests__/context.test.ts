@@ -107,14 +107,37 @@ describe("buildSystemContext without a focus", () => {
     expect(withDigest).toContain("Tools used: create_task (T-041)");
   });
 
-  it("carries the batching rule with no mode at all, on both branches", async () => {
+  it("carries the batching, forAi and status rules with no mode at all, on both branches", async () => {
     const { buildSystemContext } = await import("../context");
     const unfocused = await buildSystemContext();
     expect(unfocused).toContain("# Writing");
     expect(unfocused).toContain("call propose_changes once with the whole set");
+    expect(unfocused).toContain("pass forAi in the same update_note call");
+    expect(unfocused).toContain("call post_status the moment a decision lands");
     await writeCharter("project", "alpha", "Alpha");
     const focused = await buildSystemContext({ type: "project", slug: "alpha" });
     expect(focused).toContain("# Writing");
+    expect(focused).toContain("post_status");
+  });
+
+  it("names the notes whose For the AI section is behind their body", async () => {
+    const { buildSystemContext } = await import("../context");
+    await fs.mkdir(path.join(tmp, "knowledge"), { recursive: true });
+    const note = (id: string, title: string, extra: string) =>
+      fs.writeFile(
+        path.join(tmp, "knowledge", `${id}-${title}.md`),
+        `---\nid: ${id}\ntitle: ${title}\nsummary: S.\ncreated: 2026-08-01\nupdated: 2026-08-01\n${extra}---\n\nBody.\n\n## For the AI\n\nModel.\n`,
+      );
+    await note("K-001", "behind", "");
+    await note("K-002", "wrong", 'ai_checked: "0000000000000000"\n');
+    const { humanHash } = await import("@/lib/core/knowledge");
+    await note("K-003", "fine", `ai_checked: "${humanHash("Body.")}"\n`);
+    const ctx = await buildSystemContext();
+    const line = ctx.split("\n").find((l) => l.startsWith("For the AI sections behind their body"));
+    expect(line).toBeDefined();
+    expect(line).toContain("K-001");
+    expect(line).toContain("K-002");
+    expect(line).not.toContain("K-003");
   });
 
   it("renders mentions ahead of the digest", async () => {

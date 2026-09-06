@@ -6,7 +6,7 @@ import { knowledgeDir, knowledgeIndexPath } from "./paths";
 import { appendJournal } from "./journal";
 import { commitData } from "./git";
 import { withDataLock } from "./locks";
-import { splitAiSection, withAiSection } from "./note-sections";
+import { aiStatusOf, humanHash, splitAiSection, withAiSection } from "./note-sections";
 
 export class KnowledgeParseError extends Error {
   constructor(message: string) {
@@ -30,10 +30,13 @@ const KNOWN_KEYS = new Set([
   "created",
   "updated",
   "source",
+  "ai_checked",
 ]);
+const AI_CHECKED_RE = /^[0-9a-f]{16}$/;
 const FOCUS_LINE_CAP = 40;
 const RECENT_LINE_CAP = 15;
 const RELEVANT_LINE_CAP = 6;
+const UNCHECKED_LINE_CAP = 5;
 const TITLE_MAX = 60;
 const SNIPPET_LEN = 160;
 const BODY_HIT_CAP = 5;
@@ -113,8 +116,16 @@ export function parseNote(raw: string, where = "note"): KnowledgeNote {
   if (data.source !== undefined) {
     note.source = asLine(data.source, "source", where);
   }
+  if (data.ai_checked !== undefined) {
+    const hash = typeof data.ai_checked === "string" ? data.ai_checked.trim() : "";
+    if (!AI_CHECKED_RE.test(hash)) {
+      throw new KnowledgeParseError(`${where}: ai_checked must be 16 hex characters, quoted`);
+    }
+    note.aiChecked = hash;
+  }
   return note;
 }
+
 
 /**
  * Quote a frontmatter scalar when YAML would otherwise misread it.
@@ -154,12 +165,23 @@ export function serializeNote(note: KnowledgeNote): string {
   }
   lines.push(`created: ${note.created}`, `updated: ${note.updated}`);
   if (note.source) lines.push(`source: ${yamlScalar(note.source)}`);
+  // Always quoted: sixteen hex characters can be all digits, which YAML reads
+  // as a number and strips of leading zeros, or contain an `e`, which it reads
+  // as a float. Either way the hash would never match again.
+  if (note.aiChecked) lines.push(`ai_checked: "${note.aiChecked}"`);
   lines.push("---", "");
   const body = note.body.trim();
   return `${lines.join("\n")}\n${body}${body ? "\n" : ""}`;
 }
 
-export { AI_HEADING, splitAiSection, withAiSection } from "./note-sections";
+export {
+  AI_HEADING,
+  aiStatusOf,
+  humanHash,
+  splitAiSection,
+  withAiSection,
+  type AiStatus,
+} from "./note-sections";
 
 export function slugifyTitle(title: string): string {
   const slug = title
@@ -457,6 +479,7 @@ async function addNoteNow(input: AddNoteInput): Promise<KnowledgeNote> {
   if (input.source && input.source.trim()) {
     note.source = cleanLine(input.source, "source");
   }
+  if (input.forAi?.trim()) note.aiChecked = humanHash(note.body);
   await writeNoteFile(note, undefined, true);
   await writeIndex([...notes, note]);
   await appendJournal(journalScopeOf(note.scope), `${note.id} note added: ${note.title}`);
@@ -478,6 +501,8 @@ export interface UpdateNotePatch {
    * the human part and `forAi` the section.
    */
   forAi?: string;
+  /** "I looked, the section still holds": re-hash without changing anything. */
+  confirmAi?: boolean;
 }
 
 function nextBody(current: string, patch: UpdateNotePatch): string {
@@ -511,6 +536,18 @@ async function updateNoteNow(id: string, patch: UpdateNotePatch): Promise<Knowle
     const trimmed = patch.source.trim();
     if (trimmed === "") delete next.source;
     else next.source = cleanLine(trimmed, "source");
+  }
+  // The transitions: a section that was actually rewritten, or explicitly
+  // confirmed, is hashed against the body it now sits under; a section removed
+  // loses the key; anything else — a body-only edit, or the editor sending the
+  // body and an unchanged section together — leaves the key alone, which is
+  // what makes the note unchecked for free.
+  const before = splitAiSection(current.body);
+  const after = splitAiSection(next.body);
+  if (after.forAi === null) {
+    delete next.aiChecked;
+  } else if (patch.confirmAi || (patch.forAi !== undefined && after.forAi !== before.forAi)) {
+    next.aiChecked = humanHash(next.body);
   }
 
   await writeNoteFile(next, current.title);
@@ -632,5 +669,15 @@ export async function knowledgeSection(
     parts.push(block("# Knowledge (most recent)", recent));
   }
 
-  return `\n\n${parts.join("\n\n")}\n${hint}`;
+  // One line, ids only: enough for the assistant to say a section may be behind
+  // and to point at COMPARE, without loading the bodies the summary keeps out.
+  const pool = focusScope ? filterByScope(notes, focusScope) : notes;
+  const unchecked = pool.filter((n) => aiStatusOf(n) === "unchecked").map((n) => n.id);
+  const drift = unchecked.length
+    ? `\nFor the AI sections behind their body (treat with care, suggest COMPARE): ${unchecked
+        .slice(0, UNCHECKED_LINE_CAP)
+        .join(", ")}${unchecked.length > UNCHECKED_LINE_CAP ? ` +${unchecked.length - UNCHECKED_LINE_CAP} more` : ""}`
+    : "";
+
+  return `\n\n${parts.join("\n\n")}\n${hint}${drift}`;
 }

@@ -15,12 +15,22 @@ describe("compareToActions", () => {
     ).toBeNull();
   });
 
-  it("carries only the fields that changed", () => {
+  it("carries only the fields that changed, and confirms a section it left alone", () => {
     const action = compareToActions(
       { summaryStillTrue: false, verdict: "Off.", summary: "Grids die on trends.", forAi: "" },
       current,
     );
-    expect(action).toEqual({ kind: "update_note", id: "K-007", summary: "Grids die on trends." });
+    expect(action).toEqual({
+      kind: "update_note",
+      id: "K-007",
+      summary: "Grids die on trends.",
+      confirmAi: true,
+    });
+    const noSection = compareToActions(
+      { summaryStillTrue: false, verdict: "Off.", summary: "Grids die on trends.", forAi: "" },
+      { ...current, forAi: null },
+    );
+    expect(noSection).toEqual({ kind: "update_note", id: "K-007", summary: "Grids die on trends." });
     const both = compareToActions(
       { summaryStillTrue: false, verdict: "Off.", summary: "Grids die on trends.", forAi: "Never propose a grid." },
       current,
@@ -41,6 +51,9 @@ describe("compareToActions", () => {
     expect(
       compareToActions({ summaryStillTrue: true, verdict: "", summary: "a | b", forAi: "New." }, current),
     ).toEqual({ kind: "update_note", id: "K-007", forAi: "New." });
+    expect(
+      compareToActions({ summaryStillTrue: true, verdict: "", summary: "Two\nlines", forAi: "" }, current),
+    ).toBeNull();
   });
 
   it("works for a note with no section yet", () => {

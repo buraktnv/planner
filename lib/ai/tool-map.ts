@@ -30,6 +30,7 @@ export const toolImplMap: Record<ToolName, ImplFn> = {
   write_task_detail: toolImpls.writeTaskDetail as ImplFn,
   read_task_comments: toolImpls.readTaskComments as ImplFn,
   add_task_comment: toolImpls.addTaskComment as ImplFn,
+  post_status: toolImpls.postStatus as ImplFn,
   add_note: toolImpls.addNote as ImplFn,
   update_note: toolImpls.updateNote as ImplFn,
   attach_image: toolImpls.attachImage as ImplFn,

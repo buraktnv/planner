@@ -49,3 +49,39 @@ export function withAiSection(human: string, forAi: string | null | undefined): 
   if (!ai) return base;
   return base ? `${base}\n\n${AI_HEADING}\n\n${ai}` : `${AI_HEADING}\n\n${ai}`;
 }
+
+function fnv1a32(text: string, seed: number): number {
+  let h = seed >>> 0;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
+/**
+ * Sixteen hex characters — two 32-bit FNV-1a passes with different seeds —
+ * over the human part of the body. It only has to notice that the words
+ * changed, so a cryptographic hash would buy nothing, and it must run in the
+ * browser bundle, where `node:crypto` does not exist. `ai_checked` stores
+ * this; a note is unchecked when the stored value no longer matches.
+ */
+export function humanHash(body: string): string {
+  const { human } = splitAiSection(body);
+  const a = fnv1a32(human, 0x811c9dc5).toString(16).padStart(8, "0");
+  const b = fnv1a32(human, 0x9dc5811c).toString(16).padStart(8, "0");
+  return `${a}${b}`;
+}
+
+export type AiStatus = "none" | "fresh" | "unchecked";
+
+/**
+ * Derived, never stored. `unchecked` means the body's words moved after the
+ * section was last confirmed against them — exactly the edits that can make
+ * the section lie, and none of the re-saves that cannot.
+ */
+export function aiStatusOf(note: { body: string; aiChecked?: string }): AiStatus {
+  const { forAi } = splitAiSection(note.body);
+  if (forAi === null) return "none";
+  return note.aiChecked === humanHash(note.body) ? "fresh" : "unchecked";
+}
