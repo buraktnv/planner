@@ -29,6 +29,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (typeof body.summary === "string") patch.summary = body.summary;
     if (typeof body.body === "string") patch.body = body.body;
     if (typeof body.source === "string") patch.source = body.source;
+    if (typeof body.forAi === "string") patch.forAi = body.forAi;
     const scope = stringList(body.scope);
     if (scope) patch.scope = scope;
     const tags = stringList(body.tags);

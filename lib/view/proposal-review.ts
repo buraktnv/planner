@@ -266,6 +266,13 @@ const FIELDS = {
       placeholder: "One line stating the conclusion, not the topic",
     },
     { key: "body", label: "Body", type: "textarea", required: false },
+    {
+      key: "forAi",
+      label: "For the AI",
+      type: "textarea",
+      required: false,
+      placeholder: "What the assistant should know, terse",
+    },
     { key: "source", label: "Source", type: "text", required: false },
   ],
   update_note: [
@@ -273,6 +280,13 @@ const FIELDS = {
     { key: "title", label: "Title", type: "text", required: false },
     { key: "summary", label: "Summary", type: "textarea", required: false },
     { key: "body", label: "Body", type: "textarea", required: false },
+    {
+      key: "forAi",
+      label: "For the AI",
+      type: "textarea",
+      required: false,
+      placeholder: "What the assistant should know, terse",
+    },
     { key: "source", label: "Source", type: "text", required: false },
   ],
   /**

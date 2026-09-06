@@ -13,7 +13,7 @@ function session(over: Partial<StoredSession> = {}): StoredSession {
   return {
     id: "s-1",
     title: "Rebuild attention",
-    mode: "plan",
+    mode: "checkin",
     messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: "hi" }] }],
     ...over,
   };
@@ -103,6 +103,11 @@ describe("unpackSessions is total", () => {
   it("drops a mode it does not recognise rather than trusting it", () => {
     const raw = JSON.stringify([{ id: "a", title: "T", mode: "wildcard", messages: [] }]);
     expect(unpackSessions(raw)[0].mode).toBeNull();
+    // A conversation stored when Plan was still a mode still opens.
+    const old = JSON.stringify([{ id: "b", title: "T", mode: "plan", messages: [] }]);
+    expect(unpackSessions(old)[0].mode).toBeNull();
+    const kept = JSON.stringify([{ id: "c", title: "T", mode: "checkin", messages: [] }]);
+    expect(unpackSessions(kept)[0].mode).toBe("checkin");
   });
 
   it("names a conversation that lost its title", () => {

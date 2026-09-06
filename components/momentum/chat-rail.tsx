@@ -13,8 +13,20 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CHAT_MODES, CHAT_MODE_KEYS, type ChatMode } from "@/lib/ai/modes";
+import { CHAT_MODES, type ChatMode } from "@/lib/ai/modes";
 import { windowMessages } from "@/lib/view/chat-window";
+import {
+  EMPTY_CATALOG,
+  catalogItems,
+  collectMentions,
+  commandOf,
+  filterMentionItems,
+  insertMention,
+  mentionHref,
+  mentionQueryAt,
+  type MentionCatalog,
+  type MentionItem,
+} from "@/lib/view/mentions";
 import { toolNames, type Proposal, type ProposalApplyResult } from "@/lib/ai/schemas";
 import type { ProviderEffort, ProviderProfile, ProvidersFile } from "@/lib/core/types";
 import { isProviderEffort, nextEffort } from "@/lib/ui/providers";
@@ -52,6 +64,7 @@ import {
 import type { NavCharter } from "./context";
 import { useStored, writeStored } from "./use-stored";
 import ChatMessage from "./chat/chat-message";
+import MentionPicker from "./chat/mention-picker";
 import ProposalReview from "./chat/proposal-review";
 import { TOOL_CARDS } from "./chat/tool-cards";
 import { Mono } from "./primitives";
@@ -151,11 +164,18 @@ export default function ChatRail({
   /** One per "ask for changes", appended on send; the chain is derived from these. */
   const [reviseOrigins, setReviseOrigins] = useState<ReviseOrigin[]>([]);
   /**
-   * Scope, modes, history and the opener line fold away once a conversation is
-   * under way; this is the click that overrides that, and it lasts only as
-   * long as the conversation does.
+   * Scope, history and the opener line fold away once a conversation is under
+   * way; this is the click that overrides that, and it lasts only as long as
+   * the conversation does.
    */
   const [chromeOverride, setChromeOverride] = useState<ChromeOverride>(null);
+  /** What `@` may point at, fetched once per page load. */
+  const [catalog, setCatalog] = useState<MentionCatalog>(EMPTY_CATALOG);
+  const [caret, setCaret] = useState(0);
+  const [pickIndex, setPickIndex] = useState(0);
+  /** The draft the picker was dismissed on; it reopens once the draft changes. */
+  const [pickerDismissedOn, setPickerDismissedOn] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   /** Live width while the handle is held; null means "use the stored one". */
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   /** Proposals filed but not yet accepted, shown as a chip linking to /proposals. */
@@ -182,10 +202,16 @@ export default function ChatRail({
     return { label: match.name, color: match.color, tint: `${match.color}22` };
   }, [effectiveScope, charters]);
 
+  /**
+   * The transport is built on the first render and keeps whatever it closed
+   * over, so nothing that can change — the profile chosen after the providers
+   * load, the scope, a mode switched on by `/checkin` — is given to it here.
+   * Every `sendMessage` passes `wireBody()` as its per-call body instead, which
+   * the SDK merges at send time from the render that handled the click.
+   */
   const { messages, sendMessage, setMessages, status } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      body: { profileId, focus, mode: mode ?? undefined, effort },
       // The full transcript stays in state and in localStorage; only the wire
       // payload is windowed, with a digest of what was left out.
       prepareSendMessagesRequest: ({ id, messages: all, body, trigger, messageId }) => {
@@ -202,6 +228,14 @@ export default function ChatRail({
         };
       },
     }),
+  });
+
+  const wireBody = (extra: Record<string, unknown> = {}) => ({
+    profileId,
+    focus,
+    mode: mode ?? undefined,
+    effort,
+    ...extra,
   });
 
   const refreshWaiting = useCallback(() => {
@@ -289,10 +323,52 @@ export default function ChatRail({
         if (alive && data && typeof data.about === "string") setAbout(data.about);
       })
       .catch(() => {});
+    // Fetched up front rather than on the first `@`, so tokens in restored
+    // conversations link on load and the picker never opens empty.
+    fetch("/api/mentions")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: MentionCatalog | null) => {
+        if (alive && data && Array.isArray(data.notes)) setCatalog(data);
+      })
+      .catch(() => {});
     return () => {
       alive = false;
     };
   }, []);
+
+  const mentionItems = useMemo(() => catalogItems(catalog), [catalog]);
+  const pick = mentionQueryAt(draft, caret);
+  const pickItems =
+    pick && pickerDismissedOn !== draft
+      ? filterMentionItems(mentionItems, pick.trigger, pick.query)
+      : [];
+  const pickSelected = Math.min(pickIndex, Math.max(0, pickItems.length - 1));
+  const draftMentions = useMemo(
+    () => collectMentions(draft, catalog, focus),
+    [draft, catalog, focus],
+  );
+  const hrefForMention = useCallback(
+    (ref: string) => mentionHref(ref, catalog, focus),
+    [catalog, focus],
+  );
+
+  const placeCaret = (at: number) => {
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(at, at);
+    });
+  };
+
+  const pickMention = (item: MentionItem) => {
+    if (!pick) return;
+    const next = insertMention(draft, pick.start, caret, item);
+    setDraft(next.text);
+    setCaret(next.caret);
+    setPickIndex(0);
+    placeCaret(next.caret);
+  };
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -340,9 +416,7 @@ export default function ChatRail({
   );
 
   const active = allSessions.find((s) => s.id === activeId) ?? allSessions[0];
-  const visibleSessions = mode
-    ? allSessions.filter((s) => s.mode === mode || s.id === activeId)
-    : allSessions;
+  const visibleSessions = allSessions;
   const activeTitle = titleFrom(messages, active?.title ?? "New conversation");
 
   /**
@@ -379,7 +453,9 @@ export default function ChatRail({
 
   const startSession = () => {
     stash();
-    const s = newSession(mode);
+    // A check-in belongs to the conversation it was started in.
+    setMode(null);
+    const s = newSession(null);
     transcripts.current.set(s.id, []);
     setSessions((prev) => [s, ...prev]);
     setActiveId(s.id);
@@ -412,6 +488,8 @@ export default function ChatRail({
 
     setActiveId(id);
     setMessages(transcripts.current.get(id) ?? []);
+    // A conversation that was a check-in resumes as one.
+    setMode(allSessions.find((s) => s.id === id)?.mode ?? null);
     // Switching does not abort an in-flight stream, so close the modal rather
     // than leave it pointed at a card from a conversation no longer on screen.
     setReviewKey(null);
@@ -437,11 +515,32 @@ export default function ChatRail({
     remember(EFFORT_KEY, next);
   };
 
+  /**
+   * `/checkin` switches the conversation into the one remaining mode and
+   * stays on for the rest of it, because the procedure spans several turns.
+   * Mentions are read off the text at this moment and travel in the body —
+   * the message itself carries only the `@` tokens.
+   */
   const submit = () => {
-    const text = draft.trim();
-    if (!text || busy || !profileId) return;
+    const raw = draft.trim();
+    if (!raw || busy || !profileId) return;
+    let text = raw;
+    let nextMode = mode;
+    const command = commandOf(raw);
+    if (command?.name === "checkin") {
+      nextMode = "checkin";
+      setMode("checkin");
+      setSessions((prev) => prev.map((s) => (s.id === activeId ? { ...s, mode: "checkin" } : s)));
+      text = command.rest || "Let's do a check-in.";
+    }
+    const mentions = collectMentions(text, catalog, focus);
     setDraft("");
-    sendMessage({ text });
+    setCaret(0);
+    setPickerDismissedOn(null);
+    sendMessage(
+      { text },
+      { body: wireBody({ mode: nextMode ?? undefined, ...(mentions.length ? { mentions } : {}) }) },
+    );
   };
 
   const setProposalState = (key: string, next: ProposalState) => {
@@ -484,7 +583,7 @@ export default function ChatRail({
       },
     ]);
     // The working copy travels in the request body, never in the message text.
-    sendMessage({ text: reviseBubbleText(payload) }, { body: { revise: payload } });
+    sendMessage({ text: reviseBubbleText(payload) }, { body: wireBody({ revise: payload }) });
   };
 
   const acceptProposal = async (key: string, proposal: Proposal) => {
@@ -688,7 +787,7 @@ export default function ChatRail({
               type="button"
               onClick={() => setChromeOverride("open")}
               className="flex min-w-0 flex-1 items-center gap-2 rounded-[9px] px-2 py-1 text-left transition-colors hover:bg-soft"
-              title="Show scope, modes and history"
+              title="Show scope and history"
             >
               <span
                 className="h-2 w-2 shrink-0 rounded-[3px]"
@@ -835,27 +934,6 @@ export default function ChatRail({
           )}
         </div>
 
-        <div className="mt-2.5 flex gap-[5px]">
-          {CHAT_MODE_KEYS.map((key) => {
-            const m = CHAT_MODES[key];
-            const on = mode === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setMode(on ? null : key)}
-                className="flex-1 rounded-[9px] px-1 py-[7px] text-[11.5px] font-medium"
-                style={{
-                  color: on ? "#ffffff" : m.ink,
-                  background: on ? m.color : m.tint,
-                }}
-              >
-                {m.label}
-              </button>
-            );
-          })}
-        </div>
-
         <button
           type="button"
           onClick={() => setSessionsOpen((v) => !v)}
@@ -928,14 +1006,6 @@ export default function ChatRail({
                     {(s.id === activeId ? messages : s.messages).length} msg
                   </Mono>
                 </div>
-                {s.mode && (
-                  <Mono
-                    className="mt-[7px] inline-block rounded-[4px] px-1.5 py-0.5 text-[8px] tracking-[0.08em]"
-                    style={{ color: CHAT_MODES[s.mode].ink, background: CHAT_MODES[s.mode].tint }}
-                  >
-                    {CHAT_MODES[s.mode].label.toUpperCase()}
-                  </Mono>
-                )}
               </button>
             ))}
             <div className="mt-1.5 border-t border-edge2 pt-2">
@@ -960,7 +1030,9 @@ export default function ChatRail({
           style={{ borderLeft: `2px solid ${modeMeta ? modeMeta.color : "var(--color-edge)"}` }}
         >
           <span className="text-[11.5px] leading-[1.45] text-dim">
-            {modeMeta ? modeMeta.opener : "Ask about anything on screen — it reads your real data."}
+            {modeMeta
+              ? modeMeta.opener
+              : "Ask about anything on screen — it reads your real data. @ points it at a note or task; /checkin starts a check-in."}
           </span>
         </div>
       )}
@@ -983,6 +1055,7 @@ export default function ChatRail({
               setOpenReasoning((prev) => ({ ...prev, [key]: prev[key] !== true }))
             }
             renderTool={renderTool}
+            mentionHref={hrefForMention}
           />
         ))}
         {busy && <Mono className="text-[9.5px] text-faint">THINKING…</Mono>}
@@ -1000,17 +1073,14 @@ export default function ChatRail({
             </Mono>
           </div>
 
-          <div
-            className="mb-3.5 pl-[11px]"
-            style={{ borderLeft: `2px solid ${modeMeta ? modeMeta.color : "var(--color-edge)"}` }}
-          >
-            <Mono className="mb-1.5 block text-[8px] tracking-[0.12em] text-faint">MODE</Mono>
-            <div className="text-[12px] leading-[1.5] text-ink">
-              {modeMeta
-                ? `${modeMeta.label} — ${modeMeta.instruction}`
-                : "No mode — default assistant behaviour."}
+          {modeMeta && (
+            <div className="mb-3.5 pl-[11px]" style={{ borderLeft: `2px solid ${modeMeta.color}` }}>
+              <Mono className="mb-1.5 block text-[8px] tracking-[0.12em] text-faint">
+                {modeMeta.label.toUpperCase()} — UNTIL THIS CONVERSATION ENDS
+              </Mono>
+              <div className="text-[12px] leading-[1.5] text-ink">{modeMeta.instruction}</div>
             </div>
-          </div>
+          )}
 
           <div
             className="mb-3.5 pl-[11px]"
@@ -1021,6 +1091,8 @@ export default function ChatRail({
               {focus
                 ? `${scopeMeta.label} — charter, open tasks, targets, last 7 days of journal`
                 : "Everything, summarised — no charter is focused"}
+              {draftMentions.length > 0 &&
+                ` — plus ${draftMentions.length} mentioned in the draft, read in full`}
             </div>
           </div>
 
@@ -1122,18 +1194,52 @@ export default function ChatRail({
       )}
 
       <div className="border-t border-edge2 px-[18px] pt-3.5 pb-4">
-        <div className="flex items-center gap-2.5 rounded-[13px] border border-edge bg-bg px-[13px] py-2.5">
+        <div className="relative flex items-center gap-2.5 rounded-[13px] border border-edge bg-bg px-[13px] py-2.5">
+          <MentionPicker
+            items={pickItems}
+            selected={pickSelected}
+            onPick={pickMention}
+            onHover={setPickIndex}
+          />
           <input
+            ref={inputRef}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setCaret(e.target.selectionStart ?? e.target.value.length);
+              setPickIndex(0);
+            }}
+            onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
             onKeyDown={(e) => {
+              if (pickItems.length > 0) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setPickIndex((i) => (i + 1) % pickItems.length);
+                  return;
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setPickIndex((i) => (i - 1 + pickItems.length) % pickItems.length);
+                  return;
+                }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  pickMention(pickItems[pickSelected]);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setPickerDismissedOn(draft);
+                  return;
+                }
+              }
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey || !e.shiftKey)) {
                 e.preventDefault();
                 submit();
               }
             }}
             placeholder={
-              focus ? `Ask about ${scopeMeta.label}…` : "Ask anything…"
+              focus ? `Ask about ${scopeMeta.label}… @ to point, /checkin` : "Ask anything… @ to point, /checkin"
             }
             className="min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-faint"
           />

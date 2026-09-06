@@ -6,6 +6,7 @@ import { knowledgeDir, knowledgeIndexPath } from "./paths";
 import { appendJournal } from "./journal";
 import { commitData } from "./git";
 import { withDataLock } from "./locks";
+import { splitAiSection, withAiSection } from "./note-sections";
 
 export class KnowledgeParseError extends Error {
   constructor(message: string) {
@@ -157,6 +158,8 @@ export function serializeNote(note: KnowledgeNote): string {
   const body = note.body.trim();
   return `${lines.join("\n")}\n${body}${body ? "\n" : ""}`;
 }
+
+export { AI_HEADING, splitAiSection, withAiSection } from "./note-sections";
 
 export function slugifyTitle(title: string): string {
   const slug = title
@@ -369,11 +372,16 @@ export async function getNote(id: string): Promise<KnowledgeNote> {
 
 export async function readNote(
   id: string,
-): Promise<{ note: KnowledgeNote; links: string[]; backlinks: string[] }> {
+): Promise<{ note: KnowledgeNote; forAi: string | null; links: string[]; backlinks: string[] }> {
   const notes = await listNotes();
   const note = notes.find((n) => n.id === id);
   if (!note) throw new Error(`Note not found: ${id}`);
-  return { note, links: linksOf(note), backlinks: backlinksOf(notes, id) };
+  return {
+    note,
+    forAi: splitAiSection(note.body).forAi,
+    links: linksOf(note),
+    backlinks: backlinksOf(notes, id),
+  };
 }
 
 export async function writeIndex(notes?: KnowledgeNote[]): Promise<void> {
@@ -424,6 +432,8 @@ export interface AddNoteInput {
   scope?: string[];
   tags?: string[];
   source?: string;
+  /** Text for the assistant, kept under `## For the AI` at the end of the body. */
+  forAi?: string;
 }
 
 export function addNote(input: AddNoteInput): Promise<KnowledgeNote> {
@@ -442,7 +452,7 @@ async function addNoteNow(input: AddNoteInput): Promise<KnowledgeNote> {
     tags: cleanList(input.tags, "tags", TAG_RE),
     created: today,
     updated: today,
-    body: (input.body ?? "").trim(),
+    body: withAiSection(input.body ?? "", input.forAi),
   };
   if (input.source && input.source.trim()) {
     note.source = cleanLine(input.source, "source");
@@ -461,6 +471,22 @@ export interface UpdateNotePatch {
   scope?: string[];
   tags?: string[];
   source?: string;
+  /**
+   * Replaces only the `## For the AI` section; an empty string removes it.
+   * Alone, `body` still replaces the whole body, section included — that is
+   * the contract every existing caller wrote against. Sent together, `body` is
+   * the human part and `forAi` the section.
+   */
+  forAi?: string;
+}
+
+function nextBody(current: string, patch: UpdateNotePatch): string {
+  if (patch.body !== undefined && patch.forAi !== undefined) {
+    return withAiSection(splitAiSection(patch.body).human, patch.forAi);
+  }
+  if (patch.body !== undefined) return patch.body.trim();
+  if (patch.forAi !== undefined) return withAiSection(splitAiSection(current).human, patch.forAi);
+  return current;
 }
 
 export function updateNote(id: string, patch: UpdateNotePatch): Promise<KnowledgeNote> {
@@ -478,7 +504,7 @@ async function updateNoteNow(id: string, patch: UpdateNotePatch): Promise<Knowle
     summary: patch.summary !== undefined ? cleanLine(patch.summary, "summary") : current.summary,
     scope: patch.scope !== undefined ? cleanList(patch.scope, "scope", SCOPE_RE) : current.scope,
     tags: patch.tags !== undefined ? cleanList(patch.tags, "tags", TAG_RE) : current.tags,
-    body: patch.body !== undefined ? patch.body.trim() : current.body,
+    body: nextBody(current.body, patch),
     updated: isoToday(),
   };
   if (patch.source !== undefined) {

@@ -298,7 +298,11 @@ async function previewRow(
       title: action.title ?? action.id,
       lane: null,
       note: "note",
-      ...(action.summary ? { detail: action.summary } : {}),
+      ...(action.summary
+        ? { detail: action.summary }
+        : action.forAi !== undefined
+          ? { detail: action.forAi ? "For the AI section rewritten" : "For the AI section removed" }
+          : {}),
       charterName: scope ? tone.name : "knowledge",
       color: scope ? tone.color : NEUTRAL,
     };
@@ -1049,7 +1053,7 @@ export const toolImpls = {
 
   async readNote(input: {
     id: string;
-  }): Promise<{ note: KnowledgeNote; links: string[]; backlinks: string[] }> {
+  }): Promise<{ note: KnowledgeNote; forAi: string | null; links: string[]; backlinks: string[] }> {
     if (!input.id) throw new Error("readNote requires a note id");
     return readNote(input.id);
   },
@@ -1061,6 +1065,7 @@ export const toolImpls = {
     scope?: string[];
     tags?: string[];
     source?: string;
+    forAi?: string;
   }): Promise<FileNoteResult> {
     if (!input.summary) throw new Error("addNote requires a summary");
     return fileNote(input);
@@ -1074,6 +1079,7 @@ export const toolImpls = {
     scope?: string[];
     tags?: string[];
     source?: string;
+    forAi?: string;
   }): Promise<KnowledgeNote> {
     if (!input.id) throw new Error("updateNote requires a note id");
     const { id, ...patch } = input;

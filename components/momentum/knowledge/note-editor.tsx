@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { splitAiSection } from "@/lib/core/note-sections";
 import Dialog from "../dialog";
 import { Mono } from "../primitives";
 
@@ -12,6 +13,8 @@ export interface EditorValue {
   scope: string;
   tags: string;
   source: string;
+  /** The `## For the AI` section, edited apart from the body it lives in. */
+  forAi: string;
 }
 
 const FIELD =
@@ -53,7 +56,17 @@ export default function NoteEditor({
   onSaved: () => void;
   lockedScope?: string;
 }) {
-  const [value, setValue] = useState<EditorValue>(initial);
+  /**
+   * A caller hands over the body as stored, section included, and the editor
+   * splits it: the two boxes are saved as `body` + `forAi`, and sending a body
+   * that still carried the section beside an empty `forAi` would delete it.
+   * `lib/core/note-sections` is import-safe here — it reaches nothing.
+   */
+  const [value, setValue] = useState<EditorValue>(() => {
+    if (initial.forAi.trim()) return initial;
+    const { human, forAi } = splitAiSection(initial.body);
+    return forAi === null ? initial : { ...initial, body: human, forAi };
+  });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -105,6 +118,7 @@ export default function NoteEditor({
       scope: splitList(value.scope),
       tags: splitList(value.tags),
       source: value.source,
+      forAi: value.forAi,
     };
     try {
       const res = await fetch(
@@ -206,6 +220,18 @@ export default function NoteEditor({
               e.preventDefault();
               void addImage(e.dataTransfer.files);
             }}
+          />
+        </Field>
+
+        <Field
+          label="FOR THE AI"
+          hint="Optional. What the assistant should know when it reads this note — terse facts, constraints, what to do with them. Kept under a ## For the AI heading at the end."
+        >
+          <textarea
+            className={`${FIELD} min-h-[90px] resize-y font-sans leading-[1.6]`}
+            value={value.forAi}
+            onChange={(e) => set({ forAi: e.target.value })}
+            placeholder="Prefer X over Y here because Z. Do not propose W again — see the body."
           />
         </Field>
 

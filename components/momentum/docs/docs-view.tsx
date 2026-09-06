@@ -67,7 +67,7 @@ export default function DocsView({ model, backHref }: { model: DocsModel; backHr
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
 
   const newDoc = () =>
-    setEditor({ title: "", summary: "", body: "", scope: model.scopeKey, tags: "", source: "" });
+    setEditor({ title: "", summary: "", body: "", scope: model.scopeKey, tags: "", source: "", forAi: "" });
 
   const afterSave = useCallback(() => {
     setEditor(null);

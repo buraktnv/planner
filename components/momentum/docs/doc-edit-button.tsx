@@ -15,6 +15,7 @@ export default function DocEditButton({
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
+  // The editor splits the For the AI section off the body itself.
   const initial: EditorValue = {
     id: note.id,
     title: note.title,
@@ -23,6 +24,7 @@ export default function DocEditButton({
     scope: note.scope.join(", "),
     tags: note.tags.join(", "),
     source: note.source ?? "",
+    forAi: "",
   };
 
   return (

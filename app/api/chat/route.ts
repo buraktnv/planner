@@ -10,6 +10,7 @@ import { toolImplMap } from "@/lib/ai/tool-map";
 import { isChatMode, type ChatMode } from "@/lib/ai/modes";
 import { parseRevise, toolNamesForRevise } from "@/lib/ai/revise";
 import { parseDigest } from "@/lib/ai/digest";
+import { parseMentions, resolveMentions } from "@/lib/ai/mentions";
 import { isProviderEffort } from "@/lib/ui/providers";
 import type { ProviderEffort } from "@/lib/core/types";
 
@@ -34,6 +35,11 @@ interface ChatBody {
    * message, or the subscription path would re-send it for ever.
    */
   digest?: unknown;
+  /**
+   * What the user pointed at with `@` in the message being sent. Resolved
+   * server-side and rendered into the prompt; the text carries only the token.
+   */
+  mentions?: unknown;
 }
 
 const tools: Record<string, Tool> = {};
@@ -100,6 +106,7 @@ export async function POST(req: NextRequest) {
     revise = parsed.payload;
   }
   const digest = parseDigest(body.digest);
+  const mentions = await resolveMentions(parseMentions(body.mentions));
 
   if (profile.type === "claude-subscription") {
     return claudeSdkChat({
@@ -110,6 +117,7 @@ export async function POST(req: NextRequest) {
       effort: effort ?? profile.effort,
       revise,
       digest,
+      mentions,
     });
   }
 
@@ -119,6 +127,7 @@ export async function POST(req: NextRequest) {
     recallQuery(body.messages),
     revise,
     digest,
+    mentions,
   );
   const resolved = resolveModel(profile, effort);
 

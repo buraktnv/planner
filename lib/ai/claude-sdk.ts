@@ -12,6 +12,7 @@ import type { ProviderEffort } from "../core/types";
 import { toolShapes, toolDescriptions, toolNames, type ToolName } from "./schemas";
 import { toolImplMap } from "./tool-map";
 import { toolNamesForRevise, type RevisePayload } from "./revise";
+import type { ResolvedMention } from "./mentions";
 
 export interface ClaudeSdkChatOptions {
   messages: UIMessage[];
@@ -21,6 +22,7 @@ export interface ClaudeSdkChatOptions {
   effort?: ProviderEffort;
   revise?: RevisePayload;
   digest?: string;
+  mentions?: ResolvedMention[];
 }
 
 type StreamPart =
@@ -169,8 +171,15 @@ function buildMcpServer() {
 }
 
 export async function claudeSdkChat(opts: ClaudeSdkChatOptions): Promise<Response> {
-  const { messages, focus, mode, model = "sonnet", effort, revise, digest } = opts;
-  const system = await buildSystemContext(focus, mode, recallQuery(messages), revise, digest);
+  const { messages, focus, mode, model = "sonnet", effort, revise, digest, mentions } = opts;
+  const system = await buildSystemContext(
+    focus,
+    mode,
+    recallQuery(messages),
+    revise,
+    digest,
+    mentions,
+  );
   const prompt = formatTranscript(messages) || "Hello";
 
   const server = buildMcpServer();

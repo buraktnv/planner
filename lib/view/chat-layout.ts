@@ -54,14 +54,14 @@ export function dragRailWidth(
 }
 
 /**
- * Whether the rail's own controls — scope, modes, history, the opener line —
- * are folded away.
+ * Whether the rail's own controls — scope, history, the opener line — are
+ * folded away.
  *
- * They are worth a third of the panel before a word is said and nothing after:
- * scope and mode are chosen once, and history is a way *into* a conversation,
- * not something to consult during one. So the fold is derived from whether
- * this conversation has started, and an explicit click wins over that for as
- * long as the conversation lasts.
+ * They are worth a slice of the panel before a word is said and nothing after:
+ * scope is chosen once, and history is a way *into* a conversation, not
+ * something to consult during one. So the fold is derived from whether this
+ * conversation has started, and an explicit click wins over that for as long
+ * as the conversation lasts.
  */
 export type ChromeOverride = "open" | "closed" | null;
 

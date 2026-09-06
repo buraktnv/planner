@@ -10,6 +10,7 @@ import { isoToday, weekRange } from "../ui/momentum";
 import { CHAT_MODES, type ChatMode } from "./modes";
 import { renderRevisePrompt, type RevisePayload } from "./revise";
 import { renderDigest } from "./digest";
+import { renderMentions, type ResolvedMention } from "./mentions";
 
 const CALENDAR_DAYS = 14;
 export const JOURNAL_LINE_CAP = 40;
@@ -131,13 +132,28 @@ Do not capture: anything task-shaped (that is a task), anything transient (today
 File at most two notes per reply (the closing reply of a check-in may file three, each with an explicit area scope), and never mention that you are doing it.`;
 
 /**
- * Appended last, for recency, and only on a revise turn. It lives here rather
- * than in a mode instruction because modes are optional and only `plan` carries
- * the batching rule — a revise from Reflect, or from no mode at all, would get
- * nothing. Both provider paths call this function, so this is the one edit that
- * reaches both models.
+ * Standing, not a mode. This used to live only in the Plan mode instruction,
+ * which meant the rule that keeps a batch of writes reviewable was off unless
+ * a button had been pressed. The tone lines that sat beside it ("propose, do
+ * not ask") were a mode; the rule is not.
  */
-function finish(parts: string[], revise?: RevisePayload, digest?: string): string {
+const WRITE_INSTRUCTION = `# Writing
+For any batch of writes — two or more tasks, events, notes or routines — call propose_changes once with the whole set instead of writing them one by one; nothing lands until the user accepts the card. Use a direct writing tool only for a single change the user explicitly asked for. Put a due date on a task that has a real deadline rather than creating it bare. Something that repeats is a habit or a rhythm, not a task: create it with create_habit or create_rhythm instead of writing a task that says to set one up.`;
+
+/**
+ * Appended last, for recency: what the user pointed at this turn, then the
+ * digest of what was windowed out, then the batch under revision. Both
+ * provider paths call this function, so this is the one edit that reaches
+ * both models — which is why the batching rule below is a standing block here
+ * rather than part of a mode.
+ */
+function finish(
+  parts: string[],
+  revise?: RevisePayload,
+  digest?: string,
+  mentions?: ResolvedMention[],
+): string {
+  if (mentions?.length) parts.push(`\n\n${renderMentions(mentions)}`);
   if (digest) parts.push(`\n\n${renderDigest(digest)}`);
   if (revise) parts.push(`\n\n${renderRevisePrompt(revise)}`);
   return parts.join("\n");
@@ -149,6 +165,7 @@ export async function buildSystemContext(
   query?: string,
   revise?: RevisePayload,
   digest?: string,
+  mentions?: ResolvedMention[],
 ): Promise<string> {
   const about = await getAbout();
   const parts: string[] = [];
@@ -169,23 +186,25 @@ ${CHAT_MODES[mode].instruction}
     parts.push(await knowledgeSection(undefined, query));
     parts.push(await areasLine());
     parts.push(`\n\n${CAPTURE_INSTRUCTION}`);
+    parts.push(`\n\n${WRITE_INSTRUCTION}`);
     parts.push(
       "\n\n# Focus\nNo project is currently focused. Ask the user which project or area to focus on, or use listProjects/listAreas to suggest one.",
     );
-    return finish(parts, revise, digest);
+    return finish(parts, revise, digest, mentions);
   }
 
   const focusScope = focus.type === "area" ? `area:${focus.slug}` : focus.slug;
   parts.push(await knowledgeSection(focusScope, query));
   parts.push(await areasLine());
   parts.push(`\n\n${CAPTURE_INSTRUCTION}`);
+  parts.push(`\n\n${WRITE_INSTRUCTION}`);
 
   let charter;
   try {
     charter = await getCharter(focus.type, focus.slug);
   } catch {
     parts.push(`\n\n# Focus\nFocused charter not found: ${focus.type}/${focus.slug}.`);
-    return finish(parts, revise, digest);
+    return finish(parts, revise, digest, mentions);
   }
 
   parts.push(`\n\n# Focused ${focus.type}: ${charter.name} (${focus.slug})\n`);
@@ -219,5 +238,5 @@ ${CHAT_MODES[mode].instruction}
 
   parts.push(`\n# Journal (last 7 days)\n${journalBlock(await readJournal(7))}`);
 
-  return finish(parts, revise, digest);
+  return finish(parts, revise, digest, mentions);
 }

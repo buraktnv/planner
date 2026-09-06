@@ -98,7 +98,7 @@ The UI implements the **Momentum v2** design: a warm light theme, a collapsible 
 | `/settings/agents` | Agents | Connected coding agents and the tools the assistant may call |
 | `/settings` | Settings | Sources, model catalog, favourites and the general context (`about.md`) |
 
-The assistant rail has four modes (Plan / Straight / Reflect / Target) that change the system prompt, a scope selector that follows the screen by default, and an **Inspect context** panel showing exactly what is being sent — including `about.md`, which you can edit in place.
+The assistant rail has a scope selector that follows the screen by default, `@` mentions that point the model at a specific note, task or charter (its content is read in full for that turn), a `/checkin` command that runs a short check-in and files what it learns, and an **Inspect context** panel showing what is being sent — including `about.md`, which you can edit in place. Every knowledge note can carry a `## For the AI` section, a terse version written for the model beside the body written for you, with a COMPARE button that asks a model whether the summary and that section still match the body.
 
 ## Architecture
 

@@ -60,6 +60,7 @@ export async function POST(req: Request) {
       scope?: string[];
       tags?: string[];
       source?: string;
+      forAi?: string;
     };
     if (!body.summary) {
       return NextResponse.json({ error: "summary is required" }, { status: 400 });
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
       scope: body.scope,
       tags: body.tags,
       source: body.source,
+      forAi: typeof body.forAi === "string" ? body.forAi : undefined,
     });
     return NextResponse.json({ ...filed.note, scopeMethod: filed.scopeMethod });
   } catch (e) {
