@@ -132,6 +132,19 @@ Do not capture: anything task-shaped (that is a task), anything transient (today
 File at most two notes per reply (the closing reply of a check-in may file three, each with an explicit area scope), and never mention that you are doing it.`;
 
 /**
+ * Standing, and the seam between the two halves of the app: the conversation
+ * follows the user, the record does not. Written text is read by other agents,
+ * by an English codebase and by search, so a Turkish task title is a bug even
+ * when the message that created it was Turkish — which is a rule the model has
+ * to be told, because mirroring the user's language is otherwise the polite
+ * default and it silently leaks into every field it writes.
+ */
+const LANGUAGE_INSTRUCTION = `# Language
+Reply in the language the user writes in, and switch whenever they do: a Turkish message gets a Turkish reply.
+Everything you write to a file is English, whatever language the conversation is in — task titles and descriptions, note titles, summaries, bodies and For the AI sections, task log entries and statuses, journal lines, event titles and notes, habit, rhythm, meal and grocery names, and every field of a propose_changes card. Translate what the user said; do not copy it across and do not transliterate it. Keep proper nouns as they are, and where a word has no natural English equivalent use the English term with the original in brackets once.
+When your reply shows text you are about to write — a title, a summary, a proposed card — quote that text in English and explain it in the user's language, so what they accept is what lands on disk.`;
+
+/**
  * Standing, not a mode. This used to live only in the Plan mode instruction,
  * which meant the rule that keeps a batch of writes reviewable was off unless
  * a button had been pressed. The tone lines that sat beside it ("propose, do
@@ -178,6 +191,7 @@ ${CHAT_MODES[mode].instruction}
 `);
   }
 
+  parts.push(`${LANGUAGE_INSTRUCTION}\n`);
   parts.push("# About\n");
   parts.push(about.trim() || "(no about.md content)");
   parts.push(await calendarSection());

@@ -53,6 +53,14 @@ describe("SERVER_INSTRUCTIONS", () => {
     expect(SERVER_INSTRUCTIONS).toMatch(/before the work|before you do it/i);
   });
 
+  it("keeps the record in one language, whatever language the agent is spoken to in", () => {
+    // The chat prompt (lib/ai/context.ts § Language) says the same thing. An
+    // agent files notes and tasks from conversations held in any language, and
+    // a Turkish task title is unsearchable beside an English codebase.
+    expect(SERVER_INSTRUCTIONS).toMatch(/ENGLISH/);
+    expect(SERVER_INSTRUCTIONS).toMatch(/whatever language/i);
+  });
+
   it("states the two facts that cause the most damage when unknown", () => {
     // every write is a commit, and a batch can stop halfway
     expect(SERVER_INSTRUCTIONS).toMatch(/commit/i);
