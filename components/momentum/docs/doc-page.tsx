@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { Mono } from "../primitives";
-import Markdown from "../markdown";
 import { scopeChip } from "@/lib/view/knowledge";
 import type { DocLink, DocPageModel } from "@/lib/view/doc";
 import DocsSidebar from "./docs-sidebar";
-import DocToc from "./doc-toc";
+import DocTabs from "./doc-tabs";
 import DocEditButton from "./doc-edit-button";
 
 function LinkRow({ label, links }: { label: string; links: DocLink[] }) {
@@ -104,16 +103,13 @@ export default function DocPage({
             </Mono>
           </div>
 
-          <div className="mt-5">
-            <DocToc toc={model.toc} />
-            {note.body.trim() ? (
-              <Markdown className="text-[14px] leading-[1.7] text-ink">{model.body}</Markdown>
-            ) : (
-              <p className="text-[13px] text-faint">
-                No body yet — the summary is all there is. Use Edit to write it up.
-              </p>
-            )}
-          </div>
+          <DocTabs
+            noteId={note.id}
+            summary={note.summary}
+            body={model.body}
+            forAi={model.forAi}
+            toc={model.toc}
+          />
 
           <LinkRow label="LINKS TO" links={model.links} />
           <LinkRow label="LINKED FROM" links={model.backlinks} />

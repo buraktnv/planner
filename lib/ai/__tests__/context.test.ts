@@ -107,6 +107,26 @@ describe("buildSystemContext without a focus", () => {
     expect(withDigest).toContain("Tools used: create_task (T-041)");
   });
 
+  it("carries the batching rule with no mode at all, on both branches", async () => {
+    const { buildSystemContext } = await import("../context");
+    const unfocused = await buildSystemContext();
+    expect(unfocused).toContain("# Writing");
+    expect(unfocused).toContain("call propose_changes once with the whole set");
+    await writeCharter("project", "alpha", "Alpha");
+    const focused = await buildSystemContext({ type: "project", slug: "alpha" });
+    expect(focused).toContain("# Writing");
+  });
+
+  it("renders mentions ahead of the digest", async () => {
+    const { buildSystemContext } = await import("../context");
+    const ctx = await buildSystemContext(undefined, undefined, undefined, undefined, "earlier stuff", [
+      { label: "K-001 — Grid (note)", text: "Summary: Grids die on trends.", found: true },
+    ]);
+    expect(ctx).toContain("# Mentioned by the user");
+    expect(ctx).toContain("## K-001 — Grid (note)\nSummary: Grids die on trends.");
+    expect(ctx.indexOf("# Mentioned by the user")).toBeLessThan(ctx.indexOf("# Earlier in this conversation"));
+  });
+
   it("lists a calendar event inside its lead window and not the same event without one", async () => {
     const { buildSystemContext } = await import("../context");
     const date = shiftIso(today, 20);

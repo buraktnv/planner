@@ -22,7 +22,10 @@ import {
   serializeIndex,
   serializeNote,
   slugifyTitle,
+  splitAiSection,
   updateNote,
+  withAiSection,
+  AI_HEADING,
 } from "../knowledge";
 import type { KnowledgeNote } from "../types";
 
@@ -242,6 +245,50 @@ describe("pure helpers", () => {
   });
 });
 
+describe("the For the AI section", () => {
+  const canonical = `Intro for people.\n\nMore.\n\n${AI_HEADING}\n\nTerse facts for the model.`;
+
+  it("splits a canonical body and joins it back to the same bytes", () => {
+    const parts = splitAiSection(canonical);
+    expect(parts).toEqual({ human: "Intro for people.\n\nMore.", forAi: "Terse facts for the model." });
+    expect(withAiSection(parts.human, parts.forAi)).toBe(canonical);
+  });
+
+  it("returns null when there is no section, and keeps the body as the human part", () => {
+    expect(splitAiSection("Just a body.\n")).toEqual({ human: "Just a body.", forAi: null });
+    expect(withAiSection("Just a body.", null)).toBe("Just a body.");
+    expect(withAiSection("Just a body.", "")).toBe("Just a body.");
+  });
+
+  it("ignores a heading inside a fence", () => {
+    const body = `Sample:\n\n\`\`\`md\n${AI_HEADING}\nnot a section\n\`\`\`\n\nEnd.`;
+    expect(splitAiSection(body).forAi).toBeNull();
+  });
+
+  it("finds a section mid-body and moves it last only when joined", () => {
+    const body = `Top.\n\n${AI_HEADING}\n\nFor the model.\n\n## Human again\n\nTail.`;
+    const parts = splitAiSection(body);
+    expect(parts.human).toBe("Top.\n\n## Human again\n\nTail.");
+    expect(parts.forAi).toBe("For the model.");
+    expect(withAiSection(parts.human, parts.forAi)).toBe(
+      `Top.\n\n## Human again\n\nTail.\n\n${AI_HEADING}\n\nFor the model.`,
+    );
+  });
+
+  it("emits the heading alone when the human part is empty", () => {
+    expect(withAiSection("", "Only for the model.")).toBe(`${AI_HEADING}\n\nOnly for the model.`);
+    expect(splitAiSection(`${AI_HEADING}\n\nOnly for the model.`)).toEqual({
+      human: "",
+      forAi: "Only for the model.",
+    });
+  });
+
+  it("does not treat a ### heading as the end of the section", () => {
+    const body = `${AI_HEADING}\n\nFacts.\n\n### Detail\n\nMore facts.`;
+    expect(splitAiSection(body).forAi).toBe("Facts.\n\n### Detail\n\nMore facts.");
+  });
+});
+
 describe("store", () => {
   let tmp: string;
   const prev = process.env.PLANNER_DATA_DIR;
@@ -362,6 +409,35 @@ describe("store", () => {
 
   it("refuses to update an unknown id", async () => {
     await expect(updateNote("K-404", { summary: "x" })).rejects.toThrow(/Note not found/);
+  });
+
+  it("writes forAi as a trailing section and leaves the human part byte-identical", async () => {
+    const added = await addNote({ title: "T", summary: "S.", body: "Human text.\n\nSecond para." });
+    const updated = await updateNote(added.id, { forAi: "Model text." });
+    expect(updated.body).toBe(`Human text.\n\nSecond para.\n\n${AI_HEADING}\n\nModel text.`);
+    const read = await readNote(added.id);
+    expect(read.forAi).toBe("Model text.");
+    expect(splitAiSection(read.note.body).human).toBe("Human text.\n\nSecond para.");
+
+    const removed = await updateNote(added.id, { forAi: "" });
+    expect(removed.body).toBe("Human text.\n\nSecond para.");
+    expect((await readNote(added.id)).forAi).toBeNull();
+  });
+
+  it("treats body as the human part when forAi travels with it", async () => {
+    const added = await addNote({ title: "T", summary: "S.", body: "Old.", forAi: "Old model." });
+    expect(added.body).toBe(`Old.\n\n${AI_HEADING}\n\nOld model.`);
+    const updated = await updateNote(added.id, {
+      body: `New.\n\n${AI_HEADING}\n\nStale copy.`,
+      forAi: "New model.",
+    });
+    expect(updated.body).toBe(`New.\n\n${AI_HEADING}\n\nNew model.`);
+  });
+
+  it("keeps the old contract: body alone replaces the whole body", async () => {
+    const added = await addNote({ title: "T", summary: "S.", body: "Old.", forAi: "Model." });
+    const updated = await updateNote(added.id, { body: "Replaced." });
+    expect(updated.body).toBe("Replaced.");
   });
 
   it("returns links and backlinks from readNote", async () => {

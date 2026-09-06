@@ -2,6 +2,7 @@
 
 import type { UIMessage } from "ai";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import {
   partsOf,
   toolNameOf,
@@ -9,6 +10,7 @@ import {
   toolSummary,
   type ToolPartLike,
 } from "@/lib/view/chat-parts";
+import { splitMentions } from "@/lib/view/mentions";
 import Markdown from "../markdown";
 
 const STATUS_MARK = { pending: "…", done: "✓", error: "✕" } as const;
@@ -24,6 +26,7 @@ export default function ChatMessage({
   openReasoning,
   onToggleReasoning,
   renderTool,
+  mentionHref,
 }: {
   message: UIMessage;
   /** A half-arrived mermaid fence would re-parse and fail on every delta. */
@@ -32,6 +35,8 @@ export default function ChatMessage({
   onToggleReasoning: (key: string) => void;
   /** The rail owns proposal state, so it decides what a tool part renders as. */
   renderTool: (part: ToolPartLike, key: string) => ReactNode;
+  /** Where an `@` token in a user bubble leads; null keeps it plain text. */
+  mentionHref?: (ref: string) => string | null;
 }) {
   const { text, thoughts, tools } = partsOf(message);
 
@@ -39,7 +44,17 @@ export default function ChatMessage({
     return (
       <div className="animate-slidein max-w-[85%] self-end">
         <div className="rounded-[14px_14px_4px_14px] bg-soft px-[13px] py-2.5 text-[13.5px] leading-[1.5] whitespace-pre-wrap">
-          {text}
+          {splitMentions(text).map((seg, i) => {
+            if (seg.type === "text") return <span key={i}>{seg.text}</span>;
+            const href = mentionHref?.(seg.ref) ?? null;
+            return href ? (
+              <Link key={i} href={href} className="font-medium text-quick-ink underline decoration-dotted">
+                {seg.token}
+              </Link>
+            ) : (
+              <span key={i}>{seg.token}</span>
+            );
+          })}
         </div>
       </div>
     );

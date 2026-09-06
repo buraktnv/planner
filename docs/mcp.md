@@ -84,7 +84,11 @@ filing a second note on the same subject. The owner browses these at `/projects/
 
 Use the first tag as the doc's category — `architecture`, `protocol`, `decision`, `runbook` or
 `reference` — because the docs page groups by it. The `summary` is the single line that gets loaded
-into chat before any body is read, so state the conclusion in it, not the topic. Note that scoped
+into chat before any body is read, so state the conclusion in it, not the topic. A note may also
+carry a `## For the AI` section — pass `forAi` to `add_note` or `update_note` — which is the terse
+version written for an assistant rather than a reader: it is what the owner's chat injects when they
+`@`-mention the note, and `read_note` returns it as `forAi` beside the full body. Write there what
+you would want the next agent to know before it reads the rest. Note that scoped
 notes live in `knowledge/` and therefore do **not** move into `archive/` with a charter; project
 documentation deliberately outlives the project.
 

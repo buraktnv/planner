@@ -16,6 +16,7 @@ export interface FileNoteInput {
   scope?: string[];
   tags?: string[];
   source?: string;
+  forAi?: string;
 }
 
 export interface FileNoteResult {
@@ -82,6 +83,7 @@ export async function fileNote(
     scope: classified.scope,
     tags: input.tags,
     source: input.source ?? (classified.method === "explicit" ? undefined : "auto-filed"),
+    forAi: input.forAi,
   });
 
   return {

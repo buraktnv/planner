@@ -1,4 +1,5 @@
 import type { KnowledgeNote } from "@/lib/core/types";
+import { splitAiSection } from "@/lib/core/note-sections";
 import { buildDocs, type DocGroup } from "./docs";
 
 const FENCE_RE = /^\s*(```|~~~)/;
@@ -25,7 +26,10 @@ export interface DocNeighbour {
 
 export interface DocPageModel {
   note: KnowledgeNote;
+  /** The human part of the body, linkified. The AI section is split off below. */
   body: string;
+  /** The `## For the AI` section, linkified; null when the note has none. */
+  forAi: string | null;
   toc: TocEntry[];
   links: DocLink[];
   backlinks: DocLink[];
@@ -185,10 +189,15 @@ export function buildDocPage(
       ? { id: order[i].id, title: order[i].title, href: docHref(order[i].id, scopeKey) }
       : null;
 
+  // Split once here so the on-this-page index never lists the AI heading and
+  // the two tabs render from the same cut.
+  const { human, forAi } = splitAiSection(note.body);
+
   return {
     note,
-    body: linkifyNoteRefs(note.body, titleById),
-    toc: tocOf(note.body),
+    body: linkifyNoteRefs(human, titleById),
+    forAi: forAi === null ? null : linkifyNoteRefs(forAi, titleById),
+    toc: tocOf(human),
     links,
     backlinks,
     prev: at > 0 ? neighbour(at - 1) : null,

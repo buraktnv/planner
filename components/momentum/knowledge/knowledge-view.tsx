@@ -15,6 +15,7 @@ const EMPTY_EDITOR: EditorValue = {
   scope: "",
   tags: "",
   source: "",
+  forAi: "",
 };
 
 export default function KnowledgeView({

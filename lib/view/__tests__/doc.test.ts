@@ -171,6 +171,23 @@ describe("buildDocPage", () => {
     expect(m.next).toBeNull();
     expect(m.backlinks[0].href).toBe("/knowledge/K-002");
   });
+
+  it("splits the For the AI section off the body, keeps it out of the toc, and linkifies both", () => {
+    const withAi = [
+      ...notes,
+      note({
+        id: "K-005",
+        title: "Split me",
+        body: "## Intro\n\nSee [[K-001]].\n\n## For the AI\n\nTerse. Also [[K-002]].",
+      }),
+    ];
+    const m = buildDocPage(withAi, "K-005")!;
+    expect(m.body).toBe("## Intro\n\nSee [First](/knowledge/K-001).");
+    expect(m.forAi).toBe("Terse. Also [Second](/knowledge/K-002).");
+    expect(m.toc.map((t) => t.text)).toEqual(["Intro"]);
+    expect(m.links.map((l) => l.id)).toEqual(["K-001", "K-002"]);
+    expect(buildDocPage(withAi, "K-001")!.forAi).toBeNull();
+  });
 });
 
 describe("headingIdsByLine", () => {

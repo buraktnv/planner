@@ -66,7 +66,7 @@ One file at the data root, `calendar.md`. No sections, one event per line, kept 
 
 ## Check-ins
 
-A check-in (the `Check-in` chat mode) leaves two kinds of record and no transcript: one to three knowledge notes tagged `checkin` first, each scoped explicitly to an area (`scope: [area:health]`), and one journal line under scope `life` whose message starts `check-in: `. Nothing else marks a check-in; the tag is what groups them on `/areas/<slug>/docs` and the journal line is what the next check-in reads back.
+A check-in (started by typing `/checkin` in the chat) leaves two kinds of record and no transcript: one to three knowledge notes tagged `checkin` first, each scoped explicitly to an area (`scope: [area:health]`), and one journal line under scope `life` whose message starts `check-in: `. Nothing else marks a check-in; the tag is what groups them on `/areas/<slug>/docs` and the journal line is what the next check-in reads back.
 
 ## Daily — habits, rhythms, meals, groceries
 
