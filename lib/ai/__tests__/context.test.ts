@@ -120,6 +120,25 @@ describe("buildSystemContext without a focus", () => {
     expect(focused).toContain("post_status");
   });
 
+  it("lets the reply follow the user's language while the record stays English, on both branches", async () => {
+    // The two halves have to arrive together: a rule that only says "reply in
+    // Turkish" leaks Turkish into every title it writes, and a rule that only
+    // says "write English" is read as "answer in English" too.
+    const { buildSystemContext } = await import("../context");
+    for (const ctx of [
+      await buildSystemContext(),
+      await buildSystemContext(undefined, "checkin"),
+      await (async () => {
+        await writeCharter("project", "beta", "Beta");
+        return buildSystemContext({ type: "project", slug: "beta" });
+      })(),
+    ]) {
+      expect(ctx).toContain("# Language");
+      expect(ctx).toContain("Reply in the language the user writes in");
+      expect(ctx).toContain("Everything you write to a file is English");
+    }
+  });
+
   it("names the notes whose For the AI section is behind their body", async () => {
     const { buildSystemContext } = await import("../context");
     await fs.mkdir(path.join(tmp, "knowledge"), { recursive: true });
