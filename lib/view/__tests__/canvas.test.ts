@@ -105,6 +105,19 @@ describe("buildNoteCanvas", () => {
     expect(model.nodes.map((n) => n.id)).toEqual(["K-002"]);
   });
 
+  it("scopes a note's link to the charter whose board it is on", () => {
+    // Opening a note from a project map and landing on the global note list
+    // loses the project you were reading.
+    const notes = [note({ id: "K-002", scope: ["acme-bot"] })];
+    expect(buildNoteCanvas(notes, empty, { scopeKey: "acme-bot" }).nodes[0].href).toBe(
+      "/projects/acme-bot/docs/K-002",
+    );
+    const areaNotes = [note({ id: "K-003", scope: ["area:acme-admin"] })];
+    expect(
+      buildNoteCanvas(areaNotes, empty, { scopeKey: "area:acme-admin" }).nodes[0].href,
+    ).toBe("/areas/acme-admin/docs/K-003");
+  });
+
   it("prefers a saved position and marks the rest as auto-placed", () => {
     const model = buildNoteCanvas(
       [note({ id: "K-001" }), note({ id: "K-002" })],

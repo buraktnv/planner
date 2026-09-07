@@ -15,7 +15,13 @@ import {
   type Point,
   type Rect,
 } from "@/lib/view/canvas-layout";
-import { cardExcerpt, cardTier, clampSize, type CardTier } from "@/lib/view/canvas-card";
+import {
+  cardExcerpt,
+  cardTier,
+  clampSize,
+  showsCardId,
+  type CardTier,
+} from "@/lib/view/canvas-card";
 import { Bar, Mono } from "../primitives";
 import Markdown from "../markdown";
 import CanvasPopup from "./canvas-popup";
@@ -856,8 +862,9 @@ function CanvasCardBase({
   // A note whose summary is still its title would otherwise print it twice.
   const preview = node.preview.trim() === node.title.trim() ? "" : node.preview;
   const summary = preview || cardExcerpt(node.body ?? "", "summary");
-  // group: refs are internal — the core card has no id worth showing.
-  const showId = !node.id.startsWith("group:");
+  // group: refs are internal — the core card has no id worth showing, and a
+  // chip is a label with room for the title alone.
+  const showId = showsCardId(node.id, tier);
   const body = tier === "body" ? cardExcerpt(node.body ?? "", "body") : "";
   const scrolls = !edit && tier === "body" && body !== "";
 
@@ -933,7 +940,11 @@ function CanvasCardBase({
           </>
         )}
         {showId && (
-          <Mono className="block text-right text-[8.5px] text-faint">{node.id}</Mono>
+          <div className="flex justify-end">
+            <Mono className="rounded-[5px] bg-soft px-[5px] py-[1px] text-[9.5px] text-dim">
+              {node.id}
+            </Mono>
+          </div>
         )}
       </div>
 
