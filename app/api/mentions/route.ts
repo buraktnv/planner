@@ -33,7 +33,9 @@ export async function GET() {
       walk(card, card.subs);
     }
     const catalog: MentionCatalog = {
-      notes: notes.map((n) => ({ id: n.id, title: n.title })),
+      // scope is what lets the picker narrow to the focused charter; a task
+      // already carries its slug and a charter is its own slug.
+      notes: notes.map((n) => ({ id: n.id, title: n.title, scope: n.scope })),
       tasks,
       charters: ws.charters.map((c) => ({ type: c.type, slug: c.id, name: c.name })),
     };

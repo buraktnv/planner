@@ -13,8 +13,8 @@ import {
 
 const catalog: MentionCatalog = {
   notes: [
-    { id: "K-001", title: "Grid strategy postmortem" },
-    { id: "K-012", title: "Passport renewal" },
+    { id: "K-001", title: "Grid strategy postmortem", scope: ["acme-bot"] },
+    { id: "K-012", title: "Passport renewal", scope: ["area:health"] },
   ],
   tasks: [
     { type: "project", slug: "acme-bot", id: "T-007", title: "Wire the laptop", charterName: "Acme Bot" },
@@ -130,5 +130,67 @@ describe("commandOf", () => {
     expect(commandOf("  /checkin rough day  ")).toEqual({ name: "checkin", rest: "rough day" });
     expect(commandOf("/nope")).toBeNull();
     expect(commandOf("not /checkin")).toBeNull();
+  });
+});
+
+describe("a focused @", () => {
+  const items = catalogItems(catalog);
+  const bot = { type: "project", slug: "acme-bot" } as const;
+  const health = { type: "area", slug: "health" } as const;
+  const tokens = (f: typeof bot | typeof health | undefined, q = "") =>
+    filterMentionItems(items, "@", q, 20, f).map((i) => i.token);
+
+  it("offers only the focused charter's own notes, tasks and charter", () => {
+    expect(tokens(bot)).toEqual(["@acme-bot", "@K-001", "@T-007", "@T-007.2"]);
+  });
+
+  it("scopes an area by its area: key, not its bare slug", () => {
+    // A note's scope writes an area as `area:health`; the charter and its
+    // tasks carry the bare slug. Getting this wrong empties the picker.
+    expect(tokens(health)).toEqual(["@health", "@K-012", "@T-007"]);
+  });
+
+  it("keeps a same-numbered task from another charter out", () => {
+    const health7 = filterMentionItems(items, "@", "T-007", 20, health);
+    expect(health7).toHaveLength(1);
+    expect(health7[0]).toMatchObject({ kind: "task", slug: "health" });
+  });
+
+  it("lifts the filter for a leading dot, which is not part of the search", () => {
+    expect(tokens(bot, ".")).toEqual(tokens(undefined));
+    expect(tokens(bot, ".passport")).toEqual(["@K-012"]);
+  });
+
+  it("is unchanged with nothing focused", () => {
+    // Both charters carry a T-007; unfocused, the picker offers both.
+    expect(tokens(undefined)).toEqual([
+      "@acme-bot",
+      "@health",
+      "@K-001",
+      "@K-012",
+      "@T-007",
+      "@T-007.2",
+      "@T-007",
+    ]);
+  });
+
+  it("never lets the dot reach the text", () => {
+    // The picker is the only thing that sees it; insertMention replaces the
+    // whole run, which is why TOKEN_RE and the server path needed no change.
+    const [item] = filterMentionItems(items, "@", ".passport", 20, bot);
+    const out = insertMention("tell me about @.passport", 14, 24, item);
+    expect(out.text).toBe("tell me about @K-012 ");
+    expect(collectMentions(out.text, catalog, bot)).toEqual([{ kind: "note", id: "K-012" }]);
+  });
+
+  it("still resolves a foreign id that was typed or pasted while focused", () => {
+    // Only the picker is scoped. A token in the text means one thing.
+    expect(collectMentions("see @K-012", catalog, bot)).toEqual([{ kind: "note", id: "K-012" }]);
+  });
+
+  it("leaves the command list alone", () => {
+    expect(filterMentionItems(items, "/", "check", 20, bot).map((i) => i.token)).toEqual([
+      "/checkin",
+    ]);
   });
 });

@@ -24,6 +24,7 @@ import {
   insertMention,
   mentionHref,
   mentionQueryAt,
+  parseMentionQuery,
   type MentionCatalog,
   type MentionItem,
 } from "@/lib/view/mentions";
@@ -340,8 +341,13 @@ export default function ChatRail({
   const pick = mentionQueryAt(draft, caret);
   const pickItems =
     pick && pickerDismissedOn !== draft
-      ? filterMentionItems(mentionItems, pick.trigger, pick.query)
+      ? filterMentionItems(mentionItems, pick.trigger, pick.query, 8, focus)
       : [];
+  // Only worth saying while the filter is actually narrowing something.
+  const pickNote =
+    pick && pick.trigger === "@" && focus && !parseMentionQuery(pick.query).global
+      ? `${scopeMeta.label} only · type @. for everything`
+      : null;
   const pickSelected = Math.min(pickIndex, Math.max(0, pickItems.length - 1));
   const draftMentions = useMemo(
     () => collectMentions(draft, catalog, focus),
@@ -1200,6 +1206,7 @@ export default function ChatRail({
             selected={pickSelected}
             onPick={pickMention}
             onHover={setPickIndex}
+            note={pickNote}
           />
           <input
             ref={inputRef}
