@@ -21,7 +21,7 @@ export const SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
 /** What the picker offers: what exists, in the shape the rail can hold. */
 export interface MentionCatalog {
-  notes: { id: string; title: string }[];
+  notes: { id: string; title: string; scope: string[] }[];
   tasks: { type: ProjectType; slug: string; id: string; title: string; charterName: string }[];
   charters: { type: ProjectType; slug: string; name: string }[];
 }
@@ -29,7 +29,7 @@ export interface MentionCatalog {
 export const EMPTY_CATALOG: MentionCatalog = { notes: [], tasks: [], charters: [] };
 
 export type MentionItem =
-  | { kind: "note"; token: string; label: string; hint: string; id: string }
+  | { kind: "note"; token: string; label: string; hint: string; id: string; scope: string[] }
   | { kind: "task"; token: string; label: string; hint: string; type: ProjectType; slug: string; id: string }
   | { kind: "charter"; token: string; label: string; hint: string; type: ProjectType; slug: string }
   | { kind: "command"; token: string; label: string; hint: string; name: string };
@@ -57,7 +57,14 @@ export function catalogItems(catalog: MentionCatalog): MentionItem[] {
     });
   }
   for (const n of catalog.notes) {
-    out.push({ kind: "note", token: `@${n.id}`, label: n.title, hint: n.id, id: n.id });
+    out.push({
+      kind: "note",
+      token: `@${n.id}`,
+      label: n.title,
+      hint: n.id,
+      id: n.id,
+      scope: n.scope ?? [],
+    });
   }
   for (const t of catalog.tasks) {
     out.push({
@@ -96,6 +103,39 @@ export function mentionQueryAt(text: string, caret: number): MentionQuery | null
   return { start, trigger, query: m[3] };
 }
 
+export type MentionFocus = { type: ProjectType; slug: string } | null | undefined;
+
+/** How a charter is written in a note's `scope` list. */
+export function scopeKeyOf(focus: { type: ProjectType; slug: string }): string {
+  return focus.type === "area" ? `area:${focus.slug}` : focus.slug;
+}
+
+/** Whether an item belongs to the focused charter, and so survives a scoped `@`. */
+export function inFocus(item: MentionItem, focus: { type: ProjectType; slug: string }): boolean {
+  switch (item.kind) {
+    case "note":
+      return item.scope.includes(scopeKeyOf(focus));
+    case "task":
+    case "charter":
+      return item.type === focus.type && item.slug === focus.slug;
+    case "command":
+      return true;
+  }
+}
+
+/**
+ * A leading `.` is the escape hatch, not part of the search: `@` offers the
+ * focused charter alone, `@.` offers everything.
+ *
+ * It exists only between the keystroke and the picker. `insertMention`
+ * replaces the whole `@…` run with the chosen token, so the dot never survives
+ * into the text — which is why `TOKEN_RE`, `parseMentions` and the entire
+ * server path needed no change to support it.
+ */
+export function parseMentionQuery(query: string): { query: string; global: boolean } {
+  return query.startsWith(".") ? { query: query.slice(1), global: true } : { query, global: false };
+}
+
 function rank(item: MentionItem, q: string): number {
   if (!q) return 1;
   const token = item.token.slice(1).toLowerCase();
@@ -107,14 +147,29 @@ function rank(item: MentionItem, q: string): number {
   return 0;
 }
 
+/**
+ * What the picker shows. With a charter focused, `@` is a hard filter down to
+ * that charter — the whole point is that a project conversation offers that
+ * project — and `@.` lifts it. Unfocused, `@` has always meant everything and
+ * still does.
+ *
+ * Only the picker is scoped. `collectMentions` stays global on purpose: a
+ * `@K-020` that is typed or pasted must resolve whatever is focused, or a
+ * mention would mean different things depending on a dropdown the sent
+ * message does not record.
+ */
 export function filterMentionItems(
   items: MentionItem[],
   trigger: "@" | "/",
   query: string,
   limit = 8,
+  focus?: MentionFocus,
 ): MentionItem[] {
-  const q = query.trim().toLowerCase();
-  const pool = trigger === "/" ? COMMANDS : items.filter((i) => i.kind !== "command");
+  const parsed = trigger === "@" ? parseMentionQuery(query) : { query, global: false };
+  const q = parsed.query.trim().toLowerCase();
+  const all = trigger === "/" ? COMMANDS : items.filter((i) => i.kind !== "command");
+  const pool =
+    trigger === "@" && focus && !parsed.global ? all.filter((i) => inFocus(i, focus)) : all;
   return pool
     .map((item, i) => ({ item, score: rank(item, q), i }))
     .filter((r) => r.score > 0)

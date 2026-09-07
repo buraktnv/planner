@@ -21,13 +21,19 @@ export default function MentionPicker({
   selected,
   onPick,
   onHover,
+  note = null,
 }: {
   items: MentionItem[];
   selected: number;
   onPick: (item: MentionItem) => void;
   onHover: (index: number) => void;
+  /** Why the list is narrowed, and how to widen it. */
+  note?: string | null;
 }) {
-  if (!items.length) return null;
+  // With a charter focused the list is a hard filter, so it can legitimately
+  // be empty -- and that is exactly when the way out has to stay on screen.
+  // Closing the panel here would hide the only mention of `@.`.
+  if (!items.length && !note) return null;
   return (
     <div
       role="listbox"
@@ -56,6 +62,14 @@ export default function MentionPicker({
           <Mono className="shrink-0 truncate text-[8.5px] text-faint">{item.hint}</Mono>
         </button>
       ))}
+      {items.length === 0 && (
+        <div className="px-2.5 py-[7px] text-[12.5px] text-faint">Nothing here matches.</div>
+      )}
+      {note && (
+        <Mono className="mt-1 block border-t border-edge2 px-2.5 pt-2 pb-1 text-[8px] tracking-[0.1em] text-faint">
+          {note.toUpperCase()}
+        </Mono>
+      )}
     </div>
   );
 }
