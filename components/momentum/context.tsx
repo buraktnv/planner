@@ -23,6 +23,7 @@ export interface NavCharter {
 export interface MomentumApi {
   openComposer: (kind: ComposerKind, prefill?: ComposerPrefill) => void;
   openCard: (card: CardModel) => void;
+  openSearch: () => void;
   charters: NavCharter[];
   chatScope: string | null;
   setChatScope: (key: string | null) => void;
@@ -33,6 +34,7 @@ const noop = () => {};
 export const MomentumContext = createContext<MomentumApi>({
   openComposer: noop,
   openCard: noop,
+  openSearch: noop,
   charters: [],
   chatScope: null,
   setChatScope: noop,

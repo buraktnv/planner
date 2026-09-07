@@ -7,6 +7,9 @@ import { appendJournal } from "./journal";
 import { commitData } from "./git";
 import { withDataLock } from "./locks";
 import { aiStatusOf, humanHash, splitAiSection, withAiSection } from "./note-sections";
+import { BODY_HIT_CAP, SNIPPET_LEN, WEIGHTS, countOccurrences, tokenize } from "./tokens";
+
+export { tokenize };
 
 export class KnowledgeParseError extends Error {
   constructor(message: string) {
@@ -38,10 +41,6 @@ const RECENT_LINE_CAP = 15;
 const RELEVANT_LINE_CAP = 6;
 const UNCHECKED_LINE_CAP = 5;
 const TITLE_MAX = 60;
-const SNIPPET_LEN = 160;
-const BODY_HIT_CAP = 5;
-
-const WEIGHTS = { title: 8, tags: 6, summary: 4, body: 1 } as const;
 
 function toLF(raw: string): string {
   return raw.replace(/\r\n/g, "\n");
@@ -286,19 +285,6 @@ export function linksOf(note: KnowledgeNote): string[] {
   let m: RegExpExecArray | null;
   while ((m = LINK_RE.exec(note.body)) !== null) out.add(m[1]);
   return [...out].sort();
-}
-
-export function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((t) => t.length >= 2);
-}
-
-function countOccurrences(haystack: string[], needle: string): number {
-  let n = 0;
-  for (const t of haystack) if (t === needle) n++;
-  return n;
 }
 
 export function similarity(

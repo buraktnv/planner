@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CardModel } from "@/lib/view/workspace";
 import { taskHref } from "@/lib/view/task";
 import ChatRail from "./chat-rail";
 import Composer from "./composer";
+import SearchPalette from "./search/search-palette";
 import Sidebar from "./sidebar";
 import { useMediaQuery } from "./use-media-query";
 import {
@@ -31,11 +32,34 @@ export default function Shell({
     kind: ComposerKind;
     prefill?: ComposerPrefill;
   } | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const router = useRouter();
 
   const openComposer = useCallback((kind: ComposerKind, prefill?: ComposerPrefill) => {
     setComposer({ kind, prefill });
   }, []);
+
+  const openSearch = useCallback(() => setSearchOpen(true), []);
+
+  /**
+   * Bubble phase, and `preventDefault` — which is what suppresses Chrome's own
+   * Ctrl+K and readline's kill-line inside a textarea. Escape is left to
+   * `Dialog`, which stops it in capture phase so it cannot also clear the
+   * canvas selection behind the palette.
+   */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      if (e.key.toLowerCase() !== "k") return;
+      e.preventDefault();
+      // Two Dialogs at once each install a Tab trap on `document` and fight
+      // over the focus ring.
+      if (composer) return;
+      setSearchOpen(true);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [composer]);
 
   const openCard = useCallback(
     (next: CardModel) => {
@@ -48,8 +72,8 @@ export default function Shell({
   );
 
   const api = useMemo(
-    () => ({ openComposer, openCard, charters, chatScope, setChatScope }),
-    [openComposer, openCard, charters, chatScope],
+    () => ({ openComposer, openCard, openSearch, charters, chatScope, setChatScope }),
+    [openComposer, openCard, openSearch, charters, chatScope],
   );
 
   return (
@@ -83,6 +107,7 @@ export default function Shell({
             onClose={() => setComposer(null)}
           />
         )}
+        {searchOpen && <SearchPalette onClose={() => setSearchOpen(false)} />}
       </div>
     </MomentumContext.Provider>
   );
