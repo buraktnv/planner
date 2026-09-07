@@ -303,6 +303,20 @@ describe("the id bonus does not leak the key's namespace", () => {
     expect(rankSearch(base, "K-0")).toEqual([]);
   });
 
+  it("puts the record named by an id above the rows that merely mention it", () => {
+    // Found by using it: searching K-046 returned the journal lines about
+    // K-046 first, because their titles begin with the id while the note's own
+    // title does not contain it. Naming a record exactly has to win.
+    const named = item({ key: "note:K-046", title: "The core card is the charter" });
+    const mention = item({
+      key: "journal:2026-09-07/67",
+      kind: "journal",
+      title: "K-046 note added: The core card is the charter",
+      subtitle: "2026-09-07 · planner",
+    });
+    expect(rankSearch([mention, named], "K-046")[0].key).toBe("note:K-046");
+  });
+
   it("keeps the AND filter honest when an id is one of several terms", () => {
     // T-007 exists, "banana" does not: the id must not drag the row through.
     expect(rankSearch(base, "T-007 banana")).toEqual([]);
