@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { LAST_CANVAS_KEY, safeCanvasPath } from "@/lib/view/canvas-tabs";
 import { useStored } from "./use-stored";
+import { useMomentum } from "./context";
 import type { NavCharter } from "./context";
 
 const NAV = [
@@ -61,6 +62,7 @@ export default function Sidebar({
   // "Canvas" reopens the surface you were last on. The stored value is
   // validated because it comes back from the browser, not from us.
   const lastCanvas = safeCanvasPath(useStored(LAST_CANVAS_KEY));
+  const { openSearch } = useMomentum();
 
   const areas = charters.filter((c) => c.type === "area");
   const projects = charters.filter((c) => c.type === "project");
@@ -88,6 +90,36 @@ export default function Sidebar({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="shrink-0 px-2 pb-1.5">
+          <button
+            type="button"
+            onClick={openSearch}
+            title="Search everything"
+            className="flex w-full items-center gap-3 rounded-[10px] px-2.5 py-[9px] text-dim transition-colors hover:bg-surf hover:text-ink"
+          >
+            <svg
+              width="17"
+              height="17"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+              aria-hidden
+            >
+              <circle cx="11" cy="11" r="6" />
+              <path d="M15.5 15.5L20 20" />
+            </svg>
+            <span className={`${labelClass} whitespace-nowrap text-[13.5px] font-medium`}>
+              Search
+            </span>
+            <div className="flex-1" />
+            <span className={`${labelClass} font-mono text-[9.5px] text-faint`}>⌘K</span>
+          </button>
+        </div>
+
         <nav className="flex shrink-0 flex-col gap-0.5 px-2">
           {NAV.map((item) => {
             const active = isActive(item.href);

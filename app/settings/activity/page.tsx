@@ -65,7 +65,8 @@ export default async function SettingsActivityPage() {
         days.map((day) => (
           <div
             key={day.date}
-            className="grid grid-cols-[70px_1fr] gap-5 border-t border-edge2 py-[18px]"
+            id={`j-${day.date}`}
+            className="grid grid-cols-[70px_1fr] gap-5 border-t border-edge2 py-[18px] scroll-mt-6"
           >
             <div>
               <Mono className="block text-[11px]">{shortDate(day.date)}</Mono>

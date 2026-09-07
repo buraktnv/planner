@@ -159,3 +159,42 @@ export interface KnowledgeHit {
   score: number;
   snippet: string;
 }
+
+export type SearchKind =
+  | "note"
+  | "charter"
+  | "task"
+  | "description"
+  | "log"
+  | "event"
+  | "habit"
+  | "rhythm"
+  | "meal"
+  | "grocery"
+  | "journal";
+
+/**
+ * One searchable row of the whole data repo. Lives here rather than beside
+ * the index because the palette is a client component: a type-only import is
+ * erased, where a value import from `lib/core` is not.
+ */
+export interface SearchItem {
+  kind: SearchKind;
+  /** Unique and stable, e.g. `log:project/acme-bot/T-007/2026-09-01 14:22`. */
+  key: string;
+  /** Never empty. */
+  title: string;
+  /** Charter name, id, date — the hint column. */
+  subtitle: string;
+  /** The long searchable text, "" when none, capped. */
+  body: string;
+  tags: string[];
+  /** ISO day, for the tiebreak. */
+  updated: string;
+  type?: ProjectType;
+  slug?: string;
+  /** Dotted subtask ids included. */
+  taskId?: string;
+  /** Journal / event day. */
+  date?: string;
+}
