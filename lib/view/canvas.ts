@@ -4,7 +4,7 @@ import type { CardModel, SubModel } from "./workspace";
 import { milestonesOf } from "./targets";
 import { edgeKey } from "@/lib/core/canvas";
 import { hueOf } from "@/lib/ui/momentum";
-import { noteRefsIn } from "./doc";
+import { docHref, noteRefsIn } from "./doc";
 import { taskHrefFromScope } from "./task";
 import {
   CORE_REF,
@@ -250,7 +250,9 @@ export function buildNoteCanvas(
       title: n.title,
       preview: n.summary,
       body: n.body,
-      href: `/knowledge/${n.id}`,
+      // Scoped when the board belongs to a charter, so OPEN FULL PAGE keeps you
+      // inside the project you were reading rather than the global note list.
+      href: docHref(n.id, opts.scopeKey ?? null),
       groupKey,
       groupLabel: labelForScope(groupKey, names),
       color: tone.color,

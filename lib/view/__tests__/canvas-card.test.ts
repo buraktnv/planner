@@ -10,6 +10,10 @@ import {
   cardExcerpt,
   cardTier,
   clampSize,
+  isCharterCard,
+  neighbourLabel,
+  openLabel,
+  showsCardId,
 } from "../canvas-card";
 import { CARD_H, CARD_W } from "../canvas-layout";
 
@@ -116,5 +120,45 @@ describe("cardExcerpt", () => {
   it("survives an empty body", () => {
     expect(cardExcerpt("", "summary")).toBe("");
     expect(cardExcerpt("", "body")).toBe("");
+  });
+});
+
+describe("card identity", () => {
+  it("treats a group: ref as the charter and an id as a record", () => {
+    expect(isCharterCard("group:core")).toBe(true);
+    expect(isCharterCard("K-020")).toBe(false);
+    expect(isCharterCard("T-007.2")).toBe(false);
+  });
+
+  it("shows a record's id on the card everywhere but the chip", () => {
+    // A chip is a label: the title is the only thing that fits on one.
+    expect(showsCardId("K-020", "body")).toBe(true);
+    expect(showsCardId("K-020", "summary")).toBe(true);
+    expect(showsCardId("K-020", "chip")).toBe(false);
+  });
+
+  it("never shows an id for the core card, which has none", () => {
+    for (const tier of ["chip", "summary", "body"] as const) {
+      expect(showsCardId("group:core", tier)).toBe(false);
+    }
+  });
+
+  it("says where the link actually goes", () => {
+    // The reported bug: the core card's link opens the charter, which is
+    // correct, while the label claimed it opened the card's own page.
+    expect(openLabel("K-020", "/knowledge/K-020")).toBe("OPEN FULL PAGE");
+    expect(openLabel("group:core", "/projects/acme-bot")).toBe("OPEN PROJECT");
+    expect(openLabel("group:core", "/areas/acme-admin")).toBe("OPEN AREA");
+  });
+
+  it("keeps a scoped note href reading as a full page", () => {
+    expect(openLabel("K-020", "/projects/acme-bot/docs/K-020")).toBe("OPEN FULL PAGE");
+  });
+
+  it("labels a neighbour row that leads out of the notes", () => {
+    // Every note on a system map has an edge from the core, so this row is in
+    // every popup; RELATED told you nothing about where it went.
+    expect(neighbourLabel("RELATED", "group:core")).toBe("CHARTER");
+    expect(neighbourLabel("REQUIRES", "K-021")).toBe("REQUIRES");
   });
 });

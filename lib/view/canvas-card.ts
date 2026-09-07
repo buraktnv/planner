@@ -55,6 +55,46 @@ export function cardExcerpt(body: string, tier: CardTier): string {
 }
 
 /**
+ * A `group:` ref is not a record. The core card is the charter's own Why and
+ * MVP scope drawn as a card, so it has no id of its own and its link leaves the
+ * map for the charter page -- which is exactly what made it read as a note that
+ * redirected somewhere wrong. Every decision that tells the two apart lives
+ * here, in the import-free file both the card and the popup already reach, so
+ * they cannot disagree about what a card is.
+ */
+export function isCharterCard(id: string): boolean {
+  return id.startsWith("group:");
+}
+
+/**
+ * An id is worth reading on the card face at every tier but the chip, where the
+ * card is a label and the title is the only thing that fits.
+ */
+export function showsCardId(id: string, tier: CardTier): boolean {
+  return !isCharterCard(id) && tier !== "chip";
+}
+
+/**
+ * The popup's footer link. A note opens its own page; the core opens the
+ * charter and has to say so -- "OPEN FULL PAGE" on a card that has no page of
+ * its own is the whole confusion, and the href was never wrong.
+ */
+export function openLabel(id: string, href: string): string {
+  if (!isCharterCard(id)) return "OPEN FULL PAGE";
+  return href.startsWith("/areas/") ? "OPEN AREA" : "OPEN PROJECT";
+}
+
+/**
+ * A CONNECTED row pointing at the core says CHARTER rather than RELATED. The
+ * system map draws an edge from the core to every note, so this row appears in
+ * every note's popup, and clicking it swaps the popup in place -- silently, if
+ * the label does not warn that it leads out of the notes.
+ */
+export function neighbourLabel(kindLabel: string, targetId: string): string {
+  return isCharterCard(targetId) ? "CHARTER" : kindLabel;
+}
+
+/**
  * Markdown reduced to the sentence underneath it. Fences go entirely -- a
  * summary card showing three tokens of a mermaid diagram is worse than showing
  * nothing -- and the rest loses its punctuation rather than its words.
