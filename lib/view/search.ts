@@ -51,6 +51,14 @@ export const KIND_WEIGHT: Record<SearchKind, number> = {
 
 const PHRASE_STARTS = 10;
 const PHRASE_CONTAINS = 6;
+/**
+ * Above `PHRASE_STARTS`, because naming a record exactly is the strongest
+ * signal a query can carry and everything else is a guess about intent.
+ * Below this, searching "K-046" put the journal lines *about* K-046 above the
+ * note itself: their titles begin with the id, while the note's own title does
+ * not contain it — so the mentions outranked the thing being named.
+ */
+const IDENT_EXACT = 14;
 const SUBSTRING_STRENGTH = 0.35;
 const DEFAULT_LIMIT = 25;
 
@@ -105,10 +113,10 @@ function isIdentMatch(item: SearchItem, phrase: string): boolean {
 
 function phraseBonus(item: SearchItem, phrase: string): number {
   if (!phrase) return 0;
+  if (isIdentMatch(item, phrase)) return IDENT_EXACT;
   const title = item.title.toLowerCase();
   if (title.startsWith(phrase)) return PHRASE_STARTS;
-  if (title.includes(phrase)) return PHRASE_CONTAINS;
-  return isIdentMatch(item, phrase) ? PHRASE_CONTAINS : 0;
+  return title.includes(phrase) ? PHRASE_CONTAINS : 0;
 }
 
 export function scoreItem(item: SearchItem, terms: string[], phrase: string): number {
