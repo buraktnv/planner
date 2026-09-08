@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { splitAiSection } from "@/lib/core/note-sections";
 import Dialog from "../dialog";
 import { Mono } from "../primitives";
@@ -75,10 +75,16 @@ export default function NoteEditor({
 
   const set = (patch: Partial<EditorValue>) => setValue((v) => ({ ...v, ...patch }));
 
+  const setBody = useCallback(
+    (update: (current: string) => string) =>
+      setValue((v) => ({ ...v, body: update(v.body) })),
+    [],
+  );
+
   const { onPaste, onDrop, onDragOver, uploading } = useImagePaste(
     bodyRef,
     value.body,
-    (body) => set({ body }),
+    setBody,
     setError,
   );
 
