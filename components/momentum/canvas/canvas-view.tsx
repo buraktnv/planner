@@ -27,7 +27,7 @@ import Markdown from "../markdown";
 import CanvasPopup from "./canvas-popup";
 import CanvasTabs from "./canvas-tabs";
 import { activeTabKey, modeSwitch, type CanvasTab } from "@/lib/view/canvas-tabs";
-import { buildCanvasPatch } from "@/lib/view/canvas-pending";
+import { buildCanvasPatch, withoutRefs } from "@/lib/view/canvas-pending";
 
 interface Viewport {
   tx: number;
@@ -504,25 +504,63 @@ export default function CanvasView({
   // change, so the debounce effect never re-armed. Bumping this does.
   const [retry, setRetry] = useState(0);
 
+  // The listeners below outlive the render that registered them, and the
+  // unmount cleanup runs when there is no state left to read: this ref mirrors
+  // it instead. Written on every render, deliberately.
+  const pendingRef = useRef({ surface, geometry, dirty, dirtySize });
+  useEffect(() => {
+    pendingRef.current = { surface, geometry, dirty, dirtySize };
+  });
+
+  // Which refs are already on the wire. A pending map is only cleared once a
+  // request resolves, so without this a pagehide flush and the unmount that
+  // follows it rebuild the identical patch and PATCH the same move twice.
+  const inFlight = useRef<Set<string>>(new Set());
+
+  /**
+   * The one place a patch is sent. Refs already in flight are subtracted first,
+   * and marked before the fetch starts; a failure unmarks them, which leaves
+   * them in the pending maps -- they were never cleared -- so the debounce
+   * picks them up again.
+   */
+  const sendPending = useCallback((keepalive: boolean) => {
+    const cur = pendingRef.current;
+    const patch = buildCanvasPatch(
+      cur.geometry.local,
+      cur.geometry.size,
+      withoutRefs(cur.dirty, inFlight.current),
+      withoutRefs(cur.dirtySize, inFlight.current),
+    );
+    if (!patch) return null;
+    const refs = patch.moves.map((m) => m.ref);
+    for (const ref of refs) inFlight.current.add(ref);
+    const done = fetch("/api/canvas", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ surface: cur.surface, moves: patch.moves }),
+      keepalive,
+    })
+      .then((res) => res.ok)
+      .catch(() => false)
+      .then((ok) => {
+        for (const ref of refs) inFlight.current.delete(ref);
+        return ok;
+      });
+    return { refs, done };
+  }, []);
+
   const save = async () => {
-    if (pendingCount === 0 || saving) return;
-    const patch = buildCanvasPatch(geometry.local, geometry.size, dirty, dirtySize);
-    if (!patch) return;
+    if (saving) return;
+    const sent = sendPending(false);
+    if (!sent) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/canvas", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ surface, moves: patch.moves }),
-      });
-      if (!res.ok) {
+      if (!(await sent.done)) {
         setRetry((n) => n + 1);
         return;
       }
-      clearSent(patch.moves.map((m) => m.ref));
+      clearSent(sent.refs);
       router.refresh();
-    } catch {
-      setRetry((n) => n + 1);
     } finally {
       setSaving(false);
     }
@@ -540,34 +578,12 @@ export default function CanvasView({
     return () => clearTimeout(timer);
   }, [pendingCount, saving, retry]);
 
-  // The cleanup below runs after the component has gone, so it cannot read
-  // state: this ref mirrors it instead. Written on every render, deliberately.
-  const pendingRef = useRef({ surface, geometry, dirty, dirtySize });
-  useEffect(() => {
-    pendingRef.current = { surface, geometry, dirty, dirtySize };
-  });
-
   // The canvas tabs and every card's OPEN are next/link, so a click inside the
   // 900 ms debounce unmounted the view and the drag was never sent. keepalive
   // is what lets the request outlive the page.
-  const flush = useCallback(() => {
-    const cur = pendingRef.current;
-    const patch = buildCanvasPatch(cur.geometry.local, cur.geometry.size, cur.dirty, cur.dirtySize);
-    if (!patch) return null;
-    const done = fetch("/api/canvas", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ surface: cur.surface, moves: patch.moves }),
-      keepalive: true,
-    })
-      .then((res) => res.ok)
-      .catch(() => false);
-    return { refs: patch.moves.map((m) => m.ref), done };
-  }, []);
-
   useEffect(() => {
     const onLeave = () => {
-      const sent = flush();
+      const sent = sendPending(true);
       if (!sent) return;
       // Clearing what landed is what stops the debounce sending it a second
       // time when the page turns out not to have gone anywhere.
@@ -583,9 +599,9 @@ export default function CanvasView({
     return () => {
       window.removeEventListener("pagehide", onLeave);
       document.removeEventListener("visibilitychange", onVisibility);
-      flush();
+      sendPending(true);
     };
-  }, [flush, clearSent]);
+  }, [sendPending, clearSent]);
 
   const open = openId ? (nodes.find((n) => n.id === openId) ?? null) : null;
   const titleOf = (id: string) => nodes.find((n) => n.id === id)?.title ?? id;

@@ -21,6 +21,23 @@ export interface CanvasPatch {
 }
 
 /**
+ * A pending map with the refs already being sent taken out of it.
+ *
+ * Nothing in the write path is idempotent for the user: a flush on `pagehide`
+ * and the unmount that follows it would otherwise rebuild the identical patch
+ * from the same pending state -- the first request has not resolved, so nothing
+ * has cleared yet -- and PATCH the same move twice. Subtracting what is in
+ * flight is what makes the second call see an empty map and send nothing.
+ */
+export function withoutRefs<T>(
+  pending: Record<string, T>,
+  inFlight: ReadonlySet<string>,
+): Record<string, T> {
+  if (inFlight.size === 0) return pending;
+  return Object.fromEntries(Object.entries(pending).filter(([ref]) => !inFlight.has(ref)));
+}
+
+/**
  * The `moves` half of the body `PATCH /api/canvas` expects, or null when
  * nothing is pending -- which is also the caller's "there is nothing to flush"
  * signal on unmount.
