@@ -5,6 +5,7 @@ import {
   boundsOf,
   centreOf,
   clampZoom,
+  CORE_SIZE,
   DEFAULT_GRID,
   edgePath,
   fitTo,
@@ -314,6 +315,24 @@ describe("packAround", () => {
     for (const p of out.values()) {
       const cells = cellsCovered({ ...p, w: G.colW, h: G.rowH });
       for (const c of cells) expect(coreCells.has(c)).toBe(false);
+    }
+  });
+
+  it("keeps the ring clear of a core at the real CORE_SIZE", () => {
+    const core: Rect = {
+      x: -Math.round(CORE_SIZE.w / 2),
+      y: -Math.round(CORE_SIZE.h / 2),
+      w: CORE_SIZE.w,
+      h: CORE_SIZE.h,
+    };
+    const out = packAround(
+      core,
+      Array.from({ length: 24 }, (_, i) => sat(`K-${100 + i}`)),
+      new Map(),
+    );
+    expect(out.size).toBe(24);
+    for (const p of out.values()) {
+      expect(overlaps({ ...p, w: G.colW, h: G.rowH }, core)).toBe(false);
     }
   });
 
