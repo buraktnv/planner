@@ -170,6 +170,7 @@ describe("svgIsSafe", () => {
   it("passes a plain drawing", () => {
     expect(svgIsSafe(svgBytes(PLAIN_SVG))).toBe(true);
     expect(svgIsSafe(svgBytes('<svg><use xlink:href="#icon"/></svg>'))).toBe(true);
+    expect(svgIsSafe(svgBytes('<svg><use href="#icon"/></svg>'))).toBe(true);
   });
 
   const unsafe: [string, string][] = [
@@ -184,6 +185,9 @@ describe("svgIsSafe", () => {
     ["external xlink", '<svg><use xlink:href="https://evil.test/x#i"/></svg>'],
     ["external use href", '<svg><use href="https://evil.test/x#i"/></svg>'],
     ["data image href", '<svg><image href="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="/></svg>'],
+    ["protocol-relative href", '<svg><use href="//evil.test/x.svg#i"/></svg>'],
+    ["unquoted href", "<svg><use href=//evil.test/x.svg#i /></svg>"],
+    ["unquoted xlink href", "<svg><use xlink:href=//evil.test/x.svg#i /></svg>"],
   ];
 
   for (const [label, body] of unsafe) {
