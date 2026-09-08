@@ -358,7 +358,7 @@ export const toolDescriptions: Record<ToolName, string> = {
   update_note:
     "Amend a knowledge note. Only the fields you pass change; updated is bumped. Pass source as an empty string to clear it. forAi replaces only the ## For the AI section (empty string removes it); body alone replaces the whole body, section included, so pass both when you mean to change both. Changing the body without forAi marks the note's AI section unchecked; pass confirmAi: true when you have read the section against the new body and it still holds.",
   attach_image:
-    "Copy an image file into the data repo and optionally append it to a knowledge note. path is read from the filesystem this server runs on. Use it for a screenshot or diagram that belongs with a note; the file is committed, so it survives and works on another machine. PNG, JPEG, GIF, WebP and AVIF only, up to 2 MB — SVG is refused. Identical images are stored once.",
+    "Copy an image file into the data repo and optionally append it to a knowledge note. path is read from the filesystem this server runs on. Use it for a screenshot or diagram that belongs with a note; the file is committed, so it survives and works on another machine. PNG, JPEG, GIF, WebP, AVIF and SVG, up to 2 MB; an SVG with script or external references is refused. Identical images are stored once.",
   next_actions: "Get the prioritized list of next actions across the workspace.",
   list_targets:
     "List the goals (targets) on a charter, with their G- ids, milestone grouping and progress. Read this before setting target: on a task — an id that does not exist simply shows no link.",
