@@ -27,6 +27,7 @@ import Markdown from "../markdown";
 import CanvasPopup from "./canvas-popup";
 import CanvasTabs from "./canvas-tabs";
 import { activeTabKey, modeSwitch, type CanvasTab } from "@/lib/view/canvas-tabs";
+import { buildCanvasPatch } from "@/lib/view/canvas-pending";
 
 interface Viewport {
   tx: number;
@@ -477,32 +478,51 @@ export default function CanvasView({
   // commit rather than one per pixel.
   const AUTOSAVE_MS = 900;
 
+  // Live geometry of every card, so a ref that was only resized still knows
+  // where it sits.
+  const geometry = useMemo(() => {
+    const local: Record<string, Point> = {};
+    const size: Record<string, Size> = {};
+    for (const n of nodes) {
+      local[n.id] = { x: n.x, y: n.y };
+      size[n.id] = { w: n.w, h: n.h };
+    }
+    return { local, size };
+  }, [nodes]);
+
+  // Only what a request actually carried: a card moved while it was in flight
+  // must stay pending, not be wiped by the response.
+  const clearSent = useCallback((refs: string[]) => {
+    const sent = new Set(refs);
+    const keep = <T,>(cur: Record<string, T>) =>
+      Object.fromEntries(Object.entries(cur).filter(([ref]) => !sent.has(ref)));
+    setDirty(keep);
+    setDirtySize(keep);
+  }, []);
+
+  // A failed save used to leave the move pending for ever: pendingCount did not
+  // change, so the debounce effect never re-armed. Bumping this does.
+  const [retry, setRetry] = useState(0);
+
   const save = async () => {
     if (pendingCount === 0 || saving) return;
+    const patch = buildCanvasPatch(geometry.local, geometry.size, dirty, dirtySize);
+    if (!patch) return;
     setSaving(true);
     try {
-      // Position and size flush together: a ref whose size moved still has to
-      // carry its x/y, since the writer merges a whole node line.
-      const moves = pendingRefs.map((ref) => {
-        const n = nodes.find((x) => x.id === ref);
-        const p = dirty[ref] ?? { x: n?.x ?? 0, y: n?.y ?? 0 };
-        const size = dirtySize[ref];
-        return size ? { ref, x: p.x, y: p.y, w: size.w, h: size.h } : { ref, x: p.x, y: p.y };
-      });
       const res = await fetch("/api/canvas", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ surface, moves }),
+        body: JSON.stringify({ surface, moves: patch.moves }),
       });
-      if (!res.ok) return;
-      // Only what this request carried: a card moved while it was in flight
-      // must stay pending, not be wiped by the response.
-      const sent = new Set(pendingRefs);
-      const keep = <T,>(cur: Record<string, T>) =>
-        Object.fromEntries(Object.entries(cur).filter(([ref]) => !sent.has(ref)));
-      setDirty(keep);
-      setDirtySize(keep);
+      if (!res.ok) {
+        setRetry((n) => n + 1);
+        return;
+      }
+      clearSent(patch.moves.map((m) => m.ref));
       router.refresh();
+    } catch {
+      setRetry((n) => n + 1);
     } finally {
       setSaving(false);
     }
@@ -518,7 +538,54 @@ export default function CanvasView({
       void saveRef.current();
     }, AUTOSAVE_MS);
     return () => clearTimeout(timer);
-  }, [pendingCount, saving]);
+  }, [pendingCount, saving, retry]);
+
+  // The cleanup below runs after the component has gone, so it cannot read
+  // state: this ref mirrors it instead. Written on every render, deliberately.
+  const pendingRef = useRef({ surface, geometry, dirty, dirtySize });
+  useEffect(() => {
+    pendingRef.current = { surface, geometry, dirty, dirtySize };
+  });
+
+  // The canvas tabs and every card's OPEN are next/link, so a click inside the
+  // 900 ms debounce unmounted the view and the drag was never sent. keepalive
+  // is what lets the request outlive the page.
+  const flush = useCallback(() => {
+    const cur = pendingRef.current;
+    const patch = buildCanvasPatch(cur.geometry.local, cur.geometry.size, cur.dirty, cur.dirtySize);
+    if (!patch) return null;
+    const done = fetch("/api/canvas", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ surface: cur.surface, moves: patch.moves }),
+      keepalive: true,
+    })
+      .then((res) => res.ok)
+      .catch(() => false);
+    return { refs: patch.moves.map((m) => m.ref), done };
+  }, []);
+
+  useEffect(() => {
+    const onLeave = () => {
+      const sent = flush();
+      if (!sent) return;
+      // Clearing what landed is what stops the debounce sending it a second
+      // time when the page turns out not to have gone anywhere.
+      void sent.done.then((ok) => {
+        if (ok) clearSent(sent.refs);
+      });
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onLeave();
+    };
+    window.addEventListener("pagehide", onLeave);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", onLeave);
+      document.removeEventListener("visibilitychange", onVisibility);
+      flush();
+    };
+  }, [flush, clearSent]);
 
   const open = openId ? (nodes.find((n) => n.id === openId) ?? null) : null;
   const titleOf = (id: string) => nodes.find((n) => n.id === id)?.title ?? id;
