@@ -5,11 +5,13 @@ import type { CardModel, SubModel } from "../workspace";
 import { buildNoteCanvas, buildTaskCanvas, canvasNote, noteProgress,
   CORE_H,
   CORE_REF,
+  CORE_SIZE,
   CORE_W,
   buildCoreNode,
   componentTasks,
   coreMarkdown,
 } from "../canvas";
+import { cardTier } from "../canvas-card";
 
 function note(partial: Partial<KnowledgeNote> & { id: string }): KnowledgeNote {
   return {
@@ -495,6 +497,12 @@ describe("buildCoreNode", () => {
     const n = buildCoreNode(core, { nodes: [], edges: [], unknown: [] });
     expect(n).toMatchObject({ x: -CORE_W / 2, y: -CORE_H / 2, w: CORE_W, h: CORE_H });
     expect(n.placed).toBe("auto");
+  });
+
+  it("opens at CORE_SIZE, which is already big enough to render its body", () => {
+    const n = buildCoreNode(core, { nodes: [], edges: [], unknown: [] });
+    expect({ w: n.w, h: n.h }).toEqual(CORE_SIZE);
+    expect(cardTier(n.w, n.h, 1)).toBe("body");
   });
 
   it("prefers a stored position and size", () => {

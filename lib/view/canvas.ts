@@ -8,6 +8,7 @@ import { docHref, noteRefsIn } from "./doc";
 import { taskHrefFromScope } from "./task";
 import {
   CORE_REF,
+  CORE_SIZE,
   arrowHead,
   autoLayout,
   boundsOf,
@@ -121,9 +122,9 @@ export interface CanvasCore {
  * skipped by orphan detection — the same three properties that made group:
  * refs part of the grammar in the first place.
  */
-export { CORE_REF };
-export const CORE_W = 400;
-export const CORE_H = 280;
+export { CORE_REF, CORE_SIZE };
+export const CORE_W = CORE_SIZE.w;
+export const CORE_H = CORE_SIZE.h;
 
 function firstLine(text: string): string {
   for (const line of (text ?? "").split("\n")) {
@@ -157,8 +158,10 @@ export function coreMarkdown(why: string, mvpScope: string[]): string {
 
 export function buildCoreNode(core: CanvasCore, file: CanvasFile): CanvasNodeModel {
   const stored = file.nodes.find((n) => n.ref === CORE_REF);
-  const w = stored?.w ?? CORE_W;
-  const h = stored?.h ?? CORE_H;
+  // A saved size wins, exactly as a saved position does; without one the core
+  // opens at body tier, where the Why is readable rather than clipped.
+  const w = stored?.w ?? CORE_SIZE.w;
+  const h = stored?.h ?? CORE_SIZE.h;
   return {
     id: CORE_REF,
     title: core.title,
