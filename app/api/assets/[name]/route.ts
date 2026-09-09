@@ -1,4 +1,4 @@
-import { readAsset } from "@/lib/core/assets";
+import { assetExt, assetHeaders, readAsset } from "@/lib/core/assets";
 
 // fs is unavailable on the edge runtime, and the data directory is local.
 export const runtime = "nodejs";
@@ -25,6 +25,9 @@ export async function GET(
       "x-content-type-options": "nosniff",
       // Names are content-addressed, so the bytes behind one can never change.
       "cache-control": "private, max-age=31536000, immutable",
+      // An SVG is a document, so it gets a policy that forbids script even
+      // when the URL is opened directly. Every other type gets nothing extra.
+      ...assetHeaders(assetExt(name)),
     },
   });
 }

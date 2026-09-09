@@ -61,6 +61,9 @@ export function canvasPathFor(
 export function knowledgeDir() { return path.join(dataRoot(), "knowledge"); }
 export function knowledgeIndexPath() { return path.join(knowledgeDir(), "index.md"); }
 
+export function harnessDir() { return path.join(dataRoot(), "harness"); }
+export function harnessPath(slug: string) { return path.join(harnessDir(), `${slug}.md`); }
+
 export function assetsDir() {
   return path.join(dataRoot(), "assets");
 }

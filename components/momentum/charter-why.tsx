@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Markdown from "./markdown";
 import { Mono } from "./primitives";
+import { useImagePaste } from "./use-image-paste";
 
 /**
  * The charter's `## Why`, on the charter's own page.
@@ -29,6 +30,15 @@ export default function CharterWhy({
   const [value, setValue] = useState(why);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState(false);
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  /**
+   * The core card of a charter's map renders the Why as markdown, so a picture
+   * pasted here is how that card says what the words cannot. Same handling as
+   * a note body — one hook, one route, one markdown line.
+   */
+  const { onPaste, onDrop, onDragOver, uploading } = useImagePaste(ref, value, setValue, setError);
 
   const text = why.trim();
 
@@ -67,15 +77,42 @@ export default function CharterWhy({
       <section className="mb-4">
         <div className="mb-1.5 flex items-center gap-2.5">
           <Mono className="text-[9px] tracking-[0.12em] text-faint">WHY</Mono>
+          <button
+            type="button"
+            onClick={() => setPreview((p) => !p)}
+            className="font-mono text-[9px] tracking-[0.08em] text-faint transition-colors hover:text-ink"
+          >
+            {preview ? "EDIT" : "PREVIEW"}
+          </button>
+          {uploading && (
+            <Mono className="text-[9px] tracking-[0.08em] text-faint">ADDING THE IMAGE…</Mono>
+          )}
         </div>
-        <textarea
-          autoFocus
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          rows={6}
-          placeholder="What this is for, and why it is worth the time…"
-          className="w-full resize-y rounded-[13px] border border-edge bg-surf px-3.5 py-3 text-[13px] leading-[1.65] outline-none placeholder:text-faint"
-        />
+        {preview ? (
+          <div
+            className="rounded-2xl border border-edge bg-surf px-[18px] py-4"
+            style={{ borderLeft: `3px solid ${color}` }}
+          >
+            {value.trim() ? (
+              <Markdown className="text-[13px] leading-[1.65] text-ink">{value}</Markdown>
+            ) : (
+              <span className="text-[13px] text-faint">Nothing to preview yet.</span>
+            )}
+          </div>
+        ) : (
+          <textarea
+            ref={ref}
+            autoFocus
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onPaste={onPaste}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+            rows={6}
+            placeholder="What this is for, and why it is worth the time… Paste or drop an image to add one."
+            className="w-full resize-y rounded-[13px] border border-edge bg-surf px-3.5 py-3 text-[13px] leading-[1.65] outline-none placeholder:text-faint"
+          />
+        )}
         <div className="mt-2 flex items-center gap-2">
           <button
             type="button"
@@ -90,6 +127,7 @@ export default function CharterWhy({
             onClick={() => {
               setValue(why);
               setEditing(false);
+              setPreview(false);
               setError(null);
             }}
             className="rounded-lg border border-edge px-2.5 py-[5px] font-mono text-[9px] tracking-[0.08em] text-faint transition-colors hover:text-dim"

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { splitAiSection } from "@/lib/core/note-sections";
 import Dialog from "../dialog";
 import { Mono } from "../primitives";
+import { useImagePaste } from "../use-image-paste";
 
 export interface EditorValue {
   id?: string;
@@ -69,40 +70,23 @@ export default function NoteEditor({
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-
-  /**
-   * Paste or drop an image and it is copied into the data repo, then linked by
-   * its relative path — so the note keeps working in a plain markdown editor,
-   * on another machine, and after the original file is moved or deleted.
-   */
-  const addImage = async (files: FileList | File[] | null) => {
-    const image = [...(files ?? [])].find((f) => f.type.startsWith("image/"));
-    if (!image) return;
-    setUploading(true);
-    setError(null);
-    try {
-      const form = new FormData();
-      form.append("file", image);
-      const res = await fetch("/api/assets", { method: "POST", body: form });
-      const out = (await res.json().catch(() => ({}))) as { ref?: string; error?: string };
-      if (!res.ok || !out.ref) {
-        setError(out.error ?? "Could not add that image.");
-        return;
-      }
-      setValue((cur) => ({
-        ...cur,
-        body: `${cur.body}${cur.body.endsWith("\n") || cur.body === "" ? "" : "\n\n"}![](${out.ref})\n`,
-      }));
-    } catch {
-      setError("Could not reach the server.");
-    } finally {
-      setUploading(false);
-    }
-  };
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const editing = Boolean(initial.id);
 
   const set = (patch: Partial<EditorValue>) => setValue((v) => ({ ...v, ...patch }));
+
+  const setBody = useCallback(
+    (update: (current: string) => string) =>
+      setValue((v) => ({ ...v, body: update(v.body) })),
+    [],
+  );
+
+  const { onPaste, onDrop, onDragOver, uploading } = useImagePaste(
+    bodyRef,
+    value.body,
+    setBody,
+    setError,
+  );
 
   async function save() {
     if (!value.title.trim() || !value.summary.trim()) {
@@ -206,20 +190,13 @@ export default function NoteEditor({
           }
         >
           <textarea
+            ref={bodyRef}
             className={`${FIELD} min-h-[180px] resize-y font-sans leading-[1.6]`}
             value={value.body}
             onChange={(e) => set({ body: e.target.value })}
-            onPaste={(e) => {
-              if (e.clipboardData.files.length === 0) return;
-              e.preventDefault();
-              void addImage(e.clipboardData.files);
-            }}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              if (e.dataTransfer.files.length === 0) return;
-              e.preventDefault();
-              void addImage(e.dataTransfer.files);
-            }}
+            onPaste={onPaste}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
           />
         </Field>
 

@@ -27,6 +27,7 @@ import Markdown from "../markdown";
 import CanvasPopup from "./canvas-popup";
 import CanvasTabs from "./canvas-tabs";
 import { activeTabKey, modeSwitch, type CanvasTab } from "@/lib/view/canvas-tabs";
+import { buildCanvasPatch, withoutRefs } from "@/lib/view/canvas-pending";
 
 interface Viewport {
   tx: number;
@@ -477,31 +478,88 @@ export default function CanvasView({
   // commit rather than one per pixel.
   const AUTOSAVE_MS = 900;
 
+  // Live geometry of every card, so a ref that was only resized still knows
+  // where it sits.
+  const geometry = useMemo(() => {
+    const local: Record<string, Point> = {};
+    const size: Record<string, Size> = {};
+    for (const n of nodes) {
+      local[n.id] = { x: n.x, y: n.y };
+      size[n.id] = { w: n.w, h: n.h };
+    }
+    return { local, size };
+  }, [nodes]);
+
+  // Only what a request actually carried: a card moved while it was in flight
+  // must stay pending, not be wiped by the response.
+  const clearSent = useCallback((refs: string[]) => {
+    const sent = new Set(refs);
+    const keep = <T,>(cur: Record<string, T>) =>
+      Object.fromEntries(Object.entries(cur).filter(([ref]) => !sent.has(ref)));
+    setDirty(keep);
+    setDirtySize(keep);
+  }, []);
+
+  // A failed save used to leave the move pending for ever: pendingCount did not
+  // change, so the debounce effect never re-armed. Bumping this does.
+  const [retry, setRetry] = useState(0);
+
+  // The listeners below outlive the render that registered them, and the
+  // unmount cleanup runs when there is no state left to read: this ref mirrors
+  // it instead. Written on every render, deliberately.
+  const pendingRef = useRef({ surface, geometry, dirty, dirtySize });
+  useEffect(() => {
+    pendingRef.current = { surface, geometry, dirty, dirtySize };
+  });
+
+  // Which refs are already on the wire. A pending map is only cleared once a
+  // request resolves, so without this a pagehide flush and the unmount that
+  // follows it rebuild the identical patch and PATCH the same move twice.
+  const inFlight = useRef<Set<string>>(new Set());
+
+  /**
+   * The one place a patch is sent. Refs already in flight are subtracted first,
+   * and marked before the fetch starts; a failure unmarks them, which leaves
+   * them in the pending maps -- they were never cleared -- so the debounce
+   * picks them up again.
+   */
+  const sendPending = useCallback((keepalive: boolean) => {
+    const cur = pendingRef.current;
+    const patch = buildCanvasPatch(
+      cur.geometry.local,
+      cur.geometry.size,
+      withoutRefs(cur.dirty, inFlight.current),
+      withoutRefs(cur.dirtySize, inFlight.current),
+    );
+    if (!patch) return null;
+    const refs = patch.moves.map((m) => m.ref);
+    for (const ref of refs) inFlight.current.add(ref);
+    const done = fetch("/api/canvas", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ surface: cur.surface, moves: patch.moves }),
+      keepalive,
+    })
+      .then((res) => res.ok)
+      .catch(() => false)
+      .then((ok) => {
+        for (const ref of refs) inFlight.current.delete(ref);
+        return ok;
+      });
+    return { refs, done };
+  }, []);
+
   const save = async () => {
-    if (pendingCount === 0 || saving) return;
+    if (saving) return;
+    const sent = sendPending(false);
+    if (!sent) return;
     setSaving(true);
     try {
-      // Position and size flush together: a ref whose size moved still has to
-      // carry its x/y, since the writer merges a whole node line.
-      const moves = pendingRefs.map((ref) => {
-        const n = nodes.find((x) => x.id === ref);
-        const p = dirty[ref] ?? { x: n?.x ?? 0, y: n?.y ?? 0 };
-        const size = dirtySize[ref];
-        return size ? { ref, x: p.x, y: p.y, w: size.w, h: size.h } : { ref, x: p.x, y: p.y };
-      });
-      const res = await fetch("/api/canvas", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ surface, moves }),
-      });
-      if (!res.ok) return;
-      // Only what this request carried: a card moved while it was in flight
-      // must stay pending, not be wiped by the response.
-      const sent = new Set(pendingRefs);
-      const keep = <T,>(cur: Record<string, T>) =>
-        Object.fromEntries(Object.entries(cur).filter(([ref]) => !sent.has(ref)));
-      setDirty(keep);
-      setDirtySize(keep);
+      if (!(await sent.done)) {
+        setRetry((n) => n + 1);
+        return;
+      }
+      clearSent(sent.refs);
       router.refresh();
     } finally {
       setSaving(false);
@@ -518,7 +576,32 @@ export default function CanvasView({
       void saveRef.current();
     }, AUTOSAVE_MS);
     return () => clearTimeout(timer);
-  }, [pendingCount, saving]);
+  }, [pendingCount, saving, retry]);
+
+  // The canvas tabs and every card's OPEN are next/link, so a click inside the
+  // 900 ms debounce unmounted the view and the drag was never sent. keepalive
+  // is what lets the request outlive the page.
+  useEffect(() => {
+    const onLeave = () => {
+      const sent = sendPending(true);
+      if (!sent) return;
+      // Clearing what landed is what stops the debounce sending it a second
+      // time when the page turns out not to have gone anywhere.
+      void sent.done.then((ok) => {
+        if (ok) clearSent(sent.refs);
+      });
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onLeave();
+    };
+    window.addEventListener("pagehide", onLeave);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", onLeave);
+      document.removeEventListener("visibilitychange", onVisibility);
+      sendPending(true);
+    };
+  }, [sendPending, clearSent]);
 
   const open = openId ? (nodes.find((n) => n.id === openId) ?? null) : null;
   const titleOf = (id: string) => nodes.find((n) => n.id === id)?.title ?? id;
